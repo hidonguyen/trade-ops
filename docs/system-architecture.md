@@ -1,0 +1,490 @@
+# System Architecture – Trade Ops
+## Technical Design & Data Model
+
+**Status:** Design Phase
+**Last Updated:** 2026-04-02
+**Version:** 1.0
+
+---
+
+## Architecture Overview
+
+Trade Ops follows a fullstack Next.js monolithic architecture with clear separation:
+- **Frontend** – React components, TypeScript, Tailwind CSS + shadcn/ui
+- **API Layer** – Next.js Route Handlers (app/api/*), RESTful JSON
+- **Business Logic** – Service layer (lib/) with Prisma ORM, zod validation, audit logging
+- **Database** – PostgreSQL with Prisma 5.10+
+- **Auth** – NextAuth.js v5 with JWT sessions and role-based access control
+
+```
+┌─────────────────────────────────────────────┐
+│   Browser / Client (React + Tailwind)       │
+└─────────────────┬───────────────────────────┘
+                  │ HTTP/JSON
+┌─────────────────▼───────────────────────────┐
+│  Next.js App Router                         │
+│  ├─ /app/(auth) – Login page                │
+│  ├─ /app/(dashboard) – Protected routes     │
+│  └─ /app/api – Route Handlers               │
+└─────────────────┬───────────────────────────┘
+                  │ TypeScript
+┌─────────────────▼───────────────────────────┐
+│  Service Layer (/lib)                       │
+│  ├─ auth.ts – NextAuth config               │
+│  ├─ prisma.ts – PrismaClient singleton      │
+│  ├─ api-helpers.ts – withAuth, checkAccess  │
+│  ├─ audit.ts – AuditLog creation            │
+│  └─ excel.ts – Excel export                 │
+└─────────────────┬───────────────────────────┘
+                  │ ORM
+┌─────────────────▼───────────────────────────┐
+│  PostgreSQL Database                        │
+│  ├─ Users, Roles                            │
+│  ├─ Orders, Transactions                    │
+│  ├─ Deposits, Parties                       │
+│  └─ AuditLogs                               │
+└─────────────────────────────────────────────┘
+```
+
+---
+
+## Tech Stack
+
+| Layer | Technology | Version |
+|-------|-----------|---------|
+| **Framework** | Next.js | 14+ (App Router) |
+| **Language** | TypeScript | Latest |
+| **Database** | PostgreSQL | 14+ |
+| **ORM** | Prisma | 5.10+ |
+| **Auth** | NextAuth.js | v5 |
+| **UI Framework** | React | 18+ |
+| **Styling** | Tailwind CSS | Latest |
+| **Components** | shadcn/ui | Latest |
+| **Validation** | zod | Latest |
+| **Money Math** | Decimal.js | Latest |
+| **Excel Export** | exceljs | Latest |
+| **Charts** | recharts | Latest |
+| **Password Hashing** | bcrypt | (via NextAuth) |
+
+---
+
+## Data Model Overview
+
+### Core Entities & Relationships
+
+```
+User (1) ──────────────────────── (M) UserRoleAssignment ──(M) Role
+ │
+ └─────────────────────────────── (M) AuditLog
+
+BusinessUnit (1) ──(M) Currency
+              └─(M) ExpenseType
+              └─(M) Party
+              └─(M) Order
+              └─(M) Transaction
+              └─(M) Deposit
+
+Party (1) ──────────(M) Order
+       └─────────────(M) Deposit
+
+Order (1) ──────────(M) Transaction
+       └─────────────(M) DepositUsage
+
+Deposit (1) ─────────(M) DepositUsage
+        └────────────(M) Transaction
+```
+
+### User & Access Control
+
+**User**
+- `id: String @id @default(uuid(7))` – Unique identifier
+- `email: String @unique` – Login credential
+- `name: String` – Display name
+- `passwordHash: String` – Hashed via bcrypt
+- `isActive: Boolean @default(true)` – Soft delete
+- `createdAt, updatedAt: DateTime` – Timestamps
+- Relation: `roles: UserRoleAssignment[]`
+
+**UserRoleAssignment**
+- `id: String @id @default(uuid(7))`
+- `userId: String` – Foreign key to User
+- `role: String` – Enum: ADMIN, ACCOUNTANT_SALE, ACCOUNTANT_PURCHASE, ACCOUNTANT_CASHFLOW, VIEWER
+- `assignedAt, assignedBy: DateTime, String` – Audit fields
+- Unique constraint: `(userId, role)`
+
+**AuditLog**
+- `id: String @id @default(uuid(7))`
+- `userId: String` – Who performed action
+- `action: String` – Enum: CREATE, UPDATE, DELETE
+- `model: String` – Entity name (e.g., "Order", "Transaction")
+- `recordId: String` – PK of modified record
+- `changes: Json` – `{ before?: {}, after?: {} }` for UPDATE
+- `timestamp: DateTime @default(now())`
+- Index: `(recordId, model)`, `(userId, timestamp)`
+
+### Business Configuration
+
+**BusinessUnit**
+- `id: String @id @default(uuid(7))`
+- `code: String @unique` – TK, NT, etc. (2-3 chars)
+- `name: String` – Full name
+- `isActive: Boolean @default(true)`
+
+**Currency**
+- `id: String @id @default(uuid(7))`
+- `code: String @unique` – VND, USD, RMB (3 chars, ISO 4217)
+- `name: String`
+- `symbol: String` – ₫, $, ¥
+- `isActive: Boolean @default(true)`
+
+**ExpenseType**
+- `id: String @id @default(uuid(7))`
+- `name: String` – Utilities, Salary, Rent, etc.
+- `isActive: Boolean @default(true)`
+
+### Party Management
+
+**Party (CUSTOMER or SUPPLIER)**
+- `id: String @id @default(uuid(7))`
+- `businessUnitId: String` – FK to BusinessUnit (scope data by unit)
+- `name: String`
+- `type: String` – Enum: CUSTOMER, SUPPLIER, BOTH
+- `address, phone, email: String` – Contact info
+- `taxId: String` – Optional tax ID
+- `isActive: Boolean @default(true)`
+- Relations: `orders[]`, `deposits[]`
+
+**Deposit**
+- `id: String @id @default(uuid(7))`
+- `partyId: String` – FK to Party (customer prepayment or supplier advance)
+- `businessUnitId: String` – FK to BusinessUnit
+- `currencyId: String` – FK to Currency
+- `amountOriginal: Decimal @db.Decimal(18, 4)` – Deposit amount in original currency
+- `remainingOriginal: Decimal @db.Decimal(18, 4)` – Remaining balance
+- `createdAt, updatedAt: DateTime`
+- Relations: `usages: DepositUsage[]`, `transactions: Transaction[]`
+
+**DepositUsage**
+- `id: String @id @default(uuid(7))`
+- `depositId, transactionId: String` – FKs (atomic pair)
+- `amountOriginal: Decimal @db.Decimal(18, 4)` – Amount deducted from deposit
+- `createdAt: DateTime`
+- Index: `(depositId)`, `(transactionId, depositId)` for fast audit
+
+### Orders & Transactions
+
+**Order (SALE or PURCHASE)**
+- `id: String @id @default(uuid(7))`
+- `businessUnitId, partyId: String` – FKs
+- `type: String` – Enum: SALE, PURCHASE
+- `status: String` – Enum: UNPAID, PARTIAL_PAID, PAID, PARTIAL_REFUNDED, REFUNDED
+- `amountOriginal: Decimal @db.Decimal(18, 4)`
+- `currencyId: String` – FK to Currency
+- `orderDate: DateTime`
+- `notes: String` – Optional
+- `paidAmount: Decimal @db.Decimal(18, 4)` – Calculated; sum of transactions
+- `refundedAmount: Decimal @db.Decimal(18, 4)` – Calculated; sum of refunds
+- `createdAt, updatedAt, createdBy: DateTime, String` – Audit
+- Relations: `transactions: Transaction[]`
+
+**Transaction (payment, receipt, or payment)**
+- `id: String @id @default(uuid(7))`
+- `orderId: String` – FK (nullable; for standalone RECEIPT/PAYMENT)
+- `businessUnitId: String` – FK (used if orderId is null for cashflow query)
+- `type: String` – Enum: SALE_PAYMENT, PURCHASE_PAYMENT, RECEIPT, PAYMENT
+- `paymentMethod: String` – Enum: BANK, DEPOSIT
+- `paymentType: String` – Enum: PAYMENT, REFUND
+- `amountOriginal: Decimal @db.Decimal(18, 4)` – Amount in original currency
+- `currencyId: String` – FK to Currency
+- `amountVnd: Decimal @db.Decimal(18, 4)` – Amount in VND (received from client, never computed)
+- `exchangeRate: Decimal @db.Decimal(18, 8)` – Rate used by client (informational only)
+- `bankReference: String` – Bank tx ID or memo
+- `transactionDate: DateTime`
+- `notes: String`
+- `createdAt, createdBy: DateTime, String`
+- Relations: `order?: Order`, `deposits: DepositUsage[]`
+- Indexes: `(orderId, type)`, `(businessUnitId, type, transactionDate)`
+
+---
+
+## API Route Structure
+
+All routes follow RESTful JSON pattern: `{ success: boolean, data?: T, message?: string, errors?: Record<string, string[]> }`
+
+```
+/api
+├── /auth/[...nextauth]           # NextAuth.js callbacks
+├── /business-units               # GET (list), POST (create)
+│   └── /[id]                     # PATCH (update), DELETE
+├── /currencies                   # GET (list), POST (create)
+│   └── /[id]                     # PATCH, DELETE
+├── /expense-types                # GET, POST, /[id]: PATCH, DELETE
+├── /parties                       # GET (list), POST (create customer/supplier)
+│   └── /[id]                     # PATCH (edit), DELETE, GET (detail)
+│       └── /deposits             # POST (create deposit)
+├── /deposits                      # GET (list), detailed balance view
+│   └── /[id]                     # PATCH, DELETE
+├── /orders                        # GET (sales + purchases), POST (create)
+│   └── /[id]                     # PATCH (edit), GET (detail with summary)
+│       ├── /status               # GET (current status)
+│       ├── /transactions         # GET (linked txns)
+│       │   └── /[txId]           # POST (create), PATCH, DELETE
+│       └── /report               # GET (order summary: paid, refunded, due)
+├── /transactions                  # GET (standalone only), POST (create receipt/payment)
+│   └── /[id]                     # PATCH (edit), DELETE
+├── /cashflow-report              # GET (?businessUnitId, dateFrom, dateTo, currency)
+├── /reports/summary              # GET (sales/purchase/receivable/payable summaries)
+│   └── /[type]                   # GET specific report
+├── /reports/dashboard            # GET (KPI cards)
+├── /users                         # GET (list), POST (create)
+│   └── /[id]                     # PATCH (assign roles), DELETE (deactivate)
+└── /audit-logs                    # GET (list with filters), no write ops
+```
+
+---
+
+## Authentication & Authorization Flow
+
+### 1. Login
+```
+POST /api/auth/callback/credentials
+├─ email, password
+├─ bcrypt.compare(password, user.passwordHash)
+├─ Create JWT session (NextAuth v5)
+└─ Set httpOnly cookie
+```
+
+### 2. Protected Request
+```
+GET /api/orders
+├─ Middleware reads JWT from cookie
+├─ Extract user.id, roles
+├─ withAuth() middleware verifies token
+├─ checkAccess() evaluates RBAC rules
+├─ If denied → 403 Forbidden
+└─ If allowed → proceed to handler
+```
+
+### 3. RBAC Decision Logic
+```
+checkAccess(user, action, module) → boolean
+├─ If user has ADMIN role → true (override)
+├─ For each role in user.roles:
+│   ├─ Check permission matrix[role][module][action]
+│   ├─ FULL > GET_ONLY > DENY
+│   └─ Return true if any role grants access
+└─ Default deny
+```
+
+---
+
+## Key Business Logic Patterns
+
+### Pattern 1: Order Status Auto-Recalculation
+
+**Trigger:** After any Transaction add/edit/delete
+
+**Logic:**
+```typescript
+async function recalculateOrderStatus(orderId: string) {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: { transactions: true }
+  });
+  
+  const paidAmount = order.transactions
+    .filter(t => t.paymentType === 'PAYMENT')
+    .reduce((sum, t) => sum.plus(t.amountOriginal), new Decimal(0));
+  
+  const refundedAmount = order.transactions
+    .filter(t => t.paymentType === 'REFUND')
+    .reduce((sum, t) => sum.plus(t.amountOriginal), new Decimal(0));
+  
+  const netPaid = paidAmount.minus(refundedAmount);
+  
+  let status = 'UNPAID';
+  if (netPaid.greaterThan(0) && netPaid.lessThan(order.amountOriginal)) {
+    status = 'PARTIAL_PAID';
+  } else if (netPaid.greaterThanOrEqualTo(order.amountOriginal)) {
+    status = 'PAID';
+  }
+  // Handle refunds...
+  
+  await prisma.order.update({
+    where: { id: orderId },
+    data: { status, paidAmount, refundedAmount }
+  });
+}
+```
+
+### Pattern 2: Atomic Deposit Deduction
+
+**Trigger:** Create Transaction with paymentMethod === 'DEPOSIT'
+
+**Logic:**
+```typescript
+await prisma.$transaction(async (tx) => {
+  // 1. Create transaction
+  const transaction = await tx.transaction.create({
+    data: { /* ... */ }
+  });
+  
+  // 2. Decrement deposit
+  const deposit = await tx.deposit.update({
+    where: { id: depositId },
+    data: {
+      remainingOriginal: {
+        decrement: amountOriginal
+      }
+    }
+  });
+  
+  // 3. Create audit entry
+  await tx.depositUsage.create({
+    data: {
+      depositId,
+      transactionId: transaction.id,
+      amountOriginal
+    }
+  });
+  
+  return { transaction, deposit };
+});
+```
+
+### Pattern 3: Cashflow Report Query
+
+**Query:** All money in/out for period, grouped by currency
+
+**Logic:**
+```typescript
+// Get all transactions:
+// - RECEIPT + PAYMENT (direct on businessUnitId)
+// - SALE_PAYMENT + PURCHASE_PAYMENT (via order.businessUnitId)
+
+const transactions = await prisma.transaction.findMany({
+  where: {
+    transactionDate: { gte: dateFrom, lte: dateTo },
+    OR: [
+      { businessUnitId },
+      { order: { businessUnitId } }
+    ]
+  },
+  include: { currency: true, order: true }
+});
+
+// Group by currency, sum RECEIPT vs PAYMENT
+```
+
+---
+
+## Decimal.js Money Handling
+
+**Rule:** Never use `number` or `float` for monetary values.
+
+**Frontend:**
+```typescript
+// Client computes VND equivalent
+const amountVnd = new Decimal(amountOriginal)
+  .times(exchangeRate)
+  .toDecimalPlaces(4);
+
+// Send both to API
+const payload = {
+  amountOriginal: new Decimal('1000.00').toString(), // string
+  amountVnd: amountVnd.toString(),
+  exchangeRate: rate.toString()
+};
+```
+
+**Backend:**
+```typescript
+import Decimal from 'decimal.js';
+
+// Receive as string, parse to Decimal
+const amount = new Decimal(payload.amountOriginal);
+
+// Never compute rate; store as-is from client
+const stored = {
+  amountOriginal: amount,
+  amountVnd: new Decimal(payload.amountVnd),
+  exchangeRate: new Decimal(payload.exchangeRate)
+};
+
+// Arithmetic
+const sum = amount1.plus(amount2);
+const diff = amount1.minus(amount2);
+const rate = amountVnd.dividedBy(amountOriginal);
+```
+
+---
+
+## Error Handling & API Responses
+
+### Success Response
+```json
+{
+  "success": true,
+  "data": { /* entity or list */ }
+}
+```
+
+### Validation Error
+```json
+{
+  "success": false,
+  "message": "Validation failed",
+  "errors": {
+    "email": ["Invalid email format"],
+    "amount": ["Must be greater than 0"]
+  }
+}
+```
+
+### Authorization Error (403)
+```json
+{
+  "success": false,
+  "message": "Access denied"
+}
+```
+
+### Server Error (500)
+```json
+{
+  "success": false,
+  "message": "Internal server error"
+}
+```
+
+---
+
+## Scaling Considerations
+
+1. **Database Indexing** – All foreign keys, `transactionDate`, `status` columns indexed
+2. **Pagination** – Standard `?page=1&limit=50&sortBy=createdAt&order=desc`
+3. **Caching** – Dashboard KPIs cached 5 minutes (user-specific)
+4. **Query Optimization** – Use `select` and `include` judiciously; avoid N+1
+5. **Connection Pooling** – PgBouncer (3–5 connections per user type)
+
+---
+
+## Security Measures
+
+1. **HTTPS** – Enforced in production
+2. **CORS** – Same-origin only (no wildcards)
+3. **CSRF** – NextAuth handles via token validation
+4. **XSS** – React auto-escapes; CSP headers in production
+5. **SQL Injection** – Prisma parameterized queries
+6. **Password** – bcrypt hashing, never stored in plain text
+7. **JWT Expiry** – 30-day sessions with refresh handling
+8. **Rate Limiting** – Configure per API (e.g., 100 req/min per IP)
+
+---
+
+## Related Documentation
+
+- `/docs/code-standards.md` – Implementation patterns
+- `/docs/project-overview-pdr.md` – Functional requirements
+- `/docs/deployment-guide.md` – Database setup, env vars
+

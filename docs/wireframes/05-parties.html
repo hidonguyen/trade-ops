@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trade Ops — Đối tác</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { font-family: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif; }
+  .font-mono-num { font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; }
+  :root { --sidebar-w: 240px; --header-h: 56px; }
+  body { background: #F8FAFC; }
+  .sidebar { width: var(--sidebar-w); background: #0F172A; }
+  .nav-group-label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #64748B; padding: 0 12px; margin-bottom: 4px; margin-top: 16px; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 8px; font-size: 14px; color: #94A3B8; cursor: pointer; transition: all 150ms; text-decoration: none; }
+  .nav-item:hover { background: rgba(255,255,255,0.07); color: #E2E8F0; }
+  .nav-item.active { background: #1E3A8A; color: #FFFFFF; font-weight: 500; }
+  .header { height: var(--header-h); background: #FFFFFF; border-bottom: 1px solid #E2E8F0; }
+  .badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 9999px; font-size: 12px; font-weight: 500; }
+  .badge-customer { background: #DBEAFE; color: #1E3A8A; }
+  .badge-supplier { background: #FFEDD5; color: #9A3412; }
+  .badge-both { background: #F3E8FF; color: #6B21A8; }
+  .tab { padding: 8px 16px; font-size: 14px; font-weight: 500; color: #64748B; border-bottom: 2px solid transparent; cursor: pointer; transition: all 150ms; }
+  .tab:hover { color: #1E3A8A; }
+  .tab.active { color: #1E3A8A; border-bottom-color: #1E3A8A; }
+  ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+</style>
+</head>
+<body class="flex flex-col h-screen overflow-hidden">
+
+<!-- HEADER -->
+<header class="header flex items-center justify-between px-6 flex-shrink-0 z-10">
+  <div class="flex items-center gap-4">
+    <div class="flex items-center gap-2">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="7" fill="#1E3A8A"/><path d="M7 10h14M7 14h10M7 18h7" stroke="white" stroke-width="2" stroke-linecap="round"/><circle cx="21" cy="18" r="4" fill="#F59E0B"/><path d="M21 16v4M19 18h4" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg>
+      <span class="text-base text-slate-900" style="font-weight:700;letter-spacing:-0.3px;">Trade Ops</span>
+    </div>
+    <div class="w-px h-5 bg-slate-200"></div>
+    <select class="appearance-none bg-blue-50 text-blue-800 text-sm font-medium pl-3 pr-7 py-1 rounded-full border border-blue-200 cursor-pointer focus:outline-none">
+      <option>TK — Thương mại</option><option>NT — Nội thất</option>
+    </select>
+  </div>
+  <div class="flex items-center gap-2 pl-3 border-l border-slate-200">
+    <div class="w-8 h-8 rounded-full bg-blue-800 flex items-center justify-center text-white text-xs font-semibold">NT</div>
+    <div><div class="text-sm font-medium text-slate-800">Nguyễn Thị Lan</div><div class="text-xs text-slate-400">ADMIN</div></div>
+  </div>
+</header>
+
+<div class="flex flex-1 overflow-hidden">
+  <!-- SIDEBAR -->
+  <aside class="sidebar flex-shrink-0 overflow-y-auto py-4 px-3">
+    <div class="nav-group-label">Bán hàng</div>
+    <a class="nav-item" href="#"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 3H8a2 2 0 0 0-2 2v2h12V5a2 2 0 0 0-2-2z"/></svg>Dashboard</a>
+    <a class="nav-item" href="#"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Đơn bán</a>
+    <a class="nav-item active" href="#"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Khách hàng</a>
+    <div class="nav-group-label">Mua hàng</div>
+    <a class="nav-item" href="#"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>Đơn mua</a>
+    <a class="nav-item" href="#"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Nhà cung cấp</a>
+    <div class="nav-group-label">Thu Chi</div>
+    <a class="nav-item" href="#"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Giao dịch</a>
+    <a class="nav-item" href="#"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Dòng tiền</a>
+    <div class="nav-group-label">Báo cáo</div>
+    <a class="nav-item" href="#"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>Tổng hợp</a>
+    <div class="nav-group-label">Cài đặt</div>
+    <a class="nav-item" href="#"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93l-1.41 1.41M4.93 4.93l1.41 1.41M4.93 19.07l1.41-1.41M19.07 19.07l-1.41-1.41M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>Cấu hình</a>
+    <div class="mt-6 pt-4 border-t border-slate-800 px-3"><span class="text-xs text-slate-600">v1.0.0 · TK</span></div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="flex-1 overflow-y-auto px-8 py-6">
+
+    <!-- Page heading -->
+    <div class="flex items-center justify-between mb-5">
+      <div>
+        <h1 class="text-xl text-slate-900" style="font-weight:700;">Đối tác</h1>
+        <p class="text-sm text-slate-500 mt-0.5">Quản lý khách hàng và nhà cung cấp</p>
+      </div>
+      <button class="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-800 text-white text-sm font-medium hover:bg-blue-900 transition-colors">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Thêm đối tác
+      </button>
+    </div>
+
+    <!-- Tabs: Khách hàng / Nhà cung cấp / Tất cả -->
+    <div class="flex border-b border-slate-200 mb-5">
+      <div class="tab active">Khách hàng</div>
+      <div class="tab">Nhà cung cấp</div>
+      <div class="tab">Tất cả</div>
+    </div>
+
+    <!-- Filter bar -->
+    <div class="flex flex-wrap items-center gap-3 mb-4">
+      <input type="text" placeholder="Tìm mã, tên, SĐT..." class="w-64 px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400">
+      <select class="px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white text-slate-600">
+        <option>Loại: Tất cả</option><option>CUSTOMER</option><option>SUPPLIER</option><option>BOTH</option>
+      </select>
+      <span class="text-sm text-slate-400 ml-auto">Tổng: 24 đối tác</span>
+    </div>
+
+    <!-- Table -->
+    <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="bg-slate-50 border-b border-slate-200">
+            <th class="text-left px-4 py-3 font-semibold text-slate-600">Mã</th>
+            <th class="text-left px-4 py-3 font-semibold text-slate-600">Tên đối tác</th>
+            <th class="text-left px-4 py-3 font-semibold text-slate-600">Loại</th>
+            <th class="text-left px-4 py-3 font-semibold text-slate-600">SĐT</th>
+            <th class="text-left px-4 py-3 font-semibold text-slate-600">Email</th>
+            <th class="text-left px-4 py-3 font-semibold text-slate-600">Mã số thuế</th>
+            <th class="text-right px-4 py-3 font-semibold text-slate-600">Cọc còn lại</th>
+            <th class="text-center px-4 py-3 font-semibold text-slate-600">Đơn hàng</th>
+            <th class="px-4 py-3"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer">
+            <td class="px-4 py-3 font-medium text-blue-800">KH-001</td>
+            <td class="px-4 py-3 text-slate-900 font-medium">Công ty TNHH Thành Đạt</td>
+            <td class="px-4 py-3"><span class="badge badge-customer">Khách hàng</span></td>
+            <td class="px-4 py-3 text-slate-600">0912 345 678</td>
+            <td class="px-4 py-3 text-slate-600">thanhdat@email.com</td>
+            <td class="px-4 py-3 font-mono-num text-slate-500">0301234567</td>
+            <td class="px-4 py-3 text-right font-mono-num text-slate-900 font-medium">$3,200.00</td>
+            <td class="px-4 py-3 text-center"><span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-50 text-blue-800 text-xs font-semibold">12</span></td>
+            <td class="px-4 py-3 text-right">
+              <button class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+            </td>
+          </tr>
+          <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer">
+            <td class="px-4 py-3 font-medium text-blue-800">KH-002</td>
+            <td class="px-4 py-3 text-slate-900 font-medium">Cửa hàng Minh Phát</td>
+            <td class="px-4 py-3"><span class="badge badge-customer">Khách hàng</span></td>
+            <td class="px-4 py-3 text-slate-600">0987 654 321</td>
+            <td class="px-4 py-3 text-slate-600">minhphat@email.com</td>
+            <td class="px-4 py-3 font-mono-num text-slate-500">0309876543</td>
+            <td class="px-4 py-3 text-right font-mono-num text-slate-900 font-medium">80.000.000 ₫</td>
+            <td class="px-4 py-3 text-center"><span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-50 text-blue-800 text-xs font-semibold">8</span></td>
+            <td class="px-4 py-3 text-right"><button class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button></td>
+          </tr>
+          <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer">
+            <td class="px-4 py-3 font-medium text-blue-800">NCC-003</td>
+            <td class="px-4 py-3 text-slate-900 font-medium">Guangzhou Trading Co., Ltd</td>
+            <td class="px-4 py-3"><span class="badge badge-supplier">Nhà cung cấp</span></td>
+            <td class="px-4 py-3 text-slate-600">+86 139 2222 3333</td>
+            <td class="px-4 py-3 text-slate-600">gz-trading@email.cn</td>
+            <td class="px-4 py-3 font-mono-num text-slate-500">—</td>
+            <td class="px-4 py-3 text-right font-mono-num text-slate-900 font-medium">¥28,500.00</td>
+            <td class="px-4 py-3 text-center"><span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-50 text-blue-800 text-xs font-semibold">5</span></td>
+            <td class="px-4 py-3 text-right"><button class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button></td>
+          </tr>
+          <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer">
+            <td class="px-4 py-3 font-medium text-blue-800">DT-004</td>
+            <td class="px-4 py-3 text-slate-900 font-medium">Công ty CP Phú Quý</td>
+            <td class="px-4 py-3"><span class="badge badge-both">Cả hai</span></td>
+            <td class="px-4 py-3 text-slate-600">0908 111 222</td>
+            <td class="px-4 py-3 text-slate-600">phuquy@email.vn</td>
+            <td class="px-4 py-3 font-mono-num text-slate-500">0305556789</td>
+            <td class="px-4 py-3 text-right font-mono-num text-slate-900 font-medium">50.000.000 ₫</td>
+            <td class="px-4 py-3 text-center"><span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-50 text-blue-800 text-xs font-semibold">3</span></td>
+            <td class="px-4 py-3 text-right"><button class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button></td>
+          </tr>
+          <tr class="hover:bg-slate-50 transition-colors cursor-pointer">
+            <td class="px-4 py-3 font-medium text-blue-800">KH-005</td>
+            <td class="px-4 py-3 text-slate-900 font-medium">Đại lý Hùng Vương</td>
+            <td class="px-4 py-3"><span class="badge badge-customer">Khách hàng</span></td>
+            <td class="px-4 py-3 text-slate-600">0933 444 555</td>
+            <td class="px-4 py-3 text-slate-600">hungvuong@email.vn</td>
+            <td class="px-4 py-3 font-mono-num text-slate-500">0307778899</td>
+            <td class="px-4 py-3 text-right font-mono-num text-slate-400">—</td>
+            <td class="px-4 py-3 text-center"><span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-50 text-blue-800 text-xs font-semibold">1</span></td>
+            <td class="px-4 py-3 text-right"><button class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    <div class="flex items-center justify-between mt-4 text-sm text-slate-500">
+      <span>Hiển thị 1–5 / 24</span>
+      <div class="flex items-center gap-1">
+        <button class="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-400">Trước</button>
+        <button class="px-3 py-1.5 rounded-lg bg-blue-800 text-white font-medium">1</button>
+        <button class="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50">2</button>
+        <button class="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50">3</button>
+        <button class="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50">Sau</button>
+      </div>
+    </div>
+
+    <!-- ============================================= -->
+    <!-- DETAIL PANEL (slide-over / expanded view)     -->
+    <!-- ============================================= -->
+    <div class="mt-8 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-full bg-blue-800 flex items-center justify-center text-white font-semibold text-sm">TĐ</div>
+          <div>
+            <h2 class="text-base font-semibold text-slate-900">Công ty TNHH Thành Đạt</h2>
+            <div class="flex items-center gap-2 mt-0.5">
+              <span class="badge badge-customer">Khách hàng</span>
+              <span class="text-xs text-slate-400">KH-001</span>
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button class="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm text-slate-600 hover:bg-slate-50">Sửa</button>
+          <button class="px-3 py-1.5 rounded-lg border border-red-200 bg-white text-sm text-red-600 hover:bg-red-50">Xóa</button>
+        </div>
+      </div>
+
+      <!-- Info grid -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 px-6 py-5 border-b border-slate-100">
+        <div><span class="text-xs text-slate-400 block mb-1">Điện thoại</span><span class="text-sm text-slate-800">0912 345 678</span></div>
+        <div><span class="text-xs text-slate-400 block mb-1">Email</span><span class="text-sm text-slate-800">thanhdat@email.com</span></div>
+        <div><span class="text-xs text-slate-400 block mb-1">Mã số thuế</span><span class="text-sm font-mono-num text-slate-800">0301234567</span></div>
+        <div><span class="text-xs text-slate-400 block mb-1">Địa chỉ</span><span class="text-sm text-slate-800">123 Nguyễn Huệ, Q.1, TP.HCM</span></div>
+      </div>
+
+      <!-- Summary cards -->
+      <div class="grid grid-cols-3 gap-4 px-6 py-4 border-b border-slate-100">
+        <div class="bg-blue-50 rounded-lg p-4">
+          <span class="text-xs text-blue-600 font-medium">Tổng đơn hàng</span>
+          <div class="text-xl font-semibold text-blue-900 mt-1">12</div>
+        </div>
+        <div class="bg-green-50 rounded-lg p-4">
+          <span class="text-xs text-green-600 font-medium">Tổng cọc còn lại</span>
+          <div class="font-mono-num text-xl font-semibold text-green-900 mt-1">150.000.000</div>
+          <div class="text-xs text-green-600 mt-0.5">VND</div>
+        </div>
+        <div class="bg-amber-50 rounded-lg p-4">
+          <span class="text-xs text-amber-600 font-medium">Công nợ phải thu</span>
+          <div class="font-mono-num text-xl font-semibold text-amber-900 mt-1">320.500.000</div>
+          <div class="text-xs text-amber-600 mt-0.5">VND</div>
+        </div>
+      </div>
+
+      <!-- Tabs: Đơn hàng / Lịch sử đặt cọc -->
+      <div class="px-6 pt-3 flex border-b border-slate-200">
+        <div class="tab">Đơn hàng (12)</div>
+        <div class="tab active">Lịch sử đặt cọc (4)</div>
+      </div>
+
+      <!-- Deposit history table -->
+      <div class="px-6 py-4">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-slate-500">
+              <th class="text-left py-2 font-medium">Ngày</th>
+              <th class="text-left py-2 font-medium">Mã tham chiếu</th>
+              <th class="text-left py-2 font-medium">Đơn vị</th>
+              <th class="text-right py-2 font-medium">Số tiền</th>
+              <th class="text-right py-2 font-medium">Còn lại</th>
+              <th class="text-left py-2 font-medium">Ghi chú</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="border-t border-slate-100">
+              <td class="py-2.5 text-slate-700">15/03/2026</td>
+              <td class="py-2.5 font-mono-num text-slate-600">DEP-001</td>
+              <td class="py-2.5 text-slate-600">TK</td>
+              <td class="py-2.5 text-right font-mono-num text-slate-900">$5,000.00</td>
+              <td class="py-2.5 text-right font-mono-num text-green-700 font-medium">3,200.00</td>
+              <td class="py-2.5 text-slate-500">Cọc đơn Q1</td>
+            </tr>
+            <tr class="border-t border-slate-100">
+              <td class="py-2.5 text-slate-700">20/01/2026</td>
+              <td class="py-2.5 font-mono-num text-slate-600">DEP-002</td>
+              <td class="py-2.5 text-slate-600">TK</td>
+              <td class="py-2.5 text-right font-mono-num text-slate-900">25.000.000 ₫</td>
+              <td class="py-2.5 text-right font-mono-num text-green-700 font-medium">25.000.000</td>
+              <td class="py-2.5 text-slate-500">Cọc bổ sung</td>
+            </tr>
+            <tr class="border-t border-slate-100">
+              <td class="py-2.5 text-slate-700">05/11/2025</td>
+              <td class="py-2.5 font-mono-num text-slate-600">DEP-003</td>
+              <td class="py-2.5 text-slate-600">TK</td>
+              <td class="py-2.5 text-right font-mono-num text-slate-900">$2,000.00</td>
+              <td class="py-2.5 text-right font-mono-num text-slate-400">0.00</td>
+              <td class="py-2.5 text-slate-500">Đã trừ hết</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+</body>
+</html>

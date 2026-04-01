@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trade Ops — Quản lý đặt cọc</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { font-family: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif; }
+  .font-mono-num { font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; }
+  :root { --sidebar-w: 240px; --header-h: 56px; }
+  body { background: #F8FAFC; }
+  .sidebar { width: var(--sidebar-w); background: #0F172A; }
+  .nav-group-label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #64748B; padding: 0 12px; margin-bottom: 4px; margin-top: 16px; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 8px; font-size: 14px; color: #94A3B8; cursor: pointer; transition: all 150ms; text-decoration: none; }
+  .nav-item:hover { background: rgba(255,255,255,0.07); color: #E2E8F0; }
+  .nav-item.active { background: #1E3A8A; color: #FFFFFF; font-weight: 500; }
+  .header { height: var(--header-h); background: #FFFFFF; border-bottom: 1px solid #E2E8F0; }
+  .badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 9999px; font-size: 12px; font-weight: 500; }
+  .badge-available { background: #DCFCE7; color: #166534; }
+  .badge-partial-used { background: #FEF9C3; color: #854D0E; }
+  .badge-depleted { background: #F1F5F9; color: #64748B; }
+  .progress-bar { height: 6px; border-radius: 3px; background: #E2E8F0; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 3px; transition: width 300ms; }
+  ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+</style>
+</head>
+<body class="flex flex-col h-screen overflow-hidden">
+
+<!-- HEADER -->
+<header class="header flex items-center justify-between px-6 flex-shrink-0 z-10">
+  <div class="flex items-center gap-4">
+    <div class="flex items-center gap-2">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="7" fill="#1E3A8A"/><path d="M7 10h14M7 14h10M7 18h7" stroke="white" stroke-width="2" stroke-linecap="round"/><circle cx="21" cy="18" r="4" fill="#F59E0B"/><path d="M21 16v4M19 18h4" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg>
+      <span class="text-base text-slate-900" style="font-weight:700;letter-spacing:-0.3px;">Trade Ops</span>
+    </div>
+    <div class="w-px h-5 bg-slate-200"></div>
+    <select class="appearance-none bg-blue-50 text-blue-800 text-sm font-medium pl-3 pr-7 py-1 rounded-full border border-blue-200 cursor-pointer focus:outline-none">
+      <option>TK — Thương mại</option><option>NT — Nội thất</option>
+    </select>
+  </div>
+  <div class="flex items-center gap-2 pl-3 border-l border-slate-200">
+    <div class="w-8 h-8 rounded-full bg-blue-800 flex items-center justify-center text-white text-xs font-semibold">NT</div>
+    <div><div class="text-sm font-medium text-slate-800">Nguyễn Thị Lan</div><div class="text-xs text-slate-400">ADMIN</div></div>
+  </div>
+</header>
+
+<div class="flex flex-1 overflow-hidden">
+  <!-- SIDEBAR -->
+  <aside class="sidebar flex-shrink-0 overflow-y-auto py-4 px-3">
+    <div class="nav-group-label">Bán hàng</div>
+    <a class="nav-item" href="#">Dashboard</a>
+    <a class="nav-item" href="#">Đơn bán</a>
+    <a class="nav-item" href="#">Khách hàng</a>
+    <a class="nav-item active" href="#">
+      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+      Ký quỹ bán
+    </a>
+    <div class="nav-group-label">Mua hàng</div>
+    <a class="nav-item" href="#">Đơn mua</a>
+    <a class="nav-item" href="#">Nhà cung cấp</a>
+    <a class="nav-item" href="#">Ký quỹ mua</a>
+    <div class="nav-group-label">Thu Chi</div>
+    <a class="nav-item" href="#">Giao dịch</a>
+    <a class="nav-item" href="#">Dòng tiền</a>
+    <div class="nav-group-label">Báo cáo</div>
+    <a class="nav-item" href="#">Tổng hợp</a>
+    <div class="nav-group-label">Cài đặt</div>
+    <a class="nav-item" href="#">Cấu hình</a>
+    <div class="mt-6 pt-4 border-t border-slate-800 px-3"><span class="text-xs text-slate-600">v1.0.0 · TK</span></div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="flex-1 overflow-y-auto px-8 py-6">
+
+    <!-- Page heading -->
+    <div class="flex items-center justify-between mb-5">
+      <div>
+        <h1 class="text-xl text-slate-900" style="font-weight:700;">Quản lý đặt cọc</h1>
+        <p class="text-sm text-slate-500 mt-0.5">Theo dõi ký quỹ khách hàng · Đơn vị: TK</p>
+      </div>
+      <button class="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-800 text-white text-sm font-medium hover:bg-blue-900 transition-colors">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Thêm đặt cọc
+      </button>
+    </div>
+
+    <!-- Summary cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+        <span class="text-sm text-slate-500">Tổng cọc nhận</span>
+        <div class="font-mono-num text-xl font-semibold text-slate-900 mt-1">680.000.000</div>
+        <div class="text-xs text-slate-400 mt-1">VND · 8 khoản</div>
+      </div>
+      <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+        <span class="text-sm text-slate-500">Đã sử dụng</span>
+        <div class="font-mono-num text-xl font-semibold text-amber-700 mt-1">405.000.000</div>
+        <div class="text-xs text-slate-400 mt-1">59.6% tổng cọc</div>
+      </div>
+      <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+        <span class="text-sm text-green-600">Còn lại khả dụng</span>
+        <div class="font-mono-num text-xl font-semibold text-green-700 mt-1">275.000.000</div>
+        <div class="text-xs text-slate-400 mt-1">40.4% tổng cọc</div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="flex flex-wrap items-center gap-3 mb-4">
+      <input type="text" placeholder="Tìm đối tác, mã tham chiếu..." class="w-64 px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200">
+      <select class="px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white text-slate-600">
+        <option>Tiền tệ: Tất cả</option><option>VND</option><option>USD</option><option>RMB</option>
+      </select>
+      <select class="px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white text-slate-600">
+        <option>Trạng thái: Tất cả</option><option>Còn dư</option><option>Đã dùng hết</option>
+      </select>
+      <span class="text-sm text-slate-400 ml-auto">8 khoản cọc</span>
+    </div>
+
+    <!-- Deposit table -->
+    <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="bg-slate-50 border-b border-slate-200">
+            <th class="text-left px-4 py-3 font-semibold text-slate-600">Mã</th>
+            <th class="text-left px-4 py-3 font-semibold text-slate-600">Đối tác</th>
+            <th class="text-left px-4 py-3 font-semibold text-slate-600">Ngày</th>
+            <th class="text-right px-4 py-3 font-semibold text-slate-600">Số tiền</th>
+            <th class="text-right px-4 py-3 font-semibold text-slate-600">Còn lại</th>
+            <th class="text-center px-4 py-3 font-semibold text-slate-600">Tiến trình</th>
+            <th class="text-left px-4 py-3 font-semibold text-slate-600">Trạng thái</th>
+            <th class="px-4 py-3"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Deposit 1: partially used -->
+          <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer">
+            <td class="px-4 py-3 font-mono-num text-blue-800 font-medium">DEP-001</td>
+            <td class="px-4 py-3 text-slate-900 font-medium">Công ty TNHH Thành Đạt</td>
+            <td class="px-4 py-3 text-slate-600">15/03/2026</td>
+            <td class="px-4 py-3 text-right font-mono-num text-slate-900">$5,000.00</td>
+            <td class="px-4 py-3 text-right font-mono-num text-green-700 font-medium">$3,200.00</td>
+            <td class="px-4 py-3">
+              <div class="flex items-center gap-2">
+                <div class="progress-bar flex-1"><div class="progress-fill bg-amber-500" style="width:36%"></div></div>
+                <span class="font-mono-num text-xs text-slate-500">36%</span>
+              </div>
+            </td>
+            <td class="px-4 py-3"><span class="badge badge-available">Còn dư</span></td>
+            <td class="px-4 py-3 text-right"><button class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button></td>
+          </tr>
+          <!-- Deposit 2: fully available -->
+          <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer">
+            <td class="px-4 py-3 font-mono-num text-blue-800 font-medium">DEP-002</td>
+            <td class="px-4 py-3 text-slate-900 font-medium">Công ty TNHH Thành Đạt</td>
+            <td class="px-4 py-3 text-slate-600">20/01/2026</td>
+            <td class="px-4 py-3 text-right font-mono-num text-slate-900">25.000.000 ₫</td>
+            <td class="px-4 py-3 text-right font-mono-num text-green-700 font-medium">25.000.000 ₫</td>
+            <td class="px-4 py-3">
+              <div class="flex items-center gap-2">
+                <div class="progress-bar flex-1"><div class="progress-fill bg-green-500" style="width:0%"></div></div>
+                <span class="font-mono-num text-xs text-slate-500">0%</span>
+              </div>
+            </td>
+            <td class="px-4 py-3"><span class="badge badge-available">Còn dư</span></td>
+            <td class="px-4 py-3 text-right"><button class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button></td>
+          </tr>
+          <!-- Deposit 3: depleted -->
+          <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer opacity-60">
+            <td class="px-4 py-3 font-mono-num text-slate-500 font-medium">DEP-003</td>
+            <td class="px-4 py-3 text-slate-700 font-medium">Công ty TNHH Thành Đạt</td>
+            <td class="px-4 py-3 text-slate-500">05/11/2025</td>
+            <td class="px-4 py-3 text-right font-mono-num text-slate-600">$2,000.00</td>
+            <td class="px-4 py-3 text-right font-mono-num text-slate-400">$0.00</td>
+            <td class="px-4 py-3">
+              <div class="flex items-center gap-2">
+                <div class="progress-bar flex-1"><div class="progress-fill bg-slate-400" style="width:100%"></div></div>
+                <span class="font-mono-num text-xs text-slate-400">100%</span>
+              </div>
+            </td>
+            <td class="px-4 py-3"><span class="badge badge-depleted">Đã hết</span></td>
+            <td class="px-4 py-3 text-right"><button class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button></td>
+          </tr>
+          <!-- Deposit 4: RMB, partially used -->
+          <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer">
+            <td class="px-4 py-3 font-mono-num text-blue-800 font-medium">DEP-004</td>
+            <td class="px-4 py-3 text-slate-900 font-medium">Guangzhou Trading Co.</td>
+            <td class="px-4 py-3 text-slate-600">01/02/2026</td>
+            <td class="px-4 py-3 text-right font-mono-num text-slate-900">¥50,000.00</td>
+            <td class="px-4 py-3 text-right font-mono-num text-green-700 font-medium">¥28,500.00</td>
+            <td class="px-4 py-3">
+              <div class="flex items-center gap-2">
+                <div class="progress-bar flex-1"><div class="progress-fill bg-amber-500" style="width:43%"></div></div>
+                <span class="font-mono-num text-xs text-slate-500">43%</span>
+              </div>
+            </td>
+            <td class="px-4 py-3"><span class="badge badge-partial-used">Dùng 1 phần</span></td>
+            <td class="px-4 py-3 text-right"><button class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button></td>
+          </tr>
+          <!-- Deposit 5 -->
+          <tr class="hover:bg-slate-50 transition-colors cursor-pointer">
+            <td class="px-4 py-3 font-mono-num text-blue-800 font-medium">DEP-005</td>
+            <td class="px-4 py-3 text-slate-900 font-medium">Cửa hàng Minh Phát</td>
+            <td class="px-4 py-3 text-slate-600">10/03/2026</td>
+            <td class="px-4 py-3 text-right font-mono-num text-slate-900">80.000.000 ₫</td>
+            <td class="px-4 py-3 text-right font-mono-num text-green-700 font-medium">45.000.000 ₫</td>
+            <td class="px-4 py-3">
+              <div class="flex items-center gap-2">
+                <div class="progress-bar flex-1"><div class="progress-fill bg-amber-500" style="width:44%"></div></div>
+                <span class="font-mono-num text-xs text-slate-500">44%</span>
+              </div>
+            </td>
+            <td class="px-4 py-3"><span class="badge badge-partial-used">Dùng 1 phần</span></td>
+            <td class="px-4 py-3 text-right"><button class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    <div class="flex items-center justify-between mt-4 text-sm text-slate-500">
+      <span>Hiển thị 1–5 / 8</span>
+      <div class="flex items-center gap-1">
+        <button class="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-400">Trước</button>
+        <button class="px-3 py-1.5 rounded-lg bg-blue-800 text-white font-medium">1</button>
+        <button class="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50">2</button>
+        <button class="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50">Sau</button>
+      </div>
+    </div>
+
+    <!-- ============================== -->
+    <!-- DEPOSIT DETAIL (expanded row)  -->
+    <!-- ============================== -->
+    <div class="mt-8 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+        <div>
+          <h2 class="text-base font-semibold text-slate-900">DEP-001 · Chi tiết đặt cọc</h2>
+          <span class="text-sm text-slate-500">Công ty TNHH Thành Đạt · 15/03/2026</span>
+        </div>
+        <span class="badge badge-available">Còn dư</span>
+      </div>
+
+      <!-- Deposit summary -->
+      <div class="grid grid-cols-2 md:grid-cols-5 gap-4 px-6 py-4 border-b border-slate-100">
+        <div><span class="text-xs text-slate-400 block mb-1">Đơn vị</span><span class="text-sm font-medium text-slate-800">TK</span></div>
+        <div><span class="text-xs text-slate-400 block mb-1">Số tiền</span><span class="font-mono-num text-sm font-medium text-slate-800">$5,000.00</span></div>
+        <div><span class="text-xs text-slate-400 block mb-1">Đã dùng</span><span class="font-mono-num text-sm font-medium text-amber-700">$1,800.00</span></div>
+        <div><span class="text-xs text-slate-400 block mb-1">Còn lại</span><span class="font-mono-num text-sm font-semibold text-green-700">$3,200.00</span></div>
+      </div>
+
+      <!-- Usage progress -->
+      <div class="px-6 py-4 border-b border-slate-100">
+        <div class="flex justify-between text-xs text-slate-500 mb-2">
+          <span>Đã sử dụng: <span class="font-mono-num font-medium text-amber-700">$1,800.00</span></span>
+          <span>Còn lại: <span class="font-mono-num font-medium text-green-700">$3,200.00</span></span>
+        </div>
+        <div class="h-3 bg-slate-100 rounded-full overflow-hidden">
+          <div class="h-full rounded-full" style="width:36%; background: linear-gradient(90deg, #1E3A8A, #3B82F6);"></div>
+        </div>
+        <div class="text-xs text-slate-400 mt-1">36% đã sử dụng</div>
+      </div>
+
+      <!-- Usage history -->
+      <div class="px-6 py-4">
+        <h3 class="text-sm font-semibold text-slate-700 mb-3">Lịch sử trừ cọc</h3>
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-slate-500 border-b border-slate-200">
+              <th class="text-left py-2 font-medium">Ngày</th>
+              <th class="text-left py-2 font-medium">Mã giao dịch</th>
+              <th class="text-left py-2 font-medium">Đơn hàng</th>
+              <th class="text-right py-2 font-medium">Số tiền trừ (USD)</th>
+              <th class="text-right py-2 font-medium">Dư sau trừ</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="border-b border-slate-100">
+              <td class="py-2.5 text-slate-700">20/03/2026</td>
+              <td class="py-2.5 font-mono-num text-blue-700">TX-SP-0045</td>
+              <td class="py-2.5 text-slate-600">SO-2026-0012</td>
+              <td class="py-2.5 text-right font-mono-num text-red-600">-1,000.00</td>
+              <td class="py-2.5 text-right font-mono-num text-slate-700">4,000.00</td>
+            </tr>
+            <tr class="border-b border-slate-100">
+              <td class="py-2.5 text-slate-700">28/03/2026</td>
+              <td class="py-2.5 font-mono-num text-blue-700">TX-SP-0051</td>
+              <td class="py-2.5 text-slate-600">SO-2026-0015</td>
+              <td class="py-2.5 text-right font-mono-num text-red-600">-800.00</td>
+              <td class="py-2.5 text-right font-mono-num text-slate-700">3,200.00</td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr class="border-t-2 border-slate-200">
+              <td colspan="3" class="py-2.5 font-semibold text-slate-700">Tổng đã trừ</td>
+              <td class="py-2.5 text-right font-mono-num font-semibold text-red-700">-1,800.00</td>
+              <td class="py-2.5 text-right font-mono-num font-semibold text-green-700">3,200.00</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+</body>
+</html>
