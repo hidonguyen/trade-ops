@@ -1,0 +1,180 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String               @id @default(uuid(7))
+  email        String               @unique
+  name         String
+  passwordHash String
+  isActive     Boolean              @default(true)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  roles        UserRoleAssignment[]
+  auditLogs    AuditLog[]
+}
+
+model UserRoleAssignment {
+  id         String   @id @default(uuid(7))
+  userId     String
+  role       String   // ADMIN, ACCOUNTANT_SALE, ACCOUNTANT_PURCHASE, ACCOUNTANT_CASHFLOW, VIEWER
+  assignedAt DateTime @default(now())
+  assignedBy String
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, role])
+  @@index([userId])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid(7))
+  userId    String
+  action    String   // CREATE, UPDATE, DELETE
+  model     String
+  recordId  String
+  changes   Json?
+  timestamp DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([recordId, model])
+  @@index([userId, timestamp])
+}
+
+model BusinessUnit {
+  id           String        @id @default(uuid(7))
+  code         String        @unique
+  name         String
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  parties      Party[]
+  orders       Order[]
+  transactions Transaction[]
+  deposits     Deposit[]
+}
+
+model Currency {
+  id           String        @id @default(uuid(7))
+  code         String        @unique
+  name         String
+  symbol       String
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  orders       Order[]
+  transactions Transaction[]
+  deposits     Deposit[]
+}
+
+model ExpenseType {
+  id        String   @id @default(uuid(7))
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Party {
+  id             String       @id @default(uuid(7))
+  businessUnitId String
+  name           String
+  type           String       // CUSTOMER, SUPPLIER, BOTH
+  address        String?
+  phone          String?
+  email          String?
+  taxId          String?
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  businessUnit   BusinessUnit @relation(fields: [businessUnitId], references: [id])
+  orders         Order[]
+  deposits       Deposit[]
+
+  @@index([businessUnitId, type])
+  @@index([name])
+}
+
+model Deposit {
+  id                String         @id @default(uuid(7))
+  partyId           String
+  businessUnitId    String
+  currencyId        String
+  amountOriginal    Decimal        @db.Decimal(18, 4)
+  remainingOriginal Decimal        @db.Decimal(18, 4)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  party             Party          @relation(fields: [partyId], references: [id])
+  businessUnit      BusinessUnit   @relation(fields: [businessUnitId], references: [id])
+  currency          Currency       @relation(fields: [currencyId], references: [id])
+  usages            DepositUsage[]
+
+  @@index([partyId])
+  @@index([businessUnitId])
+}
+
+model DepositUsage {
+  id             String      @id @default(uuid(7))
+  depositId      String
+  transactionId  String
+  amountOriginal Decimal     @db.Decimal(18, 4)
+  createdAt      DateTime    @default(now())
+  deposit        Deposit     @relation(fields: [depositId], references: [id])
+  transaction    Transaction @relation(fields: [transactionId], references: [id])
+
+  @@index([depositId])
+  @@index([transactionId, depositId])
+}
+
+model Order {
+  id             String        @id @default(uuid(7))
+  businessUnitId String
+  partyId        String
+  type           String        // SALE, PURCHASE
+  status         String        @default("UNPAID") // UNPAID, PARTIAL_PAID, PAID, PARTIAL_REFUNDED, REFUNDED
+  amountOriginal Decimal       @db.Decimal(18, 4)
+  currencyId     String
+  orderDate      DateTime
+  notes          String?
+  paidAmount     Decimal       @default(0) @db.Decimal(18, 4)
+  refundedAmount Decimal       @default(0) @db.Decimal(18, 4)
+  createdBy      String
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  businessUnit   BusinessUnit  @relation(fields: [businessUnitId], references: [id])
+  party          Party         @relation(fields: [partyId], references: [id])
+  currency       Currency      @relation(fields: [currencyId], references: [id])
+  transactions   Transaction[]
+
+  @@index([businessUnitId, status])
+  @@index([partyId, orderDate])
+  @@index([type, status])
+}
+
+model Transaction {
+  id              String         @id @default(uuid(7))
+  orderId         String?
+  businessUnitId  String
+  type            String         // SALE_PAYMENT, PURCHASE_PAYMENT, RECEIPT, PAYMENT
+  paymentMethod   String         // BANK, DEPOSIT
+  paymentType     String         // PAYMENT, REFUND
+  amountOriginal  Decimal        @db.Decimal(18, 4)
+  currencyId      String
+  amountVnd       Decimal        @db.Decimal(18, 4)
+  exchangeRate    Decimal        @db.Decimal(18, 8)
+  bankReference   String?
+  transactionDate DateTime
+  notes           String?
+  createdBy       String
+  createdAt       DateTime       @default(now())
+  order           Order?         @relation(fields: [orderId], references: [id])
+  businessUnit    BusinessUnit   @relation(fields: [businessUnitId], references: [id])
+  currency        Currency       @relation(fields: [currencyId], references: [id])
+  depositUsages   DepositUsage[]
+
+  @@index([orderId, type])
+  @@index([businessUnitId, type, transactionDate])
+}

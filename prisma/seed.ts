@@ -1,0 +1,88 @@
+// Database seed: creates admin user, business units, currencies, expense types
+// Prisma 7: must pass pg adapter since there is no Rust query engine
+import "dotenv/config";
+import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import bcrypt from "bcrypt";
+
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) throw new Error("DATABASE_URL is not set");
+const adapter = new PrismaPg({ connectionString });
+const prisma = new PrismaClient({ adapter });
+
+async function main() {
+  // Admin user
+  const passwordHash = await bcrypt.hash("admin123", 12);
+  const admin = await prisma.user.upsert({
+    where: { email: "admin@example.com" },
+    update: {},
+    create: {
+      email: "admin@example.com",
+      name: "Admin",
+      passwordHash,
+    },
+  });
+
+  await prisma.userRoleAssignment.upsert({
+    where: { userId_role: { userId: admin.id, role: "ADMIN" } },
+    update: {},
+    create: { userId: admin.id, role: "ADMIN", assignedBy: admin.id },
+  });
+
+  // Business units
+  await prisma.businessUnit.upsert({
+    where: { code: "TK" },
+    update: {},
+    create: { code: "TK", name: "Trường Khang" },
+  });
+  await prisma.businessUnit.upsert({
+    where: { code: "NT" },
+    update: {},
+    create: { code: "NT", name: "Nhiên Thúy" },
+  });
+
+  // Currencies
+  await prisma.currency.upsert({
+    where: { code: "VND" },
+    update: {},
+    create: { code: "VND", name: "Việt Nam Đồng", symbol: "₫" },
+  });
+  await prisma.currency.upsert({
+    where: { code: "USD" },
+    update: {},
+    create: { code: "USD", name: "US Dollar", symbol: "$" },
+  });
+  await prisma.currency.upsert({
+    where: { code: "RMB" },
+    update: {},
+    create: { code: "RMB", name: "Nhân Dân Tệ", symbol: "¥" },
+  });
+
+  // Expense types (no unique constraint — use findFirst+create pattern)
+  const expenseTypeNames = [
+    "Tiện ích",
+    "Lương",
+    "Thuê mặt bằng",
+    "Vận chuyển",
+    "Hải quan",
+    "Khác",
+  ];
+  for (const name of expenseTypeNames) {
+    const existing = await prisma.expenseType.findFirst({ where: { name } });
+    if (!existing) {
+      await prisma.expenseType.create({ data: { name } });
+    }
+  }
+
+  console.log("Seed completed successfully");
+  console.log("Login: admin@example.com / admin123");
+}
+
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

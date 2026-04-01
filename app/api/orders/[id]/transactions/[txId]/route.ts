@@ -1,0 +1,131 @@
+// Order transaction edit (PATCH) and delete (DELETE with deposit reversal + status recalc)
+import { NextRequest } from "next/server";
+import { withAuth, checkAccess, apiResponse } from "@/lib/api-helpers";
+import { prisma } from "@/lib/prisma";
+import { createAuditLog } from "@/lib/audit";
+import { reverseDepositDeduction, deductDeposit } from "@/lib/deposit-deduction-service";
+import { recalculateOrderStatus } from "@/lib/order-status-calculator";
+import { z } from "zod";
+
+const updateTransactionSchema = z.object({
+  amountOriginal: z.string().optional(),
+  amountVnd: z.string().optional(),
+  exchangeRate: z.string().optional(),
+  bankReference: z.string().max(100).optional(),
+  transactionDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
+  notes: z.string().max(1000).optional(),
+  depositId: z.string().uuid().nullable().optional(),
+});
+
+type RouteParams = { params: Promise<{ id: string; txId: string }> };
+
+export async function PATCH(request: NextRequest, { params }: RouteParams) {
+  const session = await withAuth();
+  if (!session) {
+    return Response.json(apiResponse(false, undefined, "Unauthorized"), { status: 401 });
+  }
+
+  const { id: orderId, txId } = await params;
+  const body = await request.json();
+
+  const validation = updateTransactionSchema.safeParse(body);
+  if (!validation.success) {
+    return Response.json(
+      apiResponse(false, undefined, "Validation failed", validation.error.flatten().fieldErrors as Record<string, string[]>),
+      { status: 400 }
+    );
+  }
+
+  try {
+    const [order, transaction] = await Promise.all([
+      prisma.order.findUnique({ where: { id: orderId }, select: { type: true } }),
+      prisma.transaction.findUnique({ where: { id: txId, orderId }, include: { depositUsages: true } }),
+    ]);
+
+    if (!order) return Response.json(apiResponse(false, undefined, "Order not found"), { status: 404 });
+    if (!transaction) return Response.json(apiResponse(false, undefined, "Transaction not found"), { status: 404 });
+
+    const module = order.type === "SALE" ? "SALE" : "PURCHASE";
+    if (!checkAccess(session.user.roles, "UPDATE", module)) {
+      return Response.json(apiResponse(false, undefined, "Access denied"), { status: 403 });
+    }
+
+    const userId = session.user.id!;
+    const { depositId, ...updateFields } = validation.data;
+    const prevDepositId = transaction.depositUsages[0]?.depositId ?? null;
+    const newDepositId = depositId !== undefined ? depositId : prevDepositId;
+
+    const result = await prisma.$transaction(async (tx) => {
+      // Always reverse existing deposit deductions before re-applying
+      if (prevDepositId) {
+        await reverseDepositDeduction(tx, txId);
+      }
+
+      const updateData: Record<string, unknown> = {};
+      if (updateFields.amountOriginal !== undefined) updateData.amountOriginal = updateFields.amountOriginal;
+      if (updateFields.amountVnd !== undefined) updateData.amountVnd = updateFields.amountVnd;
+      if (updateFields.exchangeRate !== undefined) updateData.exchangeRate = updateFields.exchangeRate;
+      if (updateFields.bankReference !== undefined) updateData.bankReference = updateFields.bankReference;
+      if (updateFields.transactionDate !== undefined) updateData.transactionDate = new Date(updateFields.transactionDate);
+      if (updateFields.notes !== undefined) updateData.notes = updateFields.notes;
+
+      const updated = await tx.transaction.update({ where: { id: txId }, data: updateData });
+
+      // Re-apply deposit deduction with potentially new amount or deposit
+      if (newDepositId) {
+        const amount = (updateData.amountOriginal as string | undefined) ?? transaction.amountOriginal.toString();
+        await deductDeposit(tx, newDepositId, amount, txId);
+      }
+
+      await recalculateOrderStatus(orderId, tx);
+      await createAuditLog(tx, userId, "UPDATE", "Transaction", txId, updateData);
+      return updated;
+    });
+
+    return Response.json(apiResponse(true, result));
+  } catch (error) {
+    if (error instanceof Error && error.message === "Insufficient deposit balance") {
+      return Response.json(apiResponse(false, undefined, error.message), { status: 422 });
+    }
+    console.error("PATCH /api/orders/[id]/transactions/[txId] error:", error);
+    return Response.json(apiResponse(false, undefined, "Internal server error"), { status: 500 });
+  }
+}
+
+export async function DELETE(_request: NextRequest, { params }: RouteParams) {
+  const session = await withAuth();
+  if (!session) {
+    return Response.json(apiResponse(false, undefined, "Unauthorized"), { status: 401 });
+  }
+
+  const { id: orderId, txId } = await params;
+
+  try {
+    const [order, transaction] = await Promise.all([
+      prisma.order.findUnique({ where: { id: orderId }, select: { type: true } }),
+      prisma.transaction.findUnique({ where: { id: txId, orderId }, select: { id: true } }),
+    ]);
+
+    if (!order) return Response.json(apiResponse(false, undefined, "Order not found"), { status: 404 });
+    if (!transaction) return Response.json(apiResponse(false, undefined, "Transaction not found"), { status: 404 });
+
+    const module = order.type === "SALE" ? "SALE" : "PURCHASE";
+    if (!checkAccess(session.user.roles, "DELETE", module)) {
+      return Response.json(apiResponse(false, undefined, "Access denied"), { status: 403 });
+    }
+
+    const userId = session.user.id!;
+    await prisma.$transaction(async (tx) => {
+      // Reverse any deposit deductions before deleting
+      await reverseDepositDeduction(tx, txId);
+      await tx.transaction.delete({ where: { id: txId } });
+      await recalculateOrderStatus(orderId, tx);
+      await createAuditLog(tx, userId, "DELETE", "Transaction", txId, { orderId });
+    });
+
+    return Response.json(apiResponse(true, undefined, "Transaction deleted"));
+  } catch (error) {
+    console.error("DELETE /api/orders/[id]/transactions/[txId] error:", error);
+    return Response.json(apiResponse(false, undefined, "Internal server error"), { status: 500 });
+  }
+}

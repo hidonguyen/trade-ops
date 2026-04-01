@@ -1,0 +1,129 @@
+// User list + create — ADMIN only
+import { withAuth, checkAccess, apiResponse, parsePagination } from "@/lib/api-helpers";
+import { prisma } from "@/lib/prisma";
+import { createAuditLog } from "@/lib/audit";
+import { z } from "zod";
+import bcrypt from "bcrypt";
+
+const createUserSchema = z.object({
+  email: z.string().email(),
+  name: z.string().min(1).max(100),
+  password: z.string().min(8).max(100),
+  roles: z.array(z.enum(["ADMIN", "ACCOUNTANT_SALE", "ACCOUNTANT_PURCHASE", "ACCOUNTANT_CASHFLOW", "VIEWER"])).min(1),
+});
+
+export async function GET(request: Request) {
+  const session = await withAuth();
+  if (!session) {
+    return Response.json(apiResponse(false, undefined, "Unauthorized"), { status: 401 });
+  }
+  if (!checkAccess(session.user.roles, "GET", "ADMIN")) {
+    return Response.json(apiResponse(false, undefined, "Access denied"), { status: 403 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const { page, limit, skip, sortBy, order } = parsePagination(searchParams);
+
+  try {
+    const [users, total] = await Promise.all([
+      prisma.user.findMany({
+        skip,
+        take: limit,
+        orderBy: { [sortBy]: order },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          isActive: true,
+          createdAt: true,
+          updatedAt: true,
+          roles: {
+            select: { id: true, role: true, assignedAt: true, assignedBy: true },
+          },
+        },
+      }),
+      prisma.user.count(),
+    ]);
+
+    return Response.json({
+      ...apiResponse(true, users),
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    });
+  } catch (error) {
+    console.error("GET /api/users error:", error);
+    return Response.json(apiResponse(false, undefined, "Internal server error"), { status: 500 });
+  }
+}
+
+export async function POST(request: Request) {
+  const session = await withAuth();
+  if (!session) {
+    return Response.json(apiResponse(false, undefined, "Unauthorized"), { status: 401 });
+  }
+  if (!checkAccess(session.user.roles, "CREATE", "ADMIN")) {
+    return Response.json(apiResponse(false, undefined, "Access denied"), { status: 403 });
+  }
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return Response.json(apiResponse(false, undefined, "Invalid JSON body"), { status: 400 });
+  }
+
+  const validation = createUserSchema.safeParse(body);
+  if (!validation.success) {
+    return Response.json(
+      apiResponse(false, undefined, "Validation failed", validation.error.flatten().fieldErrors as Record<string, string[]>),
+      { status: 400 }
+    );
+  }
+
+  const { email, name, password, roles } = validation.data;
+
+  try {
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (existing) {
+      return Response.json(
+        apiResponse(false, undefined, "Validation failed", { email: ["Email already in use"] }),
+        { status: 409 }
+      );
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    const actorId = session.user.id as string;
+
+    const result = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email,
+          name,
+          passwordHash,
+          roles: {
+            create: roles.map((role) => ({
+              role,
+              assignedBy: actorId,
+            })),
+          },
+        },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          isActive: true,
+          createdAt: true,
+          updatedAt: true,
+          roles: { select: { id: true, role: true, assignedAt: true } },
+        },
+      });
+      await createAuditLog(tx, actorId, "CREATE", "User", user.id, { email, name, roles });
+      return user;
+    });
+
+    return Response.json(apiResponse(true, result), { status: 201 });
+  } catch (error) {
+    console.error("POST /api/users error:", error);
+    return Response.json(apiResponse(false, undefined, "Internal server error"), { status: 500 });
+  }
+}

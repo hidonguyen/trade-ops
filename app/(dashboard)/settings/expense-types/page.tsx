@@ -1,0 +1,177 @@
+// Expense Types CRUD — ADMIN only client page
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { PlusIcon, PencilIcon, Trash2Icon } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DataTable, Column } from "@/components/shared/data-table";
+import { ConfirmationDialog } from "@/components/shared/confirmation-dialog";
+
+interface ExpenseType {
+  id: string;
+  code: string;
+  name: string;
+  description?: string | null;
+  isActive: boolean;
+}
+
+interface FormState { code: string; name: string; description: string; }
+const EMPTY_FORM: FormState = { code: "", name: "", description: "" };
+
+export default function ExpenseTypesPage() {
+  const [items, setItems] = useState<ExpenseType[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<ExpenseType | null>(null);
+  const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<ExpenseType | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchItems = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/expense-types");
+      const json = await res.json();
+      if (json.success) setItems(json.data);
+    } catch {
+      setError("Không thể tải dữ liệu");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchItems(); }, [fetchItems]);
+
+  function openCreate() {
+    setEditTarget(null);
+    setForm(EMPTY_FORM);
+    setError(null);
+    setDialogOpen(true);
+  }
+
+  function openEdit(item: ExpenseType) {
+    setEditTarget(item);
+    setForm({ code: item.code, name: item.name, description: item.description ?? "" });
+    setError(null);
+    setDialogOpen(true);
+  }
+
+  async function handleSave() {
+    if (!form.code.trim() || !form.name.trim()) {
+      setError("Mã và tên không được để trống");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const url = editTarget ? `/api/expense-types/${editTarget.id}` : "/api/expense-types";
+      const method = editTarget ? "PATCH" : "POST";
+      const payload = { ...form, description: form.description || undefined };
+      const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const json = await res.json();
+      if (!json.success) { setError(json.message ?? "Lỗi không xác định"); return; }
+      setDialogOpen(false);
+      fetchItems();
+    } catch {
+      setError("Lỗi kết nối");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    try {
+      await fetch(`/api/expense-types/${deleteTarget.id}`, { method: "DELETE" });
+      setDeleteTarget(null);
+      fetchItems();
+    } catch {
+      setError("Không thể xóa");
+    }
+  }
+
+  const columns: Column<Record<string, unknown>>[] = [
+    { key: "code", label: "Mã", sortable: true },
+    { key: "name", label: "Tên", sortable: true },
+    { key: "description", label: "Mô tả", render: (v) => <span className="text-slate-500">{String(v ?? "—")}</span> },
+    {
+      key: "isActive", label: "Trạng thái",
+      render: (v) => (
+        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${v ? "bg-green-100 text-green-800" : "bg-slate-100 text-slate-500"}`}>
+          {v ? "Hoạt động" : "Ngừng"}
+        </span>
+      ),
+    },
+    {
+      key: "id", label: "", align: "right",
+      render: (_, row) => (
+        <div className="flex justify-end gap-1">
+          <Button size="icon-sm" variant="ghost"
+            onClick={(e) => { e.stopPropagation(); openEdit(row as unknown as ExpenseType); }}>
+            <PencilIcon className="size-3.5" />
+          </Button>
+          <Button size="icon-sm" variant="ghost" className="text-red-500 hover:text-red-700"
+            onClick={(e) => { e.stopPropagation(); setDeleteTarget(row as unknown as ExpenseType); }}>
+            <Trash2Icon className="size-3.5" />
+          </Button>
+        </div>
+      ),
+    },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-slate-900">Loại chi phí</h1>
+          <p className="text-sm text-slate-500">Quản lý danh mục phân loại chi phí</p>
+        </div>
+        <Button onClick={openCreate} size="sm"><PlusIcon className="size-4 mr-1" />Thêm mới</Button>
+      </div>
+
+      <DataTable columns={columns} data={items as unknown as Record<string, unknown>[]} loading={loading} emptyMessage="Chưa có loại chi phí nào" />
+
+      <Dialog open={dialogOpen} onOpenChange={(o) => { if (!o) setDialogOpen(false); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editTarget ? "Sửa loại chi phí" : "Thêm loại chi phí"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {error && <p className="text-sm text-red-500">{error}</p>}
+            <div className="space-y-1.5">
+              <Label htmlFor="et-code">Mã</Label>
+              <Input id="et-code" value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="VD: OFFICE, TRAVEL" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="et-name">Tên</Label>
+              <Input id="et-name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Tên loại chi phí" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="et-desc">Mô tả</Label>
+              <Textarea id="et-desc" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="Mô tả (tùy chọn)" rows={3} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Hủy</Button>
+            <Button onClick={handleSave} disabled={saving}>{saving ? "Đang lưu..." : "Lưu"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmationDialog
+        open={!!deleteTarget}
+        title="Xóa loại chi phí"
+        description={`Bạn có chắc muốn xóa "${deleteTarget?.name}"?`}
+        variant="danger"
+        confirmLabel="Xóa"
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
+    </div>
+  );
+}

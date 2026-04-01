@@ -1,0 +1,177 @@
+// Standalone transaction list — RECEIPT/PAYMENT not linked to orders
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { DataTable, Column } from "@/components/shared/data-table";
+import { Pagination } from "@/components/shared/pagination";
+import { CurrencyAmount } from "@/components/shared/currency-amount";
+import { FilterBar, FilterConfig } from "@/components/shared/filter-bar";
+import { PlusIcon } from "lucide-react";
+
+interface Transaction {
+  id: string;
+  type: string;
+  paymentMethod: string;
+  amountOriginal: string;
+  amountVnd: string;
+  bankReference: string | null;
+  transactionDate: string;
+  notes: string | null;
+  currency: { id: string; code: string; symbol: string };
+  businessUnit: { id: string; code: string; name: string };
+}
+
+interface BusinessUnit {
+  id: string;
+  code: string;
+  name: string;
+}
+
+const TYPE_OPTIONS = [
+  { value: "RECEIPT", label: "Thu tiền" },
+  { value: "PAYMENT", label: "Chi tiền" },
+];
+
+const METHOD_OPTIONS = [
+  { value: "BANK", label: "Ngân hàng" },
+  { value: "DEPOSIT", label: "Cọc" },
+];
+
+export default function TransactionsPage() {
+  const router = useRouter();
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(25);
+  const [loading, setLoading] = useState(true);
+  const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([]);
+  const [filters, setFilters] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    fetch("/api/business-units")
+      .then((r) => r.json())
+      .then((json) => { if (json.success) setBusinessUnits(json.data); })
+      .catch(console.error);
+  }, []);
+
+  const fetchTransactions = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(limit),
+        ...(filters.type ? { type: filters.type } : {}),
+        ...(filters.businessUnitId ? { businessUnitId: filters.businessUnitId } : {}),
+      });
+      const res = await fetch(`/api/transactions?${params}`);
+      const json = await res.json();
+      if (json.success) {
+        setTransactions(json.data);
+        setTotal(json.pagination?.total ?? 0);
+      }
+    } catch (err) {
+      console.error("Failed to fetch transactions:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, limit, filters]);
+
+  useEffect(() => { fetchTransactions(); }, [fetchTransactions]);
+
+  function handleFilterChange(key: string, value: string) {
+    setFilters((prev) => ({ ...prev, [key]: value }));
+    setPage(1);
+  }
+
+  const buOptions = businessUnits.map((bu) => ({ value: bu.id, label: `${bu.code} – ${bu.name}` }));
+
+  const filterConfigs: FilterConfig[] = [
+    { key: "type", label: "Loại giao dịch", type: "select", options: TYPE_OPTIONS },
+    { key: "paymentMethod", label: "Phương thức", type: "select", options: METHOD_OPTIONS },
+    { key: "businessUnitId", label: "Đơn vị", type: "select", options: buOptions },
+  ];
+
+  const columns: Column<Transaction>[] = [
+    {
+      key: "transactionDate",
+      label: "Ngày",
+      sortable: true,
+      render: (v) => new Date(v).toLocaleDateString("vi-VN"),
+    },
+    {
+      key: "type",
+      label: "Loại",
+      render: (v) => (
+        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+          v === "RECEIPT" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+        }`}>
+          {v === "RECEIPT" ? "Thu" : "Chi"}
+        </span>
+      ),
+    },
+    {
+      key: "amountOriginal",
+      label: "Số tiền",
+      align: "right",
+      render: (v, row) => (
+        <CurrencyAmount
+          amount={v}
+          currencyCode={row.currency?.code ?? "VND"}
+          currencySymbol={row.currency?.symbol ?? "₫"}
+        />
+      ),
+    },
+    {
+      key: "amountVnd",
+      label: "VND",
+      align: "right",
+      render: (v) => <CurrencyAmount amount={v} currencyCode="VND" currencySymbol="₫" />,
+    },
+    {
+      key: "paymentMethod",
+      label: "Phương thức",
+      render: (v) => v === "BANK" ? "Ngân hàng" : "Cọc",
+    },
+    {
+      key: "bankReference",
+      label: "Tham chiếu",
+      render: (v) => v ?? "—",
+    },
+    {
+      key: "businessUnit",
+      label: "Đơn vị",
+      render: (_, row) => row.businessUnit?.code ?? "—",
+    },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold text-slate-900">Giao dịch</h1>
+        <Button onClick={() => router.push("/transactions/new")} size="sm">
+          <PlusIcon className="size-4 mr-1.5" />
+          Thêm giao dịch
+        </Button>
+      </div>
+
+      <FilterBar filters={filterConfigs} onFilterChange={handleFilterChange} values={filters} />
+
+      <DataTable
+        columns={columns as unknown as Column<Record<string, unknown>>[]}
+        data={transactions as unknown as Record<string, unknown>[]}
+        loading={loading}
+        emptyMessage="Không có giao dịch nào"
+      />
+
+      <Pagination
+        page={page}
+        limit={limit}
+        total={total}
+        onPageChange={setPage}
+        onLimitChange={(l) => { setLimit(l); setPage(1); }}
+      />
+    </div>
+  );
+}

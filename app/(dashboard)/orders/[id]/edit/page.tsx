@@ -1,0 +1,107 @@
+// Edit order page — fetches existing order, renders OrderForm in edit mode
+"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter, useParams } from "next/navigation";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { OrderForm, OrderFormData } from "@/components/order-form";
+import { Skeleton } from "@/components/ui/skeleton";
+
+interface OrderData {
+  id: string;
+  type: string;
+  status: string;
+  orderDate: string;
+  amountOriginal: string;
+  notes: string | null;
+  partyId: string;
+  currencyId: string;
+  businessUnitId: string;
+}
+
+export default function EditOrderPage() {
+  const { id } = useParams<{ id: string }>();
+  const router = useRouter();
+  const [order, setOrder] = useState<OrderData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/orders/${id}`)
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success) setOrder(json.data);
+        else setError(json.message ?? "Không tìm thấy đơn hàng");
+      })
+      .catch(() => setError("Lỗi tải đơn hàng"))
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  async function handleSubmit(data: OrderFormData) {
+    const res = await fetch(`/api/orders/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        notes: data.notes,
+        orderDate: new Date(data.orderDate).toISOString(),
+        amountOriginal: data.amountOriginal,
+        partyId: data.partyId,
+        currencyId: data.currencyId,
+      }),
+    });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.message ?? "Lỗi cập nhật đơn hàng");
+    router.push(`/orders/${id}`);
+  }
+
+  if (loading) {
+    return (
+      <div className="max-w-2xl mx-auto space-y-4">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  if (error || !order) {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <div className="rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+          {error ?? "Không tìm thấy đơn hàng"}
+        </div>
+      </div>
+    );
+  }
+
+  const initialData: Partial<OrderFormData> = {
+    type: order.type,
+    partyId: order.partyId,
+    businessUnitId: order.businessUnitId,
+    amountOriginal: String(order.amountOriginal),
+    currencyId: order.currencyId,
+    orderDate: order.orderDate.split("T")[0],
+    notes: order.notes ?? "",
+  };
+
+  return (
+    <div className="max-w-2xl mx-auto space-y-4">
+      <div>
+        <button
+          onClick={() => router.push(`/orders/${id}`)}
+          className="text-sm text-slate-500 hover:text-slate-700 mb-1"
+        >
+          ← Chi tiết đơn hàng
+        </button>
+        <h1 className="text-xl font-semibold text-slate-900">Chỉnh sửa đơn hàng</h1>
+      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Thông tin đơn hàng</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <OrderForm mode="edit" initialData={initialData} onSubmit={handleSubmit} />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
