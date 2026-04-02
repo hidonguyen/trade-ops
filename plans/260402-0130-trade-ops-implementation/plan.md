@@ -1,7 +1,7 @@
 ---
 title: "Trade Ops Full Implementation"
 description: "8-phase parallel implementation plan for Vietnamese import/export financial management app"
-status: pending
+status: in_progress
 priority: P1
 effort: 40h
 branch: main
@@ -33,14 +33,14 @@ Phase 1 (Foundation) ─── SEQUENTIAL GATE
 
 | # | Phase | Status | File | Blocks |
 |---|-------|--------|------|--------|
-| 1 | Foundation Setup | Planned | [phase-01](phase-01-foundation-setup.md) | 2,3,4,5 |
-| 2 | Catalog+Party+Deposit API | Planned | [phase-02](phase-02-catalog-party-deposit-api.md) | 6 |
-| 3 | Order+Transaction API | Planned | [phase-03](phase-03-order-transaction-api.md) | 7 |
-| 4 | Reports+Admin API | Planned | [phase-04](phase-04-reports-admin-api.md) | 8 |
-| 5 | Layout+Shared Components | Planned | [phase-05](phase-05-layout-shared-components.md) | 6,7,8 |
-| 6 | Settings+Party+Deposit UI | Planned | [phase-06](phase-06-settings-party-deposit-ui.md) | - |
-| 7 | Orders+Transactions+Cashflow UI | Planned | [phase-07](phase-07-orders-transactions-cashflow-ui.md) | - |
-| 8 | Reports+Dashboard+Admin UI | Planned | [phase-08](phase-08-reports-dashboard-admin-ui.md) | - |
+| 1 | Foundation Setup | Complete | [phase-01](phase-01-foundation-setup.md) | 2,3,4,5 |
+| 2 | Catalog+Party+Deposit API | Complete | [phase-02](phase-02-catalog-party-deposit-api.md) | 6 |
+| 3 | Order+Transaction API | Complete | [phase-03](phase-03-order-transaction-api.md) | 7 |
+| 4 | Reports+Admin API | Complete | [phase-04](phase-04-reports-admin-api.md) | 8 |
+| 5 | Layout+Shared Components | Complete | [phase-05](phase-05-layout-shared-components.md) | 6,7,8 |
+| 6 | Settings+Party+Deposit UI | Complete | [phase-06](phase-06-settings-party-deposit-ui.md) | - |
+| 7 | Orders+Transactions+Cashflow UI | Complete | [phase-07](phase-07-orders-transactions-cashflow-ui.md) | - |
+| 8 | Reports+Dashboard+Admin UI | Complete | [phase-08](phase-08-reports-dashboard-admin-ui.md) | - |
 
 ## Key Architecture Decisions
 

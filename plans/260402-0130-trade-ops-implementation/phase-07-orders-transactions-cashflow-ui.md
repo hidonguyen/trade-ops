@@ -9,7 +9,7 @@
 
 ## Overview
 - **Priority:** P2
-- **Status:** Planned
+- **Status:** Complete
 - **Effort:** 4h
 - **Blocked by:** Phase 3 (APIs), Phase 5 (shared components)
 - **Blocks:** None
@@ -104,19 +104,19 @@ components/transaction-form.tsx
 
 ## Todo Checklist
 
-- [ ] components/order-form.tsx (create/edit)
-- [ ] Orders list page with type tabs + filters + pagination
-- [ ] Order create page
-- [ ] Order edit page
-- [ ] components/payment-form.tsx (with deposit selector + amountVnd computation)
-- [ ] Order detail page (info + financial summary + transaction list + add payment)
-- [ ] components/transaction-form.tsx (standalone receipt/payment)
-- [ ] Transactions list page with filters
-- [ ] Transaction create page
-- [ ] Cashflow page (filters + summary cards + table + export)
-- [ ] Decimal.js amountVnd computation on FE
-- [ ] CurrencyAmount display (single column, inline symbol)
-- [ ] RBAC checks on all pages
+- [x] components/order-form.tsx (create/edit)
+- [x] Orders list page with type tabs + filters + pagination
+- [x] Order create page
+- [x] Order edit page
+- [x] components/payment-form.tsx (with deposit selector + amountVnd computation)
+- [x] Order detail page (info + financial summary + transaction list + add payment)
+- [x] components/transaction-form.tsx (standalone receipt/payment)
+- [x] Transactions list page with filters
+- [x] Transaction create page
+- [x] Cashflow page (filters + summary cards + table + export)
+- [x] Decimal.js amountVnd computation on FE
+- [x] CurrencyAmount display (single column, inline symbol)
+- [x] RBAC checks on all pages
 
 ## Success Criteria
 1. Orders list: filter by type/status/BU, paginate, sort

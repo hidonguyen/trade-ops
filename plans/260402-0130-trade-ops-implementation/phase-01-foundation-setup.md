@@ -8,7 +8,7 @@
 
 ## Overview
 - **Priority:** P0 (Critical Gate)
-- **Status:** Planned
+- **Status:** Complete
 - **Effort:** 8h
 - **Description:** Initialize Next.js project, install all dependencies, configure Docker/PostgreSQL, create Prisma schema with all models, seed data, configure NextAuth v5, build lib helpers, type definitions, and login page.
 
@@ -116,26 +116,26 @@ app/globals.css
 
 ## Todo Checklist
 
-- [ ] Init Next.js project with all deps
-- [ ] Configure Tailwind with design system tokens
-- [ ] docker-compose.yml for PostgreSQL + pgAdmin
-- [ ] .env.example with all required vars
-- [ ] Prisma schema with all 10 models
-- [ ] Run initial migration
-- [ ] Seed script (admin, BUs, currencies, expense types)
-- [ ] types/index.ts with all enums and interfaces
-- [ ] types/next-auth.d.ts session extension
-- [ ] lib/prisma.ts singleton
-- [ ] lib/auth.ts NextAuth v5 config
-- [ ] lib/api-helpers.ts (withAuth, checkAccess, apiResponse)
-- [ ] lib/audit.ts audit logger
-- [ ] lib/validation-schemas.ts zod schemas
-- [ ] middleware.ts route protection
-- [ ] app/api/auth/[...nextauth]/route.ts
-- [ ] app/(auth)/login/page.tsx
-- [ ] app/layout.tsx + app/globals.css
-- [ ] Verify: `npm run build` succeeds
-- [ ] Verify: login works end-to-end
+- [x] Init Next.js project with all deps
+- [x] Configure Tailwind with design system tokens
+- [x] docker-compose.yml for PostgreSQL + pgAdmin
+- [x] .env.example with all required vars
+- [x] Prisma schema with all 10 models
+- [x] Run initial migration
+- [x] Seed script (admin, BUs, currencies, expense types)
+- [x] types/index.ts with all enums and interfaces
+- [x] types/next-auth.d.ts session extension
+- [x] lib/prisma.ts singleton
+- [x] lib/auth.ts NextAuth v5 config
+- [x] lib/api-helpers.ts (withAuth, checkAccess, apiResponse)
+- [x] lib/audit.ts audit logger
+- [x] lib/validation-schemas.ts zod schemas
+- [x] middleware.ts route protection
+- [x] app/api/auth/[...nextauth]/route.ts
+- [x] app/(auth)/login/page.tsx
+- [x] app/layout.tsx + app/globals.css
+- [x] Verify: `npm run build` succeeds
+- [x] Verify: login works end-to-end
 
 ## Success Criteria
 1. `docker-compose up -d` starts PostgreSQL

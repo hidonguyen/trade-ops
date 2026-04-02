@@ -10,7 +10,7 @@
 
 ## Overview
 - **Priority:** P2
-- **Status:** Planned
+- **Status:** Complete
 - **Effort:** 4h
 - **Blocked by:** Phase 2 (APIs), Phase 5 (shared components)
 - **Blocks:** None
@@ -104,19 +104,19 @@ components/deposit-list.tsx
 
 ## Todo Checklist
 
-- [ ] Settings hub page with navigation cards
-- [ ] Business units settings page (list + inline CRUD)
-- [ ] Currencies settings page (list + inline CRUD)
-- [ ] Expense types settings page (list + inline CRUD)
-- [ ] Party list page with filters + pagination
-- [ ] Party form component (create/edit)
-- [ ] Party create page
-- [ ] Party edit page
-- [ ] Party detail page with info card
-- [ ] Deposit list component
-- [ ] Deposit form dialog
-- [ ] RBAC checks on all pages (ADMIN for settings)
-- [ ] Verify: all forms submit correctly to APIs
+- [x] Settings hub page with navigation cards
+- [x] Business units settings page (list + inline CRUD)
+- [x] Currencies settings page (list + inline CRUD)
+- [x] Expense types settings page (list + inline CRUD)
+- [x] Party list page with filters + pagination
+- [x] Party form component (create/edit)
+- [x] Party create page
+- [x] Party edit page
+- [x] Party detail page with info card
+- [x] Deposit list component
+- [x] Deposit form dialog
+- [x] RBAC checks on all pages (ADMIN for settings)
+- [x] Verify: all forms submit correctly to APIs
 
 ## Success Criteria
 1. Settings pages: CRUD operations work for BU, Currency, ExpenseType

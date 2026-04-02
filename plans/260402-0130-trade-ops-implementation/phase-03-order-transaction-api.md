@@ -8,7 +8,7 @@
 
 ## Overview
 - **Priority:** P1
-- **Status:** Planned
+- **Status:** Complete
 - **Effort:** 5h
 - **Blocked by:** Phase 1
 - **Blocks:** Phase 7
@@ -131,20 +131,20 @@ prisma.$transaction:
 
 ## Todo Checklist
 
-- [ ] lib/order-status-calculator.ts with all status transitions
-- [ ] lib/deposit-deduction-service.ts with balance validation
-- [ ] Orders GET (list with filters + pagination)
-- [ ] Orders POST (create with initial status)
-- [ ] Orders GET [id] (detail with includes)
-- [ ] Orders PATCH [id] (update with constraints)
-- [ ] Order transactions GET / POST (with deposit deduction + status recalc)
-- [ ] Order transactions PATCH / DELETE (with reversal logic)
-- [ ] Order report GET [id] (financial summary)
-- [ ] Standalone transactions GET / POST
-- [ ] Standalone transactions PATCH / DELETE
-- [ ] All operations wrapped in prisma.$transaction where multi-step
-- [ ] Audit logs on all writes
-- [ ] RBAC enforced per order type (SALE vs PURCHASE)
+- [x] lib/order-status-calculator.ts with all status transitions
+- [x] lib/deposit-deduction-service.ts with balance validation
+- [x] Orders GET (list with filters + pagination)
+- [x] Orders POST (create with initial status)
+- [x] Orders GET [id] (detail with includes)
+- [x] Orders PATCH [id] (update with constraints)
+- [x] Order transactions GET / POST (with deposit deduction + status recalc)
+- [x] Order transactions PATCH / DELETE (with reversal logic)
+- [x] Order report GET [id] (financial summary)
+- [x] Standalone transactions GET / POST
+- [x] Standalone transactions PATCH / DELETE
+- [x] All operations wrapped in prisma.$transaction where multi-step
+- [x] Audit logs on all writes
+- [x] RBAC enforced per order type (SALE vs PURCHASE)
 
 ## Success Criteria
 1. Creating a transaction correctly recalculates order status

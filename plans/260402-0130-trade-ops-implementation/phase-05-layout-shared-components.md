@@ -8,7 +8,7 @@
 
 ## Overview
 - **Priority:** P1
-- **Status:** Planned
+- **Status:** Complete
 - **Effort:** 5h
 - **Blocked by:** Phase 1
 - **Blocks:** Phases 6, 7, 8
@@ -118,18 +118,18 @@ components/ui/*  (all shadcn/ui primitives)
 
 ## Todo Checklist
 
-- [ ] Install all shadcn/ui primitives
-- [ ] app/(dashboard)/layout.tsx with auth check
-- [ ] components/layout/sidebar.tsx with nav groups + RBAC
-- [ ] components/layout/header.tsx with BU selector + user info
-- [ ] components/shared/data-table.tsx (generic, sortable)
-- [ ] components/shared/pagination.tsx
-- [ ] components/shared/status-badge.tsx
-- [ ] components/shared/currency-amount.tsx
-- [ ] components/shared/filter-bar.tsx
-- [ ] components/shared/confirmation-dialog.tsx
-- [ ] Responsive layout: sidebar collapse on mobile/tablet
-- [ ] Verify: all components render without errors
+- [x] Install all shadcn/ui primitives
+- [x] app/(dashboard)/layout.tsx with auth check
+- [x] components/layout/sidebar.tsx with nav groups + RBAC
+- [x] components/layout/header.tsx with BU selector + user info
+- [x] components/shared/data-table.tsx (generic, sortable)
+- [x] components/shared/pagination.tsx
+- [x] components/shared/status-badge.tsx
+- [x] components/shared/currency-amount.tsx
+- [x] components/shared/filter-bar.tsx
+- [x] components/shared/confirmation-dialog.tsx
+- [x] Responsive layout: sidebar collapse on mobile/tablet
+- [x] Verify: all components render without errors
 
 ## Success Criteria
 1. Dashboard layout renders with sidebar + header + content area

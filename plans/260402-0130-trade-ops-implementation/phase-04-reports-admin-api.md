@@ -9,7 +9,7 @@
 
 ## Overview
 - **Priority:** P1
-- **Status:** Planned
+- **Status:** Complete
 - **Effort:** 5h
 - **Blocked by:** Phase 1
 - **Blocks:** Phase 8
@@ -101,16 +101,16 @@ lib/excel-export-service.ts
 
 ## Todo Checklist
 
-- [ ] Cashflow report GET with currency grouping
-- [ ] Cashflow report Excel export (?format=xlsx)
-- [ ] lib/excel-export-service.ts (cashflow, orders, transactions)
-- [ ] Summary reports GET (sales, purchases, receivable, payable)
-- [ ] Dashboard KPI GET (receivable, payable, deposits, recent txns)
-- [ ] Users GET/POST (list, create with bcrypt)
-- [ ] Users GET/PATCH/DELETE [id] (detail, update roles, deactivate)
-- [ ] Audit logs GET with filters
-- [ ] RBAC enforced: Users/AuditLogs = ADMIN only
-- [ ] All user writes audit logged
+- [x] Cashflow report GET with currency grouping
+- [x] Cashflow report Excel export (?format=xlsx)
+- [x] lib/excel-export-service.ts (cashflow, orders, transactions)
+- [x] Summary reports GET (sales, purchases, receivable, payable)
+- [x] Dashboard KPI GET (receivable, payable, deposits, recent txns)
+- [x] Users GET/POST (list, create with bcrypt)
+- [x] Users GET/PATCH/DELETE [id] (detail, update roles, deactivate)
+- [x] Audit logs GET with filters
+- [x] RBAC enforced: Users/AuditLogs = ADMIN only
+- [x] All user writes audit logged
 
 ## Success Criteria
 1. Cashflow report correctly sums money-in vs money-out across transaction types

@@ -10,7 +10,7 @@
 
 ## Overview
 - **Priority:** P2
-- **Status:** Planned
+- **Status:** Complete
 - **Effort:** 4h
 - **Blocked by:** Phase 4 (APIs), Phase 5 (shared components)
 - **Blocks:** None
@@ -103,17 +103,17 @@ components/user-form.tsx
 
 ## Todo Checklist
 
-- [ ] components/kpi-card.tsx
-- [ ] components/dashboard-charts.tsx (bar + pie charts)
-- [ ] Dashboard home page with KPIs + charts + recent txns
-- [ ] Reports page with 4 tabs + filters + export
-- [ ] components/user-form.tsx (create/edit with role checkboxes)
-- [ ] User list page (ADMIN only)
-- [ ] User create page
-- [ ] User edit/detail page
-- [ ] Audit log viewer page (ADMIN only, filters + expandable rows)
-- [ ] Excel export buttons on reports
-- [ ] RBAC: ADMIN check on user mgmt + audit log pages
+- [x] components/kpi-card.tsx
+- [x] components/dashboard-charts.tsx (bar + pie charts)
+- [x] Dashboard home page with KPIs + charts + recent txns
+- [x] Reports page with 4 tabs + filters + export
+- [x] components/user-form.tsx (create/edit with role checkboxes)
+- [x] User list page (ADMIN only)
+- [x] User create page
+- [x] User edit/detail page
+- [x] Audit log viewer page (ADMIN only, filters + expandable rows)
+- [x] Excel export buttons on reports
+- [x] RBAC: ADMIN check on user mgmt + audit log pages
 
 ## Success Criteria
 1. Dashboard loads KPI cards with correct aggregated values

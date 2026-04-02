@@ -9,7 +9,7 @@
 
 ## Overview
 - **Priority:** P1
-- **Status:** Planned
+- **Status:** Complete
 - **Effort:** 5h
 - **Blocked by:** Phase 1
 - **Blocks:** Phase 6
@@ -94,19 +94,19 @@ createDepositSchema: { currencyId, amountOriginal: decimalString, businessUnitId
 
 ## Todo Checklist
 
-- [ ] Business unit GET/POST route
-- [ ] Business unit PATCH/DELETE route
-- [ ] Currency GET/POST route
-- [ ] Currency PATCH/DELETE route
-- [ ] Expense type GET/POST route
-- [ ] Expense type PATCH/DELETE route
-- [ ] Party GET (list with filters + pagination) / POST route
-- [ ] Party GET (detail) / PATCH / DELETE route
-- [ ] Party deposit GET / POST route
-- [ ] Audit logs on all write operations
-- [ ] RBAC enforced on all routes
-- [ ] Zod validation on all request bodies
-- [ ] Verify: all routes return standard apiResponse format
+- [x] Business unit GET/POST route
+- [x] Business unit PATCH/DELETE route
+- [x] Currency GET/POST route
+- [x] Currency PATCH/DELETE route
+- [x] Expense type GET/POST route
+- [x] Expense type PATCH/DELETE route
+- [x] Party GET (list with filters + pagination) / POST route
+- [x] Party GET (detail) / PATCH / DELETE route
+- [x] Party deposit GET / POST route
+- [x] Audit logs on all write operations
+- [x] RBAC enforced on all routes
+- [x] Zod validation on all request bodies
+- [x] Verify: all routes return standard apiResponse format
 
 ## Success Criteria
 1. All 9 route files compile without errors
