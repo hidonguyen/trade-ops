@@ -9,13 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
+import { DatePicker } from "@/components/ui/date-picker";
+import { NumberInput } from "@/components/ui/number-input";
 
 interface BusinessUnit {
   id: string;
@@ -215,79 +211,75 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1.5">
           <Label>Loại giao dịch</Label>
-          <Select value={form.type} onValueChange={(v) => setField("type", v ?? "")}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="RECEIPT">Thu tiền</SelectItem>
-              <SelectItem value="PAYMENT">Chi tiền</SelectItem>
-            </SelectContent>
-          </Select>
+          <Combobox
+            value={form.type}
+            onValueChange={(v) => setField("type", v)}
+            options={[
+              { value: "RECEIPT", label: "Thu tiền" },
+              { value: "PAYMENT", label: "Chi tiền" },
+            ]}
+            placeholder="Chọn loại"
+          />
         </div>
 
         <div className="space-y-1.5">
           <Label>Đơn vị kinh doanh</Label>
-          <Select value={form.businessUnitId} onValueChange={(v) => setField("businessUnitId", v ?? "")}>
-            <SelectTrigger><SelectValue placeholder="Chọn đơn vị" /></SelectTrigger>
-            <SelectContent>
-              {businessUnits.map((bu) => (
-                <SelectItem key={bu.id} value={bu.id}>{bu.code} – {bu.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Combobox
+            value={form.businessUnitId}
+            onValueChange={(v) => setField("businessUnitId", v)}
+            options={businessUnits.map((bu) => ({ value: bu.id, label: `${bu.code} – ${bu.name}` }))}
+            placeholder="Chọn đơn vị"
+          />
         </div>
 
         <div className="space-y-1.5">
           <Label>Tiền tệ</Label>
-          <Select value={form.currencyId} onValueChange={(v) => setField("currencyId", v ?? "")}>
-            <SelectTrigger><SelectValue placeholder="Chọn tiền tệ" /></SelectTrigger>
-            <SelectContent>
-              {currencies.map((c) => (
-                <SelectItem key={c.id} value={c.id}>{c.symbol} {c.code}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Combobox
+            value={form.currencyId}
+            onValueChange={(v) => setField("currencyId", v)}
+            options={currencies.map((c) => ({ value: c.id, label: `${c.symbol} ${c.code}` }))}
+            placeholder="Chọn tiền tệ"
+          />
         </div>
 
         <div className="space-y-1.5">
           <Label>Phương thức thanh toán</Label>
-          <Select
+          <Combobox
             value={form.paymentMethod}
-            onValueChange={(v) => { setField("paymentMethod", v ?? ""); setField("depositId", ""); }}
-          >
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="BANK">Ngân hàng</SelectItem>
-              <SelectItem value="DEPOSIT">Cọc</SelectItem>
-            </SelectContent>
-          </Select>
+            onValueChange={(v) => { setField("paymentMethod", v); setField("depositId", ""); }}
+            options={[
+              { value: "BANK", label: "Ngân hàng" },
+              { value: "DEPOSIT", label: "Cọc" },
+            ]}
+            placeholder="Chọn phương thức"
+          />
         </div>
 
         <div className="space-y-1.5">
           <Label>Số tiền {selectedCurrency ? `(${selectedCurrency.code})` : ""}</Label>
-          <Input
-            type="number"
-            step="0.0001"
-            min="0"
-            placeholder="0.0000"
+          <NumberInput
             value={form.amountOriginal}
-            onChange={(e) => setField("amountOriginal", e.target.value)}
+            onChange={(v) => setField("amountOriginal", v)}
+            decimals={4}
+            min={0}
+            placeholder="0.0000"
           />
         </div>
 
         <div className="space-y-1.5">
           <Label>Tỷ giá</Label>
-          <Input
-            type="number"
-            step="0.00000001"
-            min="0"
+          <NumberInput
             value={form.exchangeRate}
-            onChange={(e) => setField("exchangeRate", e.target.value)}
+            onChange={(v) => setField("exchangeRate", v)}
+            decimals={8}
+            min={0}
+            placeholder="1"
           />
         </div>
 
         <div className="space-y-1.5">
           <Label>Thành tiền VND</Label>
-          <Input value={form.amountVnd} readOnly className="bg-slate-50 font-mono" />
+          <NumberInput value={form.amountVnd} onChange={() => {}} readOnly decimals={4} />
         </div>
 
         <div className="space-y-1.5">
@@ -301,10 +293,9 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
 
         <div className="space-y-1.5">
           <Label>Ngày giao dịch</Label>
-          <Input
-            type="date"
+          <DatePicker
             value={form.transactionDate}
-            onChange={(e) => setField("transactionDate", e.target.value)}
+            onChange={(v) => setField("transactionDate", v)}
           />
         </div>
       </div>
@@ -313,31 +304,21 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1.5">
             <Label>Đối tác (cọc)</Label>
-            <Select value={form.partyId} onValueChange={(v) => { setField("partyId", v ?? ""); setField("depositId", ""); }}>
-              <SelectTrigger><SelectValue placeholder="Chọn đối tác..." /></SelectTrigger>
-              <SelectContent>
-                {parties.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Combobox
+              value={form.partyId}
+              onValueChange={(v) => { setField("partyId", v); setField("depositId", ""); }}
+              options={parties.map((p) => ({ value: p.id, label: p.name }))}
+              placeholder="Chọn đối tác..."
+            />
           </div>
           <div className="space-y-1.5">
             <Label>Chọn cọc</Label>
-            <Select value={form.depositId} onValueChange={(v) => setField("depositId", v ?? "")}>
-              <SelectTrigger><SelectValue placeholder="Chọn cọc..." /></SelectTrigger>
-              <SelectContent>
-                {deposits.length === 0 ? (
-                  <SelectItem value="__none" disabled>Không có cọc</SelectItem>
-                ) : (
-                  deposits.map((d) => (
-                    <SelectItem key={d.id} value={d.id}>
-                      Còn lại: {d.remainingOriginal}
-                    </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
+            <Combobox
+              value={form.depositId}
+              onValueChange={(v) => setField("depositId", v)}
+              options={deposits.map((d) => ({ value: d.id, label: `Còn lại: ${d.remainingOriginal}` }))}
+              placeholder={deposits.length === 0 ? "Không có cọc" : "Chọn cọc..."}
+            />
           </div>
         </div>
       )}

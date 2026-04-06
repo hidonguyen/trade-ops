@@ -8,13 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
+import { DatePicker } from "@/components/ui/date-picker";
+import { NumberInput } from "@/components/ui/number-input";
 
 interface Party {
   id: string;
@@ -143,81 +139,64 @@ export function OrderForm({ initialData, onSubmit, mode }: OrderFormProps) {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1.5">
           <Label>Loại đơn</Label>
-          <Select
+          <Combobox
             value={form.type}
-            onValueChange={(v) => { setField("type", v ?? ""); setField("partyId", ""); }}
+            onValueChange={(v) => { setField("type", v); setField("partyId", ""); }}
+            options={[
+              { value: "SALE", label: "Bán hàng" },
+              { value: "PURCHASE", label: "Mua hàng" },
+            ]}
+            placeholder="Chọn loại"
             disabled={mode === "edit"}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Chọn loại" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="SALE">Bán hàng</SelectItem>
-              <SelectItem value="PURCHASE">Mua hàng</SelectItem>
-            </SelectContent>
-          </Select>
+          />
         </div>
 
         <div className="space-y-1.5">
           <Label>Đối tác</Label>
-          <Select value={form.partyId} onValueChange={(v) => setField("partyId", v ?? "")}>
-            <SelectTrigger>
-              <SelectValue placeholder="Chọn đối tác" />
-            </SelectTrigger>
-            <SelectContent>
-              {parties.map((p) => (
-                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Combobox
+            value={form.partyId}
+            onValueChange={(v) => setField("partyId", v)}
+            options={parties.map((p) => ({ value: p.id, label: p.name }))}
+            placeholder="Chọn đối tác"
+          />
         </div>
 
         <div className="space-y-1.5">
           <Label>Đơn vị kinh doanh</Label>
-          <Select value={form.businessUnitId} onValueChange={(v) => setField("businessUnitId", v ?? "")}>
-            <SelectTrigger>
-              <SelectValue placeholder="Chọn đơn vị" />
-            </SelectTrigger>
-            <SelectContent>
-              {businessUnits.map((bu) => (
-                <SelectItem key={bu.id} value={bu.id}>{bu.code} – {bu.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Combobox
+            value={form.businessUnitId}
+            onValueChange={(v) => setField("businessUnitId", v)}
+            options={businessUnits.map((bu) => ({ value: bu.id, label: `${bu.code} – ${bu.name}` }))}
+            placeholder="Chọn đơn vị"
+          />
         </div>
 
         <div className="space-y-1.5">
           <Label>Tiền tệ</Label>
-          <Select value={form.currencyId} onValueChange={(v) => setField("currencyId", v ?? "")}>
-            <SelectTrigger>
-              <SelectValue placeholder="Chọn tiền tệ" />
-            </SelectTrigger>
-            <SelectContent>
-              {currencies.map((c) => (
-                <SelectItem key={c.id} value={c.id}>{c.symbol} {c.code}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Combobox
+            value={form.currencyId}
+            onValueChange={(v) => setField("currencyId", v)}
+            options={currencies.map((c) => ({ value: c.id, label: `${c.symbol} ${c.code}` }))}
+            placeholder="Chọn tiền tệ"
+          />
         </div>
 
         <div className="space-y-1.5">
           <Label>Số tiền</Label>
-          <Input
-            type="number"
-            step="0.0001"
-            min="0"
-            placeholder="0.0000"
+          <NumberInput
             value={form.amountOriginal}
-            onChange={(e) => setField("amountOriginal", e.target.value)}
+            onChange={(v) => setField("amountOriginal", v)}
+            decimals={4}
+            min={0}
+            placeholder="0.0000"
           />
         </div>
 
         <div className="space-y-1.5">
           <Label>Ngày đặt</Label>
-          <Input
-            type="date"
+          <DatePicker
             value={form.orderDate}
-            onChange={(e) => setField("orderDate", e.target.value)}
+            onChange={(v) => setField("orderDate", v)}
           />
         </div>
       </div>

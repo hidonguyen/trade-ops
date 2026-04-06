@@ -8,13 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
+import { DatePicker } from "@/components/ui/date-picker";
+import { NumberInput } from "@/components/ui/number-input";
 import {
   Dialog,
   DialogContent,
@@ -85,10 +81,11 @@ export function PaymentForm({ open, onClose, onSuccess, orderId, orderType, part
     }
   }, [form.paymentMethod, partyId]);
 
-  // Reset form when dialog opens
+  // Reset form and stale deposits when dialog opens
   useEffect(() => {
     if (open) {
       setForm({ ...defaultForm });
+      setDeposits([]);
       setError(null);
     }
   }, [open]);
@@ -177,57 +174,55 @@ export function PaymentForm({ open, onClose, onSuccess, orderId, orderType, part
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Loại thanh toán</Label>
-              <Select value={form.paymentType} onValueChange={(v) => setField("paymentType", v ?? "")}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="PAYMENT">Thanh toán</SelectItem>
-                  <SelectItem value="REFUND">Hoàn tiền</SelectItem>
-                </SelectContent>
-              </Select>
+              <Combobox
+                value={form.paymentType}
+                onValueChange={(v) => setField("paymentType", v)}
+                options={[
+                  { value: "PAYMENT", label: "Thanh toán" },
+                  { value: "REFUND", label: "Hoàn tiền" },
+                ]}
+                placeholder="Chọn loại"
+              />
             </div>
 
             <div className="space-y-1.5">
               <Label>Phương thức</Label>
-              <Select
+              <Combobox
                 value={form.paymentMethod}
-                onValueChange={(v) => { setField("paymentMethod", v ?? ""); setField("depositId", ""); }}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="BANK">Ngân hàng</SelectItem>
-                  <SelectItem value="DEPOSIT">Cọc</SelectItem>
-                </SelectContent>
-              </Select>
+                onValueChange={(v) => { setField("paymentMethod", v); setField("depositId", ""); }}
+                options={[
+                  { value: "BANK", label: "Ngân hàng" },
+                  { value: "DEPOSIT", label: "Cọc" },
+                ]}
+                placeholder="Chọn phương thức"
+              />
             </div>
           </div>
 
           {form.paymentMethod === "DEPOSIT" && (
             <div className="space-y-1.5">
               <Label>Chọn cọc</Label>
-              <Select value={form.depositId} onValueChange={(v) => setField("depositId", v ?? "")}>
-                <SelectTrigger><SelectValue placeholder="Chọn cọc..." /></SelectTrigger>
-                <SelectContent>
-                  {deposits.map((d) => (
-                    <SelectItem key={d.id} value={d.id}>
-                      Còn lại: {d.remainingOriginal} {currency.code}
-                      {d.notes ? ` — ${d.notes}` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Combobox
+                value={form.depositId}
+                onValueChange={(v) => setField("depositId", v)}
+                options={deposits.map((d) => ({
+                  value: d.id,
+                  label: `Còn lại: ${d.remainingOriginal} ${currency.code}${d.notes ? ` — ${d.notes}` : ""}`,
+                }))}
+                placeholder="Chọn cọc..."
+              />
             </div>
           )}
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Số tiền ({currency.code})</Label>
-              <Input
-                type="number"
-                step="0.0001"
-                min="0"
-                placeholder="0.0000"
+              <NumberInput
                 value={form.amountOriginal}
-                onChange={(e) => setField("amountOriginal", e.target.value)}
+                onChange={(v) => setField("amountOriginal", v)}
+                decimals={4}
+                min={0}
+                placeholder="0.0000"
               />
             </div>
 
@@ -240,18 +235,18 @@ export function PaymentForm({ open, onClose, onSuccess, orderId, orderType, part
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Tỷ giá</Label>
-              <Input
-                type="number"
-                step="0.00000001"
-                min="0"
+              <NumberInput
                 value={form.exchangeRate}
-                onChange={(e) => setField("exchangeRate", e.target.value)}
+                onChange={(v) => setField("exchangeRate", v)}
+                decimals={8}
+                min={0}
+                placeholder="1"
               />
             </div>
 
             <div className="space-y-1.5">
               <Label>Thành tiền VND</Label>
-              <Input value={form.amountVnd} readOnly className="bg-slate-50 font-mono" />
+              <NumberInput value={form.amountVnd} onChange={() => {}} readOnly decimals={4} />
             </div>
           </div>
 
@@ -267,10 +262,9 @@ export function PaymentForm({ open, onClose, onSuccess, orderId, orderType, part
 
             <div className="space-y-1.5">
               <Label>Ngày giao dịch</Label>
-              <Input
-                type="date"
+              <DatePicker
                 value={form.transactionDate}
-                onChange={(e) => setField("transactionDate", e.target.value)}
+                onChange={(v) => setField("transactionDate", v)}
               />
             </div>
           </div>

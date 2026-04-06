@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 
 interface BusinessUnit { id: string; code: string; name: string; }
 
@@ -95,23 +95,21 @@ export function PartyForm({ initialData, onSubmit, mode }: PartyFormProps) {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label>Loại đối tác <span className="text-red-500">*</span></Label>
-          <Select value={form.type} onValueChange={(v) => set("type", (v ?? "CUSTOMER") as PartyFormData["type"])}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {TYPE_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <Combobox
+            value={form.type}
+            onValueChange={(v) => set("type", v as PartyFormData["type"])}
+            options={TYPE_OPTIONS}
+            placeholder="Chọn loại"
+          />
         </div>
         <div className="space-y-1.5">
           <Label>Đơn vị kinh doanh <span className="text-red-500">*</span></Label>
-          <Select value={form.businessUnitId} onValueChange={(v) => set("businessUnitId", v ?? "")}>
-            <SelectTrigger><SelectValue placeholder="Chọn đơn vị" /></SelectTrigger>
-            <SelectContent>
-              {businessUnits.map((bu) => (
-                <SelectItem key={bu.id} value={bu.id}>{bu.code} — {bu.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Combobox
+            value={form.businessUnitId}
+            onValueChange={(v) => set("businessUnitId", v)}
+            options={businessUnits.map((bu) => ({ value: bu.id, label: `${bu.code} — ${bu.name}` }))}
+            placeholder="Chọn đơn vị"
+          />
           {errors.businessUnitId && <p className="text-xs text-red-500">{errors.businessUnitId}</p>}
         </div>
       </div>

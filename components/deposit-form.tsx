@@ -3,10 +3,10 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
+import { NumberInput } from "@/components/ui/number-input";
 
 interface Currency { id: string; code: string; symbol: string; }
 interface BusinessUnit { id: string; code: string; name: string; }
@@ -90,37 +90,31 @@ export function DepositForm({ partyId, open, onClose, onCreated }: DepositFormPr
 
           <div className="space-y-1.5">
             <Label>Tiền tệ <span className="text-red-500">*</span></Label>
-            <Select value={currencyId} onValueChange={(v) => setCurrencyId(v ?? "")}>
-              <SelectTrigger><SelectValue placeholder="Chọn tiền tệ" /></SelectTrigger>
-              <SelectContent>
-                {currencies.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>{c.symbol} {c.code}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Combobox
+              value={currencyId}
+              onValueChange={setCurrencyId}
+              options={currencies.map((c) => ({ value: c.id, label: `${c.symbol} ${c.code}` }))}
+              placeholder="Chọn tiền tệ"
+            />
           </div>
 
           <div className="space-y-1.5">
             <Label>Đơn vị kinh doanh <span className="text-red-500">*</span></Label>
-            <Select value={businessUnitId} onValueChange={(v) => setBusinessUnitId(v ?? "")}>
-              <SelectTrigger><SelectValue placeholder="Chọn đơn vị" /></SelectTrigger>
-              <SelectContent>
-                {businessUnits.map((bu) => (
-                  <SelectItem key={bu.id} value={bu.id}>{bu.code} — {bu.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Combobox
+              value={businessUnitId}
+              onValueChange={setBusinessUnitId}
+              options={businessUnits.map((bu) => ({ value: bu.id, label: `${bu.code} — ${bu.name}` }))}
+              placeholder="Chọn đơn vị"
+            />
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="dep-amount">Số tiền <span className="text-red-500">*</span></Label>
-            <Input
-              id="dep-amount"
-              type="number"
-              min="0"
-              step="any"
+            <Label>Số tiền <span className="text-red-500">*</span></Label>
+            <NumberInput
               value={amountOriginal}
-              onChange={(e) => setAmountOriginal(e.target.value)}
+              onChange={setAmountOriginal}
+              decimals={2}
+              min={0}
               placeholder="0.00"
             />
           </div>

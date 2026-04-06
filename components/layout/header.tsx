@@ -5,13 +5,7 @@ import { useEffect, useState } from "react";
 import { signOut } from "next-auth/react";
 import { MenuIcon, LogOutIcon, BuildingIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
@@ -88,24 +82,16 @@ export function Header({ userName, userRoles, sidebarContent }: HeaderProps) {
       {businessUnits.length > 0 && (
         <div className="flex items-center gap-1.5">
           <BuildingIcon size={15} className="text-slate-400 shrink-0" />
-          <Select value={selectedBu} onValueChange={(val) => { if (val) setSelectedBu(val); }}>
-            <SelectTrigger
-              size="sm"
-              className={cn(
-                "min-w-[140px] border-slate-200 bg-slate-50 text-slate-700",
-                "focus-visible:ring-blue-500/30"
-              )}
-            >
-              <SelectValue placeholder="Chọn công ty" />
-            </SelectTrigger>
-            <SelectContent>
-              {businessUnits.map((bu) => (
-                <SelectItem key={bu.id} value={bu.id}>
-                  {bu.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Combobox
+            value={selectedBu}
+            onValueChange={(val) => { if (val) setSelectedBu(val); }}
+            options={businessUnits.map((bu) => ({ value: bu.id, label: bu.name }))}
+            placeholder="Chọn công ty"
+            className={cn(
+              "min-w-[140px] border-slate-200 bg-slate-50 text-slate-700",
+              "focus-visible:ring-blue-500/30"
+            )}
+          />
         </div>
       )}
 

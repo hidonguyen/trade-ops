@@ -2,7 +2,8 @@
 "use client";
 
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
+import { DatePicker } from "@/components/ui/date-picker";
 import { SearchIcon } from "lucide-react";
 
 export interface FilterOption {
@@ -13,7 +14,7 @@ export interface FilterOption {
 export interface FilterConfig {
   key: string;
   label: string;
-  type: "select" | "search" | "date";
+  type: "select" | "search" | "date" | "date-range";
   options?: FilterOption[];
   placeholder?: string;
 }
@@ -26,7 +27,7 @@ interface FilterBarProps {
 
 export function FilterBar({ filters, onFilterChange, values = {} }: FilterBarProps) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex items-center gap-2 overflow-x-auto">
       {filters.map((filter) => {
         if (filter.type === "search") {
           return (
@@ -45,36 +46,46 @@ export function FilterBar({ filters, onFilterChange, values = {} }: FilterBarPro
         if (filter.type === "date") {
           return (
             <div key={filter.key}>
-              <Input
-                type="date"
-                aria-label={filter.label}
+              <DatePicker
                 value={values[filter.key] ?? ""}
-                onChange={(e) => onFilterChange(filter.key, e.target.value)}
-                className="h-8 w-auto"
+                onChange={(v) => onFilterChange(filter.key, v)}
+                placeholder={filter.label}
               />
             </div>
           );
         }
 
-        // select
+        if (filter.type === "date-range") {
+          return (
+            <div key={filter.key} className="flex items-center gap-1.5">
+              <DatePicker
+                value={values[`${filter.key}From`] ?? ""}
+                onChange={(v) => onFilterChange(`${filter.key}From`, v)}
+                placeholder="Từ ngày"
+              />
+              <span className="text-xs text-muted-foreground">→</span>
+              <DatePicker
+                value={values[`${filter.key}To`] ?? ""}
+                onChange={(v) => onFilterChange(`${filter.key}To`, v)}
+                placeholder="Đến ngày"
+              />
+            </div>
+          );
+        }
+
+        // select → combobox with "Tất cả" option
         return (
-          <Select
+          <Combobox
             key={filter.key}
             value={values[filter.key] ?? ""}
-            onValueChange={(val) => onFilterChange(filter.key, val ?? "")}
-          >
-            <SelectTrigger size="sm" className="min-w-[140px]">
-              <SelectValue placeholder={filter.label} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">Tất cả</SelectItem>
-              {(filter.options ?? []).map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            onValueChange={(val) => onFilterChange(filter.key, val)}
+            options={[
+              { value: "", label: "Tất cả" },
+              ...(filter.options ?? []),
+            ]}
+            placeholder={filter.label}
+            className="min-w-[140px]"
+          />
         );
       })}
     </div>

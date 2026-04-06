@@ -68,6 +68,8 @@ export default function OrdersPage() {
         ...(filters.type ? { type: filters.type } : {}),
         ...(filters.status ? { status: filters.status } : {}),
         ...(filters.businessUnitId ? { businessUnitId: filters.businessUnitId } : {}),
+        ...(filters.dateFrom ? { dateFrom: filters.dateFrom } : {}),
+        ...(filters.dateTo ? { dateTo: filters.dateTo } : {}),
       });
       const res = await fetch(`/api/orders?${params}`);
       const json = await res.json();
@@ -95,6 +97,7 @@ export default function OrdersPage() {
     { key: "type", label: "Loại đơn", type: "select", options: TYPE_OPTIONS },
     { key: "status", label: "Trạng thái", type: "select", options: STATUS_OPTIONS },
     { key: "businessUnitId", label: "Đơn vị", type: "select", options: buOptions },
+    { key: "date", label: "Ngày đặt", type: "date-range" },
   ];
 
   const columns: Column<Order>[] = [

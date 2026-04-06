@@ -22,6 +22,8 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get("status");
   const businessUnitId = searchParams.get("businessUnitId");
   const partyId = searchParams.get("partyId");
+  const dateFrom = searchParams.get("dateFrom");
+  const dateTo = searchParams.get("dateTo");
 
   // Determine accessible modules
   const canSale = checkAccess(session.user.roles, "GET", "SALE");
@@ -41,11 +43,21 @@ export async function GET(request: NextRequest) {
   const userId = session.user.id!;
   const { page, limit, skip, sortBy, order } = parsePagination(searchParams);
 
+  // Build orderDate range filter — validate ISO format before constructing Date
+  const isValidDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(new Date(s).getTime());
+  const parsedFrom = dateFrom && isValidDate(dateFrom) ? new Date(dateFrom) : undefined;
+  const parsedTo = dateTo && isValidDate(dateTo) ? new Date(`${dateTo}T23:59:59.999Z`) : undefined;
+  const orderDateFilter = (parsedFrom || parsedTo) ? {
+    ...(parsedFrom && { gte: parsedFrom }),
+    ...(parsedTo && { lte: parsedTo }),
+  } : undefined;
+
   const where = {
     type: { in: allowedTypes },
     ...(status && { status }),
     ...(businessUnitId && { businessUnitId }),
     ...(partyId && { partyId }),
+    ...(orderDateFilter && { orderDate: orderDateFilter }),
   };
 
   try {
