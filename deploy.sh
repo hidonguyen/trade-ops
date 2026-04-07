@@ -19,8 +19,7 @@ case "${1:-help}" in
     echo "=== Starting services ==="
     source .env.production
     $COMPOSE up -d --build
-    echo "Waiting for postgres..."
-    sleep 5
+    sleep 3
     $COMPOSE exec app npx prisma migrate deploy
     echo "=== App running at http://$DOMAIN ==="
     ;;
