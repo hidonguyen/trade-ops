@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { getDefaultBu } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { DataTable, Column } from "@/components/shared/data-table";
 import { Pagination } from "@/components/shared/pagination";
@@ -23,12 +24,6 @@ interface Transaction {
   businessUnit: { id: string; code: string; name: string };
 }
 
-interface BusinessUnit {
-  id: string;
-  code: string;
-  name: string;
-}
-
 const TYPE_OPTIONS = [
   { value: "RECEIPT", label: "Thu tiền" },
   { value: "PAYMENT", label: "Chi tiền" },
@@ -46,24 +41,17 @@ export default function TransactionsPage() {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(25);
   const [loading, setLoading] = useState(true);
-  const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([]);
   const [filters, setFilters] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    fetch("/api/business-units")
-      .then((r) => r.json())
-      .then((json) => { if (json.success) setBusinessUnits(json.data); })
-      .catch(console.error);
-  }, []);
 
   const fetchTransactions = useCallback(async () => {
     setLoading(true);
     try {
+      const buId = getDefaultBu();
       const params = new URLSearchParams({
         page: String(page),
         limit: String(limit),
+        ...(buId ? { businessUnitId: buId } : {}),
         ...(filters.type ? { type: filters.type } : {}),
-        ...(filters.businessUnitId ? { businessUnitId: filters.businessUnitId } : {}),
       });
       const res = await fetch(`/api/transactions?${params}`);
       const json = await res.json();
@@ -85,12 +73,9 @@ export default function TransactionsPage() {
     setPage(1);
   }
 
-  const buOptions = businessUnits.map((bu) => ({ value: bu.id, label: `${bu.code} – ${bu.name}` }));
-
   const filterConfigs: FilterConfig[] = [
     { key: "type", label: "Loại giao dịch", type: "select", options: TYPE_OPTIONS },
     { key: "paymentMethod", label: "Phương thức", type: "select", options: METHOD_OPTIONS },
-    { key: "businessUnitId", label: "Đơn vị", type: "select", options: buOptions },
   ];
 
   const columns: Column<Transaction>[] = [

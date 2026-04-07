@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { getDefaultBu } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { DataTable, Column } from "@/components/shared/data-table";
 import { Pagination } from "@/components/shared/pagination";
@@ -32,7 +33,6 @@ interface CurrencySummary {
   netCashflow: string;
 }
 
-interface BusinessUnit { id: string; code: string; name: string; }
 interface Currency { id: string; code: string; symbol: string; }
 
 export default function CashflowPage() {
@@ -42,28 +42,25 @@ export default function CashflowPage() {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(25);
   const [loading, setLoading] = useState(false);
-  const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([]);
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [filters, setFilters] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    Promise.all([
-      fetch("/api/business-units").then((r) => r.json()),
-      fetch("/api/currencies").then((r) => r.json()),
-    ]).then(([buJson, curJson]) => {
-      if (buJson.success) setBusinessUnits(buJson.data);
-      if (curJson.success) setCurrencies(curJson.data);
-    }).catch(console.error);
+    fetch("/api/currencies")
+      .then((r) => r.json())
+      .then((json) => { if (json.success) setCurrencies(json.data); })
+      .catch(console.error);
   }, []);
 
   const fetchReport = useCallback(async () => {
     setLoading(true);
     try {
+      const buId = getDefaultBu();
       const params = new URLSearchParams({
         format: "json",
         page: String(page),
         limit: String(limit),
-        ...(filters.businessUnitId ? { businessUnitId: filters.businessUnitId } : {}),
+        ...(buId ? { businessUnitId: buId } : {}),
         ...(filters.dateFrom ? { dateFrom: filters.dateFrom } : {}),
         ...(filters.dateTo ? { dateTo: filters.dateTo } : {}),
         ...(filters.currencyId ? { currencyId: filters.currencyId } : {}),
@@ -112,9 +109,10 @@ export default function CashflowPage() {
   }
 
   function handleExportExcel() {
+    const buId = getDefaultBu();
     const params = new URLSearchParams({
       format: "xlsx",
-      ...(filters.businessUnitId ? { businessUnitId: filters.businessUnitId } : {}),
+      ...(buId ? { businessUnitId: buId } : {}),
       ...(filters.dateFrom ? { dateFrom: filters.dateFrom } : {}),
       ...(filters.dateTo ? { dateTo: filters.dateTo } : {}),
       ...(filters.currencyId ? { currencyId: filters.currencyId } : {}),
@@ -122,11 +120,9 @@ export default function CashflowPage() {
     window.open(`/api/cashflow-report?${params}`, "_blank");
   }
 
-  const buOptions = businessUnits.map((bu) => ({ value: bu.id, label: `${bu.code} – ${bu.name}` }));
   const curOptions = currencies.map((c) => ({ value: c.id, label: `${c.symbol} ${c.code}` }));
 
   const filterConfigs: FilterConfig[] = [
-    { key: "businessUnitId", label: "Đơn vị", type: "select", options: buOptions },
     { key: "currencyId", label: "Tiền tệ", type: "select", options: curOptions },
     { key: "dateFrom", label: "Từ ngày", type: "date" },
     { key: "dateTo", label: "Đến ngày", type: "date" },

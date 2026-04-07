@@ -33,12 +33,12 @@ async function main() {
   await prisma.businessUnit.upsert({
     where: { code: "TK" },
     update: {},
-    create: { code: "TK", name: "Trường Khang" },
+    create: { code: "TK", name: "Trang Khanh" },
   });
   await prisma.businessUnit.upsert({
     where: { code: "NT" },
     update: {},
-    create: { code: "NT", name: "Nhiên Thúy" },
+    create: { code: "NT", name: "Ngọc Trinh" },
   });
 
   // Currencies

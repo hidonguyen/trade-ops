@@ -5,6 +5,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Decimal from "decimal.js";
+import { getDefaultBu } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,12 +13,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Combobox } from "@/components/ui/combobox";
 import { DatePicker } from "@/components/ui/date-picker";
 import { NumberInput } from "@/components/ui/number-input";
-
-interface BusinessUnit {
-  id: string;
-  code: string;
-  name: string;
-}
 
 interface Currency {
   id: string;
@@ -74,8 +69,10 @@ interface TransactionFormProps {
 }
 
 export function TransactionForm({ onSuccess }: TransactionFormProps) {
-  const [form, setForm] = useState<FormState>({ ...defaultForm });
-  const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([]);
+  const [form, setForm] = useState<FormState>(() => ({
+    ...defaultForm,
+    businessUnitId: getDefaultBu(),
+  }));
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [deposits, setDeposits] = useState<Deposit[]>([]);
   const [parties, setParties] = useState<Party[]>([]);
@@ -87,12 +84,8 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
   useEffect(() => {
     async function loadData() {
       try {
-        const [buRes, curRes] = await Promise.all([
-          fetch("/api/business-units"),
-          fetch("/api/currencies"),
-        ]);
-        const [buJson, curJson] = await Promise.all([buRes.json(), curRes.json()]);
-        if (buJson.success) setBusinessUnits(buJson.data);
+        const curRes = await fetch("/api/currencies");
+        const curJson = await curRes.json();
         if (curJson.success) setCurrencies(curJson.data);
       } catch {
         setError("Không thể tải dữ liệu tham chiếu");
@@ -144,7 +137,7 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
 
   function validate(): string | null {
     if (!form.type) return "Loại giao dịch là bắt buộc";
-    if (!form.businessUnitId) return "Đơn vị kinh doanh là bắt buộc";
+    if (!form.businessUnitId) return "Vui lòng chọn đơn vị kinh doanh ở thanh tiêu đề";
     if (!form.currencyId) return "Tiền tệ là bắt buộc";
     if (!form.amountOriginal || isNaN(parseFloat(form.amountOriginal)) || parseFloat(form.amountOriginal) <= 0)
       return "Số tiền phải lớn hơn 0";
@@ -219,16 +212,6 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
               { value: "PAYMENT", label: "Chi tiền" },
             ]}
             placeholder="Chọn loại"
-          />
-        </div>
-
-        <div className="space-y-1.5">
-          <Label>Đơn vị kinh doanh</Label>
-          <Combobox
-            value={form.businessUnitId}
-            onValueChange={(v) => setField("businessUnitId", v)}
-            options={businessUnits.map((bu) => ({ value: bu.id, label: `${bu.code} – ${bu.name}` }))}
-            placeholder="Chọn đơn vị"
           />
         </div>
 

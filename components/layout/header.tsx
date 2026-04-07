@@ -7,7 +7,7 @@ import { MenuIcon, LogOutIcon, BuildingIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { cn } from "@/lib/utils";
+import { cn, getDefaultBu, saveSelectedBu } from "@/lib/utils";
 
 interface BusinessUnit {
   id: string;
@@ -49,7 +49,12 @@ export function Header({ userName, userRoles, sidebarContent }: HeaderProps) {
       .then((json) => {
         if (json?.data?.length) {
           setBusinessUnits(json.data);
-          setSelectedBu(json.data[0].id);
+          // Restore saved BU from localStorage, fallback to first BU
+          const saved = getDefaultBu();
+          const defaultBu = saved && json.data.find((bu: BusinessUnit) => bu.id === saved)
+            ? saved
+            : json.data[0].id;
+          setSelectedBu(defaultBu);
         }
       })
       .catch(() => {/* non-critical: BU list unavailable */});
@@ -84,7 +89,12 @@ export function Header({ userName, userRoles, sidebarContent }: HeaderProps) {
           <BuildingIcon size={15} className="text-slate-400 shrink-0" />
           <Combobox
             value={selectedBu}
-            onValueChange={(val) => { if (val) setSelectedBu(val); }}
+            onValueChange={(val) => {
+              if (val) {
+                setSelectedBu(val);
+                saveSelectedBu(val);
+              }
+            }}
             options={businessUnits.map((bu) => ({ value: bu.id, label: bu.name }))}
             placeholder="Chọn công ty"
             className={cn(

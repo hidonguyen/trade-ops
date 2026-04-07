@@ -4,6 +4,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { getDefaultBu } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,12 +17,6 @@ interface Party {
   id: string;
   name: string;
   type: string;
-}
-
-interface BusinessUnit {
-  id: string;
-  code: string;
-  name: string;
 }
 
 interface Currency {
@@ -57,9 +52,12 @@ const defaultForm: OrderFormData = {
 };
 
 export function OrderForm({ initialData, onSubmit, mode }: OrderFormProps) {
-  const [form, setForm] = useState<OrderFormData>({ ...defaultForm, ...initialData });
+  const [form, setForm] = useState<OrderFormData>(() => ({
+    ...defaultForm,
+    businessUnitId: getDefaultBu(),
+    ...initialData,
+  }));
   const [parties, setParties] = useState<Party[]>([]);
-  const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([]);
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -69,12 +67,8 @@ export function OrderForm({ initialData, onSubmit, mode }: OrderFormProps) {
   useEffect(() => {
     async function loadData() {
       try {
-        const [buRes, curRes] = await Promise.all([
-          fetch("/api/business-units"),
-          fetch("/api/currencies"),
-        ]);
-        const [buJson, curJson] = await Promise.all([buRes.json(), curRes.json()]);
-        if (buJson.success) setBusinessUnits(buJson.data);
+        const curRes = await fetch("/api/currencies");
+        const curJson = await curRes.json();
         if (curJson.success) setCurrencies(curJson.data);
       } catch {
         setError("Không thể tải dữ liệu tham chiếu");
@@ -105,7 +99,7 @@ export function OrderForm({ initialData, onSubmit, mode }: OrderFormProps) {
   function validate(): string | null {
     if (!form.type) return "Loại đơn là bắt buộc";
     if (!form.partyId) return "Đối tác là bắt buộc";
-    if (!form.businessUnitId) return "Đơn vị kinh doanh là bắt buộc";
+    if (!form.businessUnitId) return "Vui lòng chọn đơn vị kinh doanh ở thanh tiêu đề";
     if (!form.amountOriginal || isNaN(parseFloat(form.amountOriginal)))
       return "Số tiền không hợp lệ";
     if (!form.currencyId) return "Tiền tệ là bắt buộc";
@@ -158,16 +152,6 @@ export function OrderForm({ initialData, onSubmit, mode }: OrderFormProps) {
             onValueChange={(v) => setField("partyId", v)}
             options={parties.map((p) => ({ value: p.id, label: p.name }))}
             placeholder="Chọn đối tác"
-          />
-        </div>
-
-        <div className="space-y-1.5">
-          <Label>Đơn vị kinh doanh</Label>
-          <Combobox
-            value={form.businessUnitId}
-            onValueChange={(v) => setField("businessUnitId", v)}
-            options={businessUnits.map((bu) => ({ value: bu.id, label: `${bu.code} – ${bu.name}` }))}
-            placeholder="Chọn đơn vị"
           />
         </div>
 

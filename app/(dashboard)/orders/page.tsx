@@ -2,7 +2,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { getDefaultBu } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { DataTable, Column } from "@/components/shared/data-table";
 import { Pagination } from "@/components/shared/pagination";
@@ -22,12 +23,6 @@ interface Order extends Record<string, unknown> {
   businessUnit: { id: string; code: string; name: string };
 }
 
-interface BusinessUnit {
-  id: string;
-  code: string;
-  name: string;
-}
-
 const STATUS_OPTIONS = [
   { value: "UNPAID", label: "Chưa TT" },
   { value: "PARTIAL_PAID", label: "TT 1 phần" },
@@ -43,31 +38,39 @@ const TYPE_OPTIONS = [
 
 export default function OrdersPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [orders, setOrders] = useState<Order[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(25);
   const [loading, setLoading] = useState(true);
-  const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([]);
-  const [filters, setFilters] = useState<Record<string, string>>({});
+  // Read initial type filter from URL search params (e.g. /orders?type=SALE)
+  const [filters, setFilters] = useState<Record<string, string>>(() => {
+    const type = searchParams.get("type");
+    return type ? { type } : ({} as Record<string, string>);
+  });
 
-  // Load BU list for filter dropdown
+  // Sync type filter when URL search params change (soft navigation between sidebar links)
+  const urlType = searchParams.get("type");
   useEffect(() => {
-    fetch("/api/business-units")
-      .then((r) => r.json())
-      .then((json) => { if (json.success) setBusinessUnits(json.data); })
-      .catch(console.error);
-  }, []);
+    setFilters((prev) => {
+      if (urlType && prev.type !== urlType) return { ...prev, type: urlType };
+      if (!urlType && prev.type) { const { type: _, ...rest } = prev; return rest; }
+      return prev;
+    });
+    setPage(1);
+  }, [urlType]);
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     try {
+      const buId = getDefaultBu();
       const params = new URLSearchParams({
         page: String(page),
         limit: String(limit),
+        ...(buId ? { businessUnitId: buId } : {}),
         ...(filters.type ? { type: filters.type } : {}),
         ...(filters.status ? { status: filters.status } : {}),
-        ...(filters.businessUnitId ? { businessUnitId: filters.businessUnitId } : {}),
         ...(filters.dateFrom ? { dateFrom: filters.dateFrom } : {}),
         ...(filters.dateTo ? { dateTo: filters.dateTo } : {}),
       });
@@ -91,12 +94,9 @@ export default function OrdersPage() {
     setPage(1);
   }
 
-  const buOptions = businessUnits.map((bu) => ({ value: bu.id, label: `${bu.code} – ${bu.name}` }));
-
   const filterConfigs: FilterConfig[] = [
     { key: "type", label: "Loại đơn", type: "select", options: TYPE_OPTIONS },
     { key: "status", label: "Trạng thái", type: "select", options: STATUS_OPTIONS },
-    { key: "businessUnitId", label: "Đơn vị", type: "select", options: buOptions },
     { key: "date", label: "Ngày đặt", type: "date-range" },
   ];
 

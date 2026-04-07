@@ -2,14 +2,14 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { PlusIcon } from "lucide-react";
+import { getDefaultBu } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { DataTable, Column } from "@/components/shared/data-table";
 import { FilterBar, FilterConfig } from "@/components/shared/filter-bar";
 import { Pagination } from "@/components/shared/pagination";
 
-interface BusinessUnit { id: string; code: string; name: string; }
 interface Party {
   id: string;
   name: string;
@@ -27,31 +27,38 @@ const TYPE_LABELS: Record<string, string> = {
 
 export default function PartiesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [parties, setParties] = useState<Party[]>([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(25);
-  const [filters, setFilters] = useState<Record<string, string>>({});
-  const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([]);
-
-  // Fetch BU list for filter options once
+  // Read initial type filter from URL search params (e.g. /parties?type=CUSTOMER)
+  const [filters, setFilters] = useState<Record<string, string>>(() => {
+    const type = searchParams.get("type");
+    return type ? { type } : ({} as Record<string, string>);
+  });
+  // Sync type filter when URL search params change (soft navigation between sidebar links)
+  const urlType = searchParams.get("type");
   useEffect(() => {
-    fetch("/api/business-units")
-      .then((r) => r.json())
-      .then((j) => { if (j.success) setBusinessUnits(j.data); })
-      .catch(() => {});
-  }, []);
+    setFilters((prev) => {
+      if (urlType && prev.type !== urlType) return { ...prev, type: urlType };
+      if (!urlType && prev.type) { const { type: _, ...rest } = prev; return rest; }
+      return prev;
+    });
+    setPage(1);
+  }, [urlType]);
 
   const fetchParties = useCallback(async () => {
     setLoading(true);
     try {
+      const buId = getDefaultBu();
       const params = new URLSearchParams();
       params.set("page", String(page));
       params.set("limit", String(limit));
+      if (buId) params.set("businessUnitId", buId);
       if (filters.type) params.set("type", filters.type);
       if (filters.search) params.set("search", filters.search);
-      if (filters.businessUnitId) params.set("businessUnitId", filters.businessUnitId);
 
       const res = await fetch(`/api/parties?${params}`);
       const json = await res.json();
@@ -81,10 +88,6 @@ export default function PartiesPage() {
         { value: "SUPPLIER", label: "Nhà cung cấp" },
         { value: "BOTH", label: "KH & NCC" },
       ],
-    },
-    {
-      key: "businessUnitId", label: "Đơn vị KD", type: "select",
-      options: businessUnits.map((bu) => ({ value: bu.id, label: `${bu.code} — ${bu.name}` })),
     },
     { key: "search", label: "Tìm kiếm", type: "search", placeholder: "Tìm theo tên..." },
   ];

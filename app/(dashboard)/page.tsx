@@ -3,10 +3,10 @@
 
 import { useState, useEffect, useCallback } from "react";
 import dynamic from "next/dynamic";
-import { TrendingUpIcon, TrendingDownIcon, PiggyBankIcon, ActivityIcon, BuildingIcon } from "lucide-react";
+import { TrendingUpIcon, TrendingDownIcon, PiggyBankIcon, ActivityIcon } from "lucide-react";
+import { getDefaultBu } from "@/lib/utils";
 import { KpiCard } from "@/components/kpi-card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { BarDataPoint, PieDataPoint } from "@/components/dashboard-charts";
 
 const DashboardCharts = dynamic(() => import("@/components/dashboard-charts"), { ssr: false });
@@ -19,8 +19,6 @@ interface DashboardData {
   recentTransactionCount: number;
   depositBalances: CurrencyAmount[];
 }
-
-interface BusinessUnit { id: string; name: string; code: string; }
 
 // Format multiple currency entries as compact string
 function formatCurrencyList(items: CurrencyAmount[]): string {
@@ -54,26 +52,12 @@ function buildPlaceholderBarData(): BarDataPoint[] {
 }
 
 export default function DashboardPage() {
-  const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([]);
-  const [selectedBuId, setSelectedBuId] = useState<string>("");
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load business units on mount
-  useEffect(() => {
-    fetch("/api/business-units")
-      .then((r) => r.json())
-      .then((json) => {
-        if (json.success && json.data.length > 0) {
-          setBusinessUnits(json.data);
-          setSelectedBuId(json.data[0].id);
-        }
-      })
-      .catch(() => setError("Không thể tải đơn vị kinh doanh"));
-  }, []);
-
-  const fetchDashboard = useCallback(async (buId: string) => {
+  const fetchDashboard = useCallback(async () => {
+    const buId = getDefaultBu();
     if (!buId) return;
     setLoading(true);
     setError(null);
@@ -93,8 +77,8 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    if (selectedBuId) fetchDashboard(selectedBuId);
-  }, [selectedBuId, fetchDashboard]);
+    fetchDashboard();
+  }, [fetchDashboard]);
 
   const pieData = data
     ? buildPieData([...data.totalReceivable, ...data.depositBalances])
@@ -104,26 +88,9 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Tổng quan</h1>
-          <p className="mt-0.5 text-sm text-slate-500">Dữ liệu tài chính theo đơn vị kinh doanh</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <BuildingIcon className="size-4 text-slate-400 shrink-0" />
-          <Select value={selectedBuId} onValueChange={(v) => setSelectedBuId(v ?? "")}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Chọn đơn vị" />
-            </SelectTrigger>
-            <SelectContent>
-              {businessUnits.map((bu) => (
-                <SelectItem key={bu.id} value={bu.id}>
-                  {bu.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900">Tổng quan</h1>
+        <p className="mt-0.5 text-sm text-slate-500">Dữ liệu tài chính theo đơn vị kinh doanh</p>
       </div>
 
       {error && (

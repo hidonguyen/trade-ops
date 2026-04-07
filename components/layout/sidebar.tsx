@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
@@ -72,10 +72,11 @@ const NAV_GROUPS: NavGroup[] = [
 interface SidebarNavProps {
   userRoles: string[];
   pathname: string;
+  searchParams: URLSearchParams;
   onNavigate?: () => void;
 }
 
-function SidebarNav({ userRoles, pathname, onNavigate }: SidebarNavProps) {
+function SidebarNav({ userRoles, pathname, searchParams, onNavigate }: SidebarNavProps) {
   const isAdmin = userRoles.includes("ADMIN");
 
   return (
@@ -90,9 +91,12 @@ function SidebarNav({ userRoles, pathname, onNavigate }: SidebarNavProps) {
             <div className="flex flex-col gap-0.5">
               {group.items.map((item) => {
                 const Icon = item.icon;
-                // Match active by pathname prefix (ignore query string for base path)
-                const basePath = item.href.split("?")[0];
-                const isActive = pathname === basePath || pathname.startsWith(basePath + "/");
+                // Match active by pathname + query params (e.g. type=SALE vs type=PURCHASE)
+                const [itemPath, itemQuery] = item.href.split("?");
+                const itemType = new URLSearchParams(itemQuery || "").get("type");
+                const currentType = searchParams.get("type");
+                const pathMatches = pathname === itemPath || pathname.startsWith(itemPath + "/");
+                const isActive = pathMatches && (!itemType || itemType === currentType);
                 return (
                   <Link
                     key={item.href}
@@ -124,6 +128,7 @@ interface SidebarProps {
 
 export function Sidebar({ userRoles }: SidebarProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const logo = (
@@ -137,7 +142,7 @@ export function Sidebar({ userRoles }: SidebarProps) {
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex flex-col w-60 bg-slate-900 min-h-screen fixed left-0 top-0 bottom-0 z-30">
         {logo}
-        <SidebarNav userRoles={userRoles} pathname={pathname} />
+        <SidebarNav userRoles={userRoles} pathname={pathname} searchParams={searchParams} />
       </aside>
 
       {/* Mobile hamburger trigger (exported via data attribute for header to pick up) */}
@@ -160,6 +165,7 @@ export function Sidebar({ userRoles }: SidebarProps) {
           <SidebarNav
             userRoles={userRoles}
             pathname={pathname}
+            searchParams={searchParams}
             onNavigate={() => setMobileOpen(false)}
           />
         </SheetContent>

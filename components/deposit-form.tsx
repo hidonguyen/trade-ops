@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { getDefaultBu } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -9,7 +10,6 @@ import { Combobox } from "@/components/ui/combobox";
 import { NumberInput } from "@/components/ui/number-input";
 
 interface Currency { id: string; code: string; symbol: string; }
-interface BusinessUnit { id: string; code: string; name: string; }
 
 interface DepositFormProps {
   partyId: string;
@@ -20,27 +20,23 @@ interface DepositFormProps {
 
 export function DepositForm({ partyId, open, onClose, onCreated }: DepositFormProps) {
   const [currencies, setCurrencies] = useState<Currency[]>([]);
-  const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([]);
   const [currencyId, setCurrencyId] = useState("");
-  const [businessUnitId, setBusinessUnitId] = useState("");
+  const [businessUnitId, setBusinessUnitId] = useState(getDefaultBu);
   const [amountOriginal, setAmountOriginal] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
-    Promise.all([
-      fetch("/api/currencies").then((r) => r.json()),
-      fetch("/api/business-units").then((r) => r.json()),
-    ]).then(([cur, bu]) => {
-      if (cur.success) setCurrencies(cur.data);
-      if (bu.success) setBusinessUnits(bu.data);
-    }).catch(() => {});
+    fetch("/api/currencies")
+      .then((r) => r.json())
+      .then((json) => { if (json.success) setCurrencies(json.data); })
+      .catch(() => {});
   }, [open]);
 
   function reset() {
     setCurrencyId("");
-    setBusinessUnitId("");
+    setBusinessUnitId(getDefaultBu());
     setAmountOriginal("");
     setError(null);
   }
@@ -51,7 +47,11 @@ export function DepositForm({ partyId, open, onClose, onCreated }: DepositFormPr
   }
 
   async function handleSubmit() {
-    if (!currencyId || !businessUnitId || !amountOriginal) {
+    if (!businessUnitId) {
+      setError("Vui lòng chọn đơn vị kinh doanh ở thanh tiêu đề");
+      return;
+    }
+    if (!currencyId || !amountOriginal) {
       setError("Vui lòng điền đầy đủ thông tin");
       return;
     }
@@ -95,16 +95,6 @@ export function DepositForm({ partyId, open, onClose, onCreated }: DepositFormPr
               onValueChange={setCurrencyId}
               options={currencies.map((c) => ({ value: c.id, label: `${c.symbol} ${c.code}` }))}
               placeholder="Chọn tiền tệ"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>Đơn vị kinh doanh <span className="text-red-500">*</span></Label>
-            <Combobox
-              value={businessUnitId}
-              onValueChange={setBusinessUnitId}
-              options={businessUnits.map((bu) => ({ value: bu.id, label: `${bu.code} — ${bu.name}` }))}
-              placeholder="Chọn đơn vị"
             />
           </div>
 

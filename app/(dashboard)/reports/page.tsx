@@ -3,11 +3,10 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { DownloadIcon } from "lucide-react";
+import { getDefaultBu } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { FilterBar, FilterConfig } from "@/components/shared/filter-bar";
 import { DataTable, Column } from "@/components/shared/data-table";
-
-interface BusinessUnit { id: string; name: string; }
 
 interface CurrencySummary {
   code: string;
@@ -72,10 +71,8 @@ function exportToCsv(data: TableRow[], tabLabel: string) {
 }
 
 export default function ReportsPage() {
-  const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([]);
   const defaults = getDefaultDateRange();
   const [filters, setFilters] = useState<Record<string, string>>({
-    businessUnitId: "",
     dateFrom: defaults.dateFrom,
     dateTo: defaults.dateTo,
   });
@@ -84,27 +81,14 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetch("/api/business-units")
-      .then((r) => r.json())
-      .then((json) => {
-        if (json.success) {
-          setBusinessUnits(json.data);
-          if (json.data.length > 0) {
-            setFilters((f) => ({ ...f, businessUnitId: json.data[0].id }));
-          }
-        }
-      })
-      .catch(() => {});
-  }, []);
-
   const fetchSummary = useCallback(async (f: Record<string, string>) => {
-    if (!f.businessUnitId || !f.dateFrom || !f.dateTo) return;
+    const buId = getDefaultBu();
+    if (!buId || !f.dateFrom || !f.dateTo) return;
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams({
-        businessUnitId: f.businessUnitId,
+        businessUnitId: buId,
         dateFrom: f.dateFrom,
         dateTo: f.dateTo,
       });
@@ -123,7 +107,7 @@ export default function ReportsPage() {
   }, []);
 
   useEffect(() => {
-    if (filters.businessUnitId) fetchSummary(filters);
+    fetchSummary(filters);
   }, [filters, fetchSummary]);
 
   function handleFilterChange(key: string, value: string) {
@@ -131,12 +115,6 @@ export default function ReportsPage() {
   }
 
   const filterConfigs: FilterConfig[] = [
-    {
-      key: "businessUnitId",
-      label: "Đơn vị kinh doanh",
-      type: "select",
-      options: businessUnits.map((bu) => ({ value: bu.id, label: bu.name })),
-    },
     { key: "dateFrom", label: "Từ ngày", type: "date" },
     { key: "dateTo", label: "Đến ngày", type: "date" },
   ];

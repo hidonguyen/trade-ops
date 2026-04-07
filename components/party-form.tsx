@@ -2,13 +2,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { getDefaultBu } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Combobox } from "@/components/ui/combobox";
-
-interface BusinessUnit { id: string; code: string; name: string; }
 
 export interface PartyFormData {
   name: string;
@@ -38,17 +37,13 @@ const TYPE_OPTIONS = [
 ];
 
 export function PartyForm({ initialData, onSubmit, mode }: PartyFormProps) {
-  const [form, setForm] = useState<PartyFormData>({ ...EMPTY, ...initialData });
-  const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([]);
+  const [form, setForm] = useState<PartyFormData>(() => ({
+    ...EMPTY,
+    businessUnitId: getDefaultBu(),
+    ...initialData,
+  }));
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<keyof PartyFormData, string>>>({});
-
-  useEffect(() => {
-    fetch("/api/business-units")
-      .then((r) => r.json())
-      .then((json) => { if (json.success) setBusinessUnits(json.data); })
-      .catch(() => {});
-  }, []);
 
   // Sync initialData when it becomes available (edit mode)
   useEffect(() => {
@@ -63,7 +58,7 @@ export function PartyForm({ initialData, onSubmit, mode }: PartyFormProps) {
   function validate(): boolean {
     const next: typeof errors = {};
     if (!form.name.trim()) next.name = "Tên không được để trống";
-    if (!form.businessUnitId) next.businessUnitId = "Chọn đơn vị kinh doanh";
+    if (!form.businessUnitId) next.businessUnitId = "Vui lòng chọn đơn vị kinh doanh ở thanh tiêu đề";
     if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
       next.email = "Email không hợp lệ";
     }
@@ -91,27 +86,15 @@ export function PartyForm({ initialData, onSubmit, mode }: PartyFormProps) {
         {errors.name && <p className="text-xs text-red-500">{errors.name}</p>}
       </div>
 
-      {/* Type + Business Unit */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label>Loại đối tác <span className="text-red-500">*</span></Label>
-          <Combobox
-            value={form.type}
-            onValueChange={(v) => set("type", v as PartyFormData["type"])}
-            options={TYPE_OPTIONS}
-            placeholder="Chọn loại"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label>Đơn vị kinh doanh <span className="text-red-500">*</span></Label>
-          <Combobox
-            value={form.businessUnitId}
-            onValueChange={(v) => set("businessUnitId", v)}
-            options={businessUnits.map((bu) => ({ value: bu.id, label: `${bu.code} — ${bu.name}` }))}
-            placeholder="Chọn đơn vị"
-          />
-          {errors.businessUnitId && <p className="text-xs text-red-500">{errors.businessUnitId}</p>}
-        </div>
+      {/* Type */}
+      <div className="space-y-1.5">
+        <Label>Loại đối tác <span className="text-red-500">*</span></Label>
+        <Combobox
+          value={form.type}
+          onValueChange={(v) => set("type", v as PartyFormData["type"])}
+          options={TYPE_OPTIONS}
+          placeholder="Chọn loại"
+        />
       </div>
 
       {/* Phone + Email */}
