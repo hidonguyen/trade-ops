@@ -29,7 +29,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return Response.json(apiResponse(false, undefined, "Currency not found"), { status: 404 });
     }
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: any) => {
       const updated = await tx.currency.update({ where: { id }, data: validation.data });
       await createAuditLog(tx, session.user.id!, "UPDATE", "Currency", id, validation.data as Record<string, unknown>);
       return updated;
@@ -58,7 +58,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
       return Response.json(apiResponse(false, undefined, "Currency not found"), { status: 404 });
     }
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       await tx.currency.update({ where: { id }, data: { isActive: false } });
       await createAuditLog(tx, session.user.id!, "DELETE", "Currency", id);
     });

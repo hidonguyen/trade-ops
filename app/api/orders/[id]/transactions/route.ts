@@ -94,7 +94,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     }
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: any) => {
       const created = await tx.transaction.create({
         data: {
           ...txData,

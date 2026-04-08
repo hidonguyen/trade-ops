@@ -104,7 +104,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: any) => {
       const created = await tx.order.create({
         data: { ...validation.data, createdBy: userId, status: "UNPAID" },
         include: orderIncludes,

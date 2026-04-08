@@ -102,7 +102,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return Response.json(apiResponse(false, undefined, "Business unit not found"), { status: 404 });
     }
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: any) => {
       const created = await tx.deposit.create({
         data: {
           partyId,

@@ -58,7 +58,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
     // Compute deposit summary grouped by currency
     const depositSummary = party.deposits.reduce<Record<string, { currencyCode: string; totalDeposited: string; remainingBalance: string }>>(
-      (acc, dep) => {
+      (acc: any, dep: any) => {
         const key = dep.currencyId;
         if (!acc[key]) {
           acc[key] = {
@@ -113,7 +113,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return Response.json(apiResponse(false, undefined, "Access denied"), { status: 403 });
     }
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: any) => {
       const updated = await tx.party.update({ where: { id }, data: validation.data });
       await createAuditLog(tx, session.user.id!, "UPDATE", "Party", id, validation.data as Record<string, unknown>);
       return updated;
@@ -143,7 +143,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
       return Response.json(apiResponse(false, undefined, "Access denied"), { status: 403 });
     }
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       await tx.party.update({ where: { id }, data: { isActive: false } });
       await createAuditLog(tx, session.user.id!, "DELETE", "Party", id);
     });

@@ -89,7 +89,7 @@ export async function POST(request: Request) {
   const { depositId, ...txData } = validation.data;
 
   try {
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: any) => {
       const created = await tx.transaction.create({
         data: { ...txData, orderId: null, createdBy: userId },
         include: txIncludes,

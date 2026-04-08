@@ -94,7 +94,7 @@ export async function POST(request: Request) {
 
     const actorId = session.user.id as string;
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: any) => {
       const user = await tx.user.create({
         data: {
           email,

@@ -323,7 +323,7 @@ async function recalculateOrderStatus(orderId: string) {
 
 **Logic:**
 ```typescript
-await prisma.$transaction(async (tx) => {
+await prisma.$transaction(async (tx: any) => {
   // 1. Create transaction
   const transaction = await tx.transaction.create({
     data: { /* ... */ }

@@ -39,23 +39,23 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     }
 
     // Compute summary using Decimal for precision
-    const payments = order.transactions.filter((t) => t.paymentType === "PAYMENT");
-    const refunds = order.transactions.filter((t) => t.paymentType === "REFUND");
+    const payments = order.transactions.filter((t: any) => t.paymentType === "PAYMENT");
+    const refunds = order.transactions.filter((t: any) => t.paymentType === "REFUND");
 
     const totalPaidOriginal = payments.reduce(
-      (sum, t) => sum.plus(new Decimal(t.amountOriginal.toString())),
+      (sum: any, t: any) => sum.plus(new Decimal(t.amountOriginal.toString())),
       new Decimal(0)
     );
     const totalPaidVnd = payments.reduce(
-      (sum, t) => sum.plus(new Decimal(t.amountVnd.toString())),
+      (sum: any, t: any) => sum.plus(new Decimal(t.amountVnd.toString())),
       new Decimal(0)
     );
     const totalRefundedOriginal = refunds.reduce(
-      (sum, t) => sum.plus(new Decimal(t.amountOriginal.toString())),
+      (sum: any, t: any) => sum.plus(new Decimal(t.amountOriginal.toString())),
       new Decimal(0)
     );
     const totalRefundedVnd = refunds.reduce(
-      (sum, t) => sum.plus(new Decimal(t.amountVnd.toString())),
+      (sum: any, t: any) => sum.plus(new Decimal(t.amountVnd.toString())),
       new Decimal(0)
     );
 
@@ -64,12 +64,12 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     const balanceOriginal = orderAmount.minus(netPaidOriginal);
 
     const depositPayments = order.transactions
-      .filter((t) => t.paymentMethod === "DEPOSIT")
-      .reduce((sum, t) => sum.plus(new Decimal(t.amountOriginal.toString())), new Decimal(0));
+      .filter((t: any) => t.paymentMethod === "DEPOSIT")
+      .reduce((sum: any, t: any) => sum.plus(new Decimal(t.amountOriginal.toString())), new Decimal(0));
 
     const bankPayments = order.transactions
-      .filter((t) => t.paymentMethod === "BANK" && t.paymentType === "PAYMENT")
-      .reduce((sum, t) => sum.plus(new Decimal(t.amountOriginal.toString())), new Decimal(0));
+      .filter((t: any) => t.paymentMethod === "BANK" && t.paymentType === "PAYMENT")
+      .reduce((sum: any, t: any) => sum.plus(new Decimal(t.amountOriginal.toString())), new Decimal(0));
 
     const report = {
       order: {

@@ -55,7 +55,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const prevDepositId = transaction.depositUsages[0]?.depositId ?? null;
     const newDepositId = depositId !== undefined ? depositId : prevDepositId;
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: any) => {
       // Always reverse existing deposit deductions before re-applying
       if (prevDepositId) {
         await reverseDepositDeduction(tx, txId);
@@ -115,7 +115,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
     }
 
     const userId = session.user.id!;
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       // Reverse any deposit deductions before deleting
       await reverseDepositDeduction(tx, txId);
       await tx.transaction.delete({ where: { id: txId } });

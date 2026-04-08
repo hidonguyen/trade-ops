@@ -52,7 +52,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const prevDepositId = transaction.depositUsages[0]?.depositId ?? null;
     const newDepositId = depositId !== undefined ? depositId : prevDepositId;
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: any) => {
       if (prevDepositId) {
         await reverseDepositDeduction(tx, id);
       }
@@ -109,7 +109,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
     }
 
     const userId = session.user.id!;
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       await reverseDepositDeduction(tx, id);
       await tx.transaction.delete({ where: { id } });
       await createAuditLog(tx, userId, "DELETE", "Transaction", id);

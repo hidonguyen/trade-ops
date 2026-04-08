@@ -101,7 +101,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     const userId = session.user.id!;
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: any) => {
       const updated = await tx.order.update({ where: { id }, data: updateData, include: orderIncludes });
       await createAuditLog(tx, userId, "UPDATE", "Order", id, updateData);
       return updated;

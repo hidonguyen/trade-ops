@@ -41,7 +41,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: any) => {
       const created = await tx.currency.create({ data: validation.data });
       await createAuditLog(tx, session.user.id!, "CREATE", "Currency", created.id);
       return created;

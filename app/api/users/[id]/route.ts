@@ -102,7 +102,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (isActive !== undefined) updateData.isActive = isActive;
     if (password !== undefined) updateData.passwordHash = await bcrypt.hash(password, 12);
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: any) => {
       // Replace roles atomically if provided
       if (roles !== undefined) {
         await tx.userRoleAssignment.deleteMany({ where: { userId: id } });
@@ -156,7 +156,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
       return Response.json(apiResponse(false, undefined, "User not found"), { status: 404 });
     }
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       await tx.user.update({ where: { id }, data: { isActive: false } });
       await createAuditLog(tx, actorId, "DELETE", "User", id);
     });

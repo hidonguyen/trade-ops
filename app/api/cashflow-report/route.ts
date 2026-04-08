@@ -101,7 +101,7 @@ export async function GET(request: Request) {
       net: c.totalIn.minus(c.totalOut).toFixed(4),
     }));
 
-    const txRows = transactions.map((tx) => ({
+    const txRows = transactions.map((tx: any) => ({
       id: tx.id,
       transactionDate: tx.transactionDate,
       type: tx.type,

@@ -390,7 +390,7 @@ export async function createOrder(req: Request) {
 
 ```typescript
 // ✅ Correct – atomic transaction
-await prisma.$transaction(async (tx) => {
+await prisma.$transaction(async (tx: any) => {
   // 1. Create transaction
   const transaction = await tx.transaction.create({
     data: {
@@ -570,7 +570,7 @@ export async function POST(request: Request) {
   }
   
   try {
-    const order = await prisma.$transaction(async (tx) => {
+    const order = await prisma.$transaction(async (tx: any) => {
       const created = await tx.order.create({
         data: {
           businessUnitId: session.user.businessUnitId,

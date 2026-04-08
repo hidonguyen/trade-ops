@@ -10,6 +10,12 @@ const querySchema = z.object({
 
 const UNPAID_STATUSES = ["UNPAID", "PARTIAL_PAID", "PARTIAL_REFUNDED"];
 
+type CurrencySummary = {
+  id: string;
+  code: string;
+  symbol: string | null;
+};
+
 export async function GET(request: Request) {
   const session = await withAuth();
   if (!session) {
@@ -95,17 +101,17 @@ export async function GET(request: Request) {
     }
 
     // Resolve currency details for deposit aggregates
-    const currencyIds = deposits.map((d) => d.currencyId);
-    const currencies =
+    const currencyIds = deposits.map((d: any) => d.currencyId);
+    const currencies: CurrencySummary[] =
       currencyIds.length > 0
         ? await prisma.currency.findMany({
             where: { id: { in: currencyIds } },
             select: { id: true, code: true, symbol: true },
           })
         : [];
-    const currencyById = new Map(currencies.map((c) => [c.id, c]));
+    const currencyById = new Map<string, CurrencySummary>(currencies.map((c) => [c.id, c]));
 
-    const depositBalances = deposits.map((d) => {
+    const depositBalances = deposits.map((d: any) => {
       const cur = currencyById.get(d.currencyId);
       return {
         currencyId: d.currencyId,
