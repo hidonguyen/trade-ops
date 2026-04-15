@@ -4,6 +4,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { ArrowLeftIcon } from "lucide-react";
+import { useRegisterPartyDetailType } from "@/components/providers/nav-highlight-provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -36,6 +37,13 @@ export default function EditPartyPage() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [partyId]);
+
+  // Push party type to nav highlight context so sidebar can highlight Khách hàng / Nhà cung cấp
+  useRegisterPartyDetailType(
+    party?.type === "CUSTOMER" || party?.type === "SUPPLIER" || party?.type === "BOTH"
+      ? party.type
+      : null
+  );
 
   async function handleSubmit(data: PartyFormData) {
     setSaveError(null);

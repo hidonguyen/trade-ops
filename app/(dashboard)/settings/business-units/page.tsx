@@ -6,21 +6,32 @@ import { PlusIcon, PencilIcon, Trash2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Combobox } from "@/components/ui/combobox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DataTable, Column } from "@/components/shared/data-table";
 import { ConfirmationDialog } from "@/components/shared/confirmation-dialog";
+import { useSelectedBu } from "@/components/providers/bu-provider";
 
 interface BusinessUnit {
   id: string;
   name: string;
   code: string;
+  orderNumberMode: "MANUAL" | "AUTO";
   isActive: boolean;
 }
 
-interface FormState { name: string; code: string; }
-const EMPTY_FORM: FormState = { name: "", code: "" };
+type OrderNumberMode = "MANUAL" | "AUTO";
+interface FormState { name: string; code: string; orderNumberMode: OrderNumberMode; }
+const EMPTY_FORM: FormState = { name: "", code: "", orderNumberMode: "MANUAL" };
+
+const ORDER_NUMBER_MODE_OPTIONS = [
+  { value: "MANUAL", label: "Nhập tay" },
+  { value: "AUTO", label: "Tự động tạo" },
+];
+const MODE_LABELS: Record<OrderNumberMode, string> = { MANUAL: "Nhập tay", AUTO: "Tự động" };
 
 export default function BusinessUnitsPage() {
+  const { refetch: refetchGlobalBus } = useSelectedBu();
   const [items, setItems] = useState<BusinessUnit[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -54,7 +65,7 @@ export default function BusinessUnitsPage() {
 
   function openEdit(bu: BusinessUnit) {
     setEditTarget(bu);
-    setForm({ name: bu.name, code: bu.code });
+    setForm({ name: bu.name, code: bu.code, orderNumberMode: bu.orderNumberMode ?? "MANUAL" });
     setError(null);
     setDialogOpen(true);
   }
@@ -74,6 +85,8 @@ export default function BusinessUnitsPage() {
       if (!json.success) { setError(json.message ?? "Lỗi không xác định"); return; }
       setDialogOpen(false);
       fetchItems();
+      // Sync global BU cache so other pages (order form, etc.) see updated orderNumberMode immediately
+      refetchGlobalBus();
     } catch {
       setError("Lỗi kết nối");
     } finally {
@@ -87,6 +100,7 @@ export default function BusinessUnitsPage() {
       await fetch(`/api/business-units/${deleteTarget.id}`, { method: "DELETE" });
       setDeleteTarget(null);
       fetchItems();
+      refetchGlobalBus();
     } catch {
       setError("Không thể xóa");
     }
@@ -95,6 +109,10 @@ export default function BusinessUnitsPage() {
   const columns: Column<Record<string, unknown>>[] = [
     { key: "code", label: "Mã", sortable: true },
     { key: "name", label: "Tên", sortable: true },
+    {
+      key: "orderNumberMode", label: "Số đơn hàng",
+      render: (v) => <span className="text-sm text-slate-600">{MODE_LABELS[(v as OrderNumberMode) ?? "MANUAL"]}</span>,
+    },
     {
       key: "isActive", label: "Trạng thái",
       render: (v) => (
@@ -145,6 +163,18 @@ export default function BusinessUnitsPage() {
             <div className="space-y-1.5">
               <Label htmlFor="bu-code">Mã</Label>
               <Input id="bu-code" value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="VD: TK, NT" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Chế độ số đơn hàng</Label>
+              <Combobox
+                value={form.orderNumberMode}
+                onValueChange={(v) => setForm((f) => ({ ...f, orderNumberMode: (v as OrderNumberMode) || "MANUAL" }))}
+                options={ORDER_NUMBER_MODE_OPTIONS}
+                placeholder="Chọn chế độ"
+              />
+              <p className="text-xs text-slate-500">
+                Nhập tay: người dùng tự điền số đơn. Tự động: hệ thống tạo số kế tiếp theo từng đối tác.
+              </p>
             </div>
           </div>
           <DialogFooter>

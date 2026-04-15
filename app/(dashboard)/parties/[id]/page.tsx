@@ -2,8 +2,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { ArrowLeftIcon, PencilIcon, Trash2Icon, ShoppingBagIcon } from "lucide-react";
+import { useRegisterPartyDetailType } from "@/components/providers/nav-highlight-provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -39,7 +40,11 @@ function InfoRow({ label, value }: { label: string; value: string | null | undef
 export default function PartyDetailPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
   const partyId = params.id;
+  // Origin menu (CUSTOMER/SUPPLIER) passed by list page via ?from=... — used for back button
+  // so BOTH parties (which appear in both menus) navigate back to the correct filtered list.
+  const fromType = searchParams.get("from");
 
   const [party, setParty] = useState<Party | null>(null);
   const [loading, setLoading] = useState(true);
@@ -58,6 +63,13 @@ export default function PartyDetailPage() {
   }, [partyId]);
 
   useEffect(() => { fetchParty(); }, [fetchParty]);
+
+  // Push party type to nav highlight context so sidebar can highlight Khách hàng / Nhà cung cấp
+  useRegisterPartyDetailType(
+    party?.type === "CUSTOMER" || party?.type === "SUPPLIER" || party?.type === "BOTH"
+      ? party.type
+      : null
+  );
 
   async function handleDelete() {
     await fetch(`/api/parties/${partyId}`, { method: "DELETE" });
@@ -82,7 +94,21 @@ export default function PartyDetailPage() {
       {/* Header */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon-sm" onClick={() => router.back()}>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => {
+              // Prefer origin menu from ?from=; else use party.type for CUSTOMER/SUPPLIER;
+              // for BOTH without origin (direct URL), default to CUSTOMER so sidebar highlights something.
+              const backType =
+                fromType === "CUSTOMER" || fromType === "SUPPLIER"
+                  ? fromType
+                  : party.type === "CUSTOMER" || party.type === "SUPPLIER"
+                  ? party.type
+                  : "CUSTOMER";
+              router.push(`/parties?type=${backType}`);
+            }}
+          >
             <ArrowLeftIcon className="size-4" />
           </Button>
           <div>

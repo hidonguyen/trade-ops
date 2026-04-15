@@ -1,19 +1,14 @@
 // Sticky header: mobile hamburger, BU selector, user info, logout
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { signOut } from "next-auth/react";
 import { MenuIcon, LogOutIcon, BuildingIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { cn, getDefaultBu, saveSelectedBu } from "@/lib/utils";
-
-interface BusinessUnit {
-  id: string;
-  name: string;
-  currency?: string;
-}
+import { cn } from "@/lib/utils";
+import { useSelectedBu } from "@/components/providers/bu-provider";
 
 interface HeaderProps {
   userName: string;
@@ -39,26 +34,8 @@ function RoleBadge({ roles }: { roles: string[] }) {
 }
 
 export function Header({ userName, userRoles, sidebarContent }: HeaderProps) {
-  const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([]);
-  const [selectedBu, setSelectedBu] = useState<string>("");
+  const { businessUnits, selectedBuId, setSelectedBuId } = useSelectedBu();
   const [mobileOpen, setMobileOpen] = useState(false);
-
-  useEffect(() => {
-    fetch("/api/business-units")
-      .then((r) => r.ok ? r.json() : null)
-      .then((json) => {
-        if (json?.data?.length) {
-          setBusinessUnits(json.data);
-          // Restore saved BU from localStorage, fallback to first BU
-          const saved = getDefaultBu();
-          const defaultBu = saved && json.data.find((bu: BusinessUnit) => bu.id === saved)
-            ? saved
-            : json.data[0].id;
-          setSelectedBu(defaultBu);
-        }
-      })
-      .catch(() => {/* non-critical: BU list unavailable */});
-  }, []);
 
   return (
     <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-slate-200 bg-white px-4 lg:px-6">
@@ -88,13 +65,8 @@ export function Header({ userName, userRoles, sidebarContent }: HeaderProps) {
         <div className="flex items-center gap-1.5">
           <BuildingIcon size={15} className="text-slate-400 shrink-0" />
           <Combobox
-            value={selectedBu}
-            onValueChange={(val) => {
-              if (val) {
-                setSelectedBu(val);
-                saveSelectedBu(val);
-              }
-            }}
+            value={selectedBuId}
+            onValueChange={(val) => { if (val) setSelectedBuId(val); }}
             options={businessUnits.map((bu) => ({ value: bu.id, label: bu.name }))}
             placeholder="Chọn công ty"
             className={cn(

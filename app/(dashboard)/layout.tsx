@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
+import { BuProvider } from "@/components/providers/bu-provider";
+import { NavHighlightProvider } from "@/components/providers/nav-highlight-provider";
 
 export default async function DashboardLayout({
   children,
@@ -19,18 +21,22 @@ export default async function DashboardLayout({
   const userName: string = session.user.name ?? session.user.email ?? "Người dùng";
 
   return (
-    <div className="min-h-screen flex">
-      {/* Fixed sidebar — desktop only; mobile handled inside Sidebar via Sheet */}
-      <Sidebar userRoles={userRoles} />
+    <BuProvider>
+      <NavHighlightProvider>
+        <div className="min-h-screen flex">
+          {/* Fixed sidebar — desktop only; mobile handled inside Sidebar via Sheet */}
+          <Sidebar userRoles={userRoles} />
 
-      {/* Main area: offset by sidebar width on desktop */}
-      <div className="flex flex-col flex-1 lg:pl-60 min-w-0">
-        <Header userName={userName} userRoles={userRoles} />
+          {/* Main area: offset by sidebar width on desktop */}
+          <div className="flex flex-col flex-1 lg:pl-60 min-w-0">
+            <Header userName={userName} userRoles={userRoles} />
 
-        <main className="flex-1 overflow-y-auto bg-slate-50 p-4 lg:p-6">
-          {children}
-        </main>
-      </div>
-    </div>
+            <main className="flex-1 overflow-y-auto bg-slate-50 p-4 lg:p-6">
+              {children}
+            </main>
+          </div>
+        </div>
+      </NavHighlightProvider>
+    </BuProvider>
   );
 }

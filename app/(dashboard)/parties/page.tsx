@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PlusIcon } from "lucide-react";
-import { getDefaultBu } from "@/lib/utils";
+import { useSelectedBu } from "@/components/providers/bu-provider";
 import { Button } from "@/components/ui/button";
 import { DataTable, Column } from "@/components/shared/data-table";
 import { FilterBar, FilterConfig } from "@/components/shared/filter-bar";
@@ -19,15 +19,10 @@ interface Party {
   businessUnit: { code: string; name: string };
 }
 
-const TYPE_LABELS: Record<string, string> = {
-  CUSTOMER: "Khách hàng",
-  SUPPLIER: "Nhà cung cấp",
-  BOTH: "KH & NCC",
-};
-
 export default function PartiesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { selectedBuId } = useSelectedBu();
   const [parties, setParties] = useState<Party[]>([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
@@ -52,11 +47,10 @@ export default function PartiesPage() {
   const fetchParties = useCallback(async () => {
     setLoading(true);
     try {
-      const buId = getDefaultBu();
       const params = new URLSearchParams();
       params.set("page", String(page));
       params.set("limit", String(limit));
-      if (buId) params.set("businessUnitId", buId);
+      if (selectedBuId) params.set("businessUnitId", selectedBuId);
       if (filters.type) params.set("type", filters.type);
       if (filters.search) params.set("search", filters.search);
 
@@ -71,7 +65,7 @@ export default function PartiesPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, limit, filters]);
+  }, [page, limit, filters, selectedBuId]);
 
   useEffect(() => { fetchParties(); }, [fetchParties]);
 
@@ -80,24 +74,13 @@ export default function PartiesPage() {
     setPage(1);
   }
 
+  // Type is locked via URL (sidebar menu): no type filter, no type column needed
   const filterConfigs: FilterConfig[] = [
-    {
-      key: "type", label: "Loại đối tác", type: "select",
-      options: [
-        { value: "CUSTOMER", label: "Khách hàng" },
-        { value: "SUPPLIER", label: "Nhà cung cấp" },
-        { value: "BOTH", label: "KH & NCC" },
-      ],
-    },
     { key: "search", label: "Tìm kiếm", type: "search", placeholder: "Tìm theo tên..." },
   ];
 
   const columns: Column<Record<string, unknown>>[] = [
     { key: "name", label: "Tên đối tác", sortable: true },
-    {
-      key: "type", label: "Loại",
-      render: (v) => <span className="text-sm text-slate-600">{TYPE_LABELS[String(v)] ?? String(v)}</span>,
-    },
     {
       key: "businessUnit", label: "Đơn vị",
       render: (v) => {
@@ -109,12 +92,21 @@ export default function PartiesPage() {
     { key: "email", label: "Email", render: (v) => <span className="text-slate-500">{String(v ?? "—")}</span> },
   ];
 
+  const pageTitle =
+    urlType === "CUSTOMER" ? "Khách hàng" : urlType === "SUPPLIER" ? "Nhà cung cấp" : "Đối tác";
+  const pageSubtitle =
+    urlType === "CUSTOMER"
+      ? "Quản lý khách hàng"
+      : urlType === "SUPPLIER"
+      ? "Quản lý nhà cung cấp"
+      : "Quản lý khách hàng và nhà cung cấp";
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Đối tác</h1>
-          <p className="text-sm text-slate-500">Quản lý khách hàng và nhà cung cấp</p>
+          <h1 className="text-xl font-bold text-slate-900">{pageTitle}</h1>
+          <p className="text-sm text-slate-500">{pageSubtitle}</p>
         </div>
         <Button size="sm" onClick={() => router.push("/parties/new")}>
           <PlusIcon className="size-4 mr-1" />Thêm đối tác
@@ -128,7 +120,13 @@ export default function PartiesPage() {
         data={parties as unknown as Record<string, unknown>[]}
         loading={loading}
         emptyMessage="Không tìm thấy đối tác nào"
-        onRowClick={(row) => router.push(`/parties/${(row as unknown as Party).id}`)}
+        onRowClick={(row) => {
+          // Preserve origin menu (CUSTOMER/SUPPLIER) so detail page can navigate back
+          // to the correct filtered list — critical for BOTH parties that appear in both.
+          const id = (row as unknown as Party).id;
+          const from = filters.type ? `?from=${filters.type}` : "";
+          router.push(`/parties/${id}${from}`);
+        }}
       />
 
       <Pagination
