@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { getDefaultBu } from "@/lib/utils";
+import { useSelectedBu } from "@/components/providers/bu-provider";
 import { Button } from "@/components/ui/button";
 import { DataTable, Column } from "@/components/shared/data-table";
 import { Pagination } from "@/components/shared/pagination";
@@ -16,11 +16,13 @@ interface Order extends Record<string, unknown> {
   id: string;
   type: string;
   status: string;
+  orderNumber: string;
   orderDate: string;
   amountOriginal: string;
   party: { id: string; name: string };
   currency: { id: string; code: string; symbol: string };
   businessUnit: { id: string; code: string; name: string };
+  expenseType: { id: string; name: string; isActive: boolean } | null;
 }
 
 const STATUS_OPTIONS = [
@@ -31,14 +33,10 @@ const STATUS_OPTIONS = [
   { value: "REFUNDED", label: "Đã hoàn" },
 ];
 
-const TYPE_OPTIONS = [
-  { value: "SALE", label: "Bán hàng" },
-  { value: "PURCHASE", label: "Mua hàng" },
-];
-
 export default function OrdersPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { selectedBuId } = useSelectedBu();
   const [orders, setOrders] = useState<Order[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -64,13 +62,13 @@ export default function OrdersPage() {
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     try {
-      const buId = getDefaultBu();
       const params = new URLSearchParams({
         page: String(page),
         limit: String(limit),
-        ...(buId ? { businessUnitId: buId } : {}),
+        ...(selectedBuId ? { businessUnitId: selectedBuId } : {}),
         ...(filters.type ? { type: filters.type } : {}),
         ...(filters.status ? { status: filters.status } : {}),
+        ...(filters.expenseTypeId ? { expenseTypeId: filters.expenseTypeId } : {}),
         ...(filters.dateFrom ? { dateFrom: filters.dateFrom } : {}),
         ...(filters.dateTo ? { dateTo: filters.dateTo } : {}),
       });
@@ -81,11 +79,11 @@ export default function OrdersPage() {
         setTotal(json.pagination?.total ?? 0);
       }
     } catch (err) {
-      console.error("Failed to fetch orders:", err);
+      console.error("Lỗi tải đơn hàng:", err);
     } finally {
       setLoading(false);
     }
-  }, [page, limit, filters]);
+  }, [page, limit, filters, selectedBuId]);
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
@@ -94,13 +92,45 @@ export default function OrdersPage() {
     setPage(1);
   }
 
+  // Load expense types for filter (only fetched; combobox shown only on PURCHASE)
+  const [expenseTypes, setExpenseTypes] = useState<
+    Array<{ id: string; name: string; isActive: boolean }>
+  >([]);
+  useEffect(() => {
+    if (urlType === "PURCHASE") {
+      fetch("/api/expense-types")
+        .then((r) => r.json())
+        .then((json) => { if (json.success) setExpenseTypes(json.data); })
+        .catch(console.error);
+    }
+  }, [urlType]);
+
+  // Type is locked via URL (sidebar menu): no type filter, no type column needed.
+  // Expense-type filter only on PURCHASE.
   const filterConfigs: FilterConfig[] = [
-    { key: "type", label: "Loại đơn", type: "select", options: TYPE_OPTIONS },
     { key: "status", label: "Trạng thái", type: "select", options: STATUS_OPTIONS },
+    ...(urlType === "PURCHASE"
+      ? [
+          {
+            key: "expenseTypeId",
+            label: "Loại chi phí",
+            type: "select" as const,
+            options: expenseTypes
+              .filter((e) => e.isActive)
+              .map((e) => ({ value: e.id, label: e.name })),
+          },
+        ]
+      : []),
     { key: "date", label: "Ngày đặt", type: "date-range" },
   ];
 
   const columns: Column<Order>[] = [
+    {
+      key: "orderNumber",
+      label: "Số đơn",
+      sortable: true,
+      render: (v) => <span className="font-medium text-slate-800">{String(v ?? "—")}</span>,
+    },
     {
       key: "orderDate",
       label: "Ngày",
@@ -111,17 +141,6 @@ export default function OrdersPage() {
       key: "party",
       label: "Đối tác",
       render: (_, row) => row.party?.name ?? "—",
-    },
-    {
-      key: "type",
-      label: "Loại",
-      render: (v) => (
-        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-          v === "SALE" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"
-        }`}>
-          {v === "SALE" ? "Bán" : "Mua"}
-        </span>
-      ),
     },
     {
       key: "amountOriginal",
@@ -140,6 +159,16 @@ export default function OrdersPage() {
       label: "Trạng thái",
       render: (v) => <StatusBadge status={v} />,
     },
+    // Show expense type column only for PURCHASE list
+    ...(urlType === "PURCHASE"
+      ? [
+          {
+            key: "expenseType",
+            label: "Loại chi phí",
+            render: (_: unknown, row: Order) => row.expenseType?.name ?? "—",
+          } as Column<Order>,
+        ]
+      : []),
     {
       key: "businessUnit",
       label: "Đơn vị",
@@ -147,11 +176,18 @@ export default function OrdersPage() {
     },
   ];
 
+  const pageTitle = urlType === "SALE" ? "Đơn bán" : urlType === "PURCHASE" ? "Đơn mua" : "Đơn hàng";
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-900">Đơn hàng</h1>
-        <Button onClick={() => router.push("/orders/new")} size="sm">
+        <h1 className="text-xl font-semibold text-slate-900">{pageTitle}</h1>
+        <Button
+          onClick={() =>
+            router.push(urlType ? `/orders/new?type=${urlType}` : "/orders/new")
+          }
+          size="sm"
+        >
           <PlusIcon className="size-4 mr-1.5" />
           Tạo đơn
         </Button>

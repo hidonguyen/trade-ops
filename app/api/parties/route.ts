@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
 import { createPartySchema } from "@/lib/validation-schemas";
 import type { RbacModule } from "@/types";
+import { MSG } from "@/lib/messages";
 
 // Determine which RBAC modules are required for a given party type
 function partyModules(type: string): RbacModule[] {
@@ -16,7 +17,7 @@ function partyModules(type: string): RbacModule[] {
 export async function GET(request: Request) {
   const session = await withAuth();
   if (!session) {
-    return Response.json(apiResponse(false, undefined, "Unauthorized"), { status: 401 });
+    return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
 
   const { searchParams } = new URL(request.url);
@@ -28,13 +29,16 @@ export async function GET(request: Request) {
   // Resolve which module(s) to check — if type filter provided, use it; otherwise check CUSTOMER (viewer needs at least one)
   const moduleToCheck: RbacModule = type === "SUPPLIER" ? "SUPPLIER" : "CUSTOMER";
   if (!checkAccess(session.user.roles, "GET", moduleToCheck)) {
-    return Response.json(apiResponse(false, undefined, "Access denied"), { status: 403 });
+    return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
 
   // Build where clause
+  // CUSTOMER filter also includes BOTH (party is both customer & supplier); same for SUPPLIER
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const where: Record<string, any> = { isActive: true };
-  if (type) where.type = type;
+  if (type === "CUSTOMER") where.type = { in: ["CUSTOMER", "BOTH"] };
+  else if (type === "SUPPLIER") where.type = { in: ["SUPPLIER", "BOTH"] };
+  else if (type) where.type = type;
   if (businessUnitId) where.businessUnitId = businessUnitId;
   if (search) where.name = { contains: search, mode: "insensitive" };
 
@@ -56,21 +60,21 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     console.error("GET /api/parties error:", error);
-    return Response.json(apiResponse(false, undefined, "Internal server error"), { status: 500 });
+    return Response.json(apiResponse(false, undefined, MSG.internalError), { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
   const session = await withAuth();
   if (!session) {
-    return Response.json(apiResponse(false, undefined, "Unauthorized"), { status: 401 });
+    return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
 
   const body = await request.json();
   const validation = createPartySchema.safeParse(body);
   if (!validation.success) {
     return Response.json(
-      apiResponse(false, undefined, "Validation failed", validation.error.flatten().fieldErrors as Record<string, string[]>),
+      apiResponse(false, undefined, MSG.validationFailed, validation.error.flatten().fieldErrors as Record<string, string[]>),
       { status: 400 }
     );
   }
@@ -79,7 +83,7 @@ export async function POST(request: Request) {
   const modules = partyModules(validation.data.type);
   const hasAccess = modules.every((mod) => checkAccess(session.user.roles, "CREATE", mod));
   if (!hasAccess) {
-    return Response.json(apiResponse(false, undefined, "Access denied"), { status: 403 });
+    return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
 
   // Verify business unit exists
@@ -87,7 +91,7 @@ export async function POST(request: Request) {
     where: { id: validation.data.businessUnitId, isActive: true },
   });
   if (!businessUnit) {
-    return Response.json(apiResponse(false, undefined, "Business unit not found"), { status: 404 });
+    return Response.json(apiResponse(false, undefined, MSG.businessUnitNotFound), { status: 404 });
   }
 
   try {
@@ -99,6 +103,6 @@ export async function POST(request: Request) {
     return Response.json(apiResponse(true, result), { status: 201 });
   } catch (error) {
     console.error("POST /api/parties error:", error);
-    return Response.json(apiResponse(false, undefined, "Internal server error"), { status: 500 });
+    return Response.json(apiResponse(false, undefined, MSG.internalError), { status: 500 });
   }
 }

@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { DownloadIcon } from "lucide-react";
-import { getDefaultBu } from "@/lib/utils";
+import { useSelectedBu } from "@/components/providers/bu-provider";
 import { Button } from "@/components/ui/button";
 import { FilterBar, FilterConfig } from "@/components/shared/filter-bar";
 import { DataTable, Column } from "@/components/shared/data-table";
@@ -21,13 +21,21 @@ interface SummaryData {
   totalPayable: CurrencySummary[];
 }
 
-type TabKey = "sales" | "purchases" | "receivable" | "payable";
+interface ExpenseTypeBucket {
+  expenseTypeId: string | null;
+  name: string;
+  count: number;
+  totals: CurrencySummary[];
+}
+
+type TabKey = "sales" | "purchases" | "receivable" | "payable" | "expenseType";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "sales", label: "Tổng thu" },
   { key: "purchases", label: "Tổng chi" },
   { key: "receivable", label: "Phải thu" },
   { key: "payable", label: "Phải trả" },
+  { key: "expenseType", label: "Theo Loại chi phí" },
 ];
 
 interface TableRow extends Record<string, unknown> {
@@ -71,6 +79,7 @@ function exportToCsv(data: TableRow[], tabLabel: string) {
 }
 
 export default function ReportsPage() {
+  const { selectedBuId } = useSelectedBu();
   const defaults = getDefaultDateRange();
   const [filters, setFilters] = useState<Record<string, string>>({
     dateFrom: defaults.dateFrom,
@@ -78,33 +87,40 @@ export default function ReportsPage() {
   });
   const [activeTab, setActiveTab] = useState<TabKey>("sales");
   const [summaryData, setSummaryData] = useState<SummaryData | null>(null);
+  const [expenseTypeData, setExpenseTypeData] = useState<ExpenseTypeBucket[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchSummary = useCallback(async (f: Record<string, string>) => {
-    const buId = getDefaultBu();
-    if (!buId || !f.dateFrom || !f.dateTo) return;
+    if (!selectedBuId || !f.dateFrom || !f.dateTo) return;
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams({
-        businessUnitId: buId,
+        businessUnitId: selectedBuId,
         dateFrom: f.dateFrom,
         dateTo: f.dateTo,
       });
-      const res = await fetch(`/api/reports/summary?${params}`);
-      const json = await res.json();
-      if (json.success) {
-        setSummaryData(json.data);
+      const [summaryRes, etRes] = await Promise.all([
+        fetch(`/api/reports/summary?${params}`),
+        fetch(`/api/reports/expense-type-summary?${params}`),
+      ]);
+      const summaryJson = await summaryRes.json();
+      if (summaryJson.success) {
+        setSummaryData(summaryJson.data);
       } else {
-        setError(json.message ?? "Lỗi không xác định");
+        setError(summaryJson.message ?? "Lỗi không xác định");
+      }
+      const etJson = await etRes.json();
+      if (etJson.success) {
+        setExpenseTypeData(etJson.data.byExpenseType ?? []);
       }
     } catch {
       setError("Lỗi kết nối máy chủ");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedBuId]);
 
   useEffect(() => {
     fetchSummary(filters);
@@ -121,13 +137,35 @@ export default function ReportsPage() {
 
   function getTabData(): TableRow[] {
     if (!summaryData) return [];
-    const map: Record<TabKey, CurrencySummary[]> = {
+    // Expense-type tab has a different shape; handled by a custom view below
+    if (activeTab === "expenseType") return [];
+    const map: Record<Exclude<TabKey, "expenseType">, CurrencySummary[]> = {
       sales: summaryData.totalSales,
       purchases: summaryData.totalPurchases,
       receivable: summaryData.totalReceivable,
       payable: summaryData.totalPayable,
     };
-    return (map[activeTab] ?? []) as TableRow[];
+    return (map[activeTab as Exclude<TabKey, "expenseType">] ?? []) as TableRow[];
+  }
+
+  // Flatten expense-type buckets to rows for CSV export
+  function expenseTypeCsvRows(): Array<{ bucket: string; code: string; total: string }> {
+    return expenseTypeData.flatMap((b) =>
+      b.totals.map((t) => ({ bucket: `${b.name} (${b.count})`, code: t.code, total: t.total }))
+    );
+  }
+
+  function exportExpenseTypeCsv() {
+    const header = "Loại chi phí,Tiền tệ,Số tiền";
+    const rows = expenseTypeCsvRows().map((r) => `"${r.bucket}",${r.code},${r.total}`);
+    const csv = [header, ...rows].join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `bao-cao-loai-chi-phi-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   const tabData = getTabData();
@@ -170,21 +208,78 @@ export default function ReportsPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => exportToCsv(tabData, activeTabLabel)}
-            disabled={tabData.length === 0}
+            onClick={() =>
+              activeTab === "expenseType"
+                ? exportExpenseTypeCsv()
+                : exportToCsv(tabData, activeTabLabel)
+            }
+            disabled={
+              activeTab === "expenseType"
+                ? expenseTypeData.length === 0
+                : tabData.length === 0
+            }
           >
             <DownloadIcon className="size-4 mr-1.5" />
             Xuất Excel
           </Button>
         </div>
-        <DataTable<TableRow>
-          columns={COLUMNS}
-          data={tabData}
-          loading={loading}
-          emptyMessage="Không có dữ liệu trong kỳ này"
-          rowKey={(r) => r.code}
-        />
+        {activeTab === "expenseType" ? (
+          <ExpenseTypeReport data={expenseTypeData} loading={loading} />
+        ) : (
+          <DataTable<TableRow>
+            columns={COLUMNS}
+            data={tabData}
+            loading={loading}
+            emptyMessage="Không có dữ liệu trong kỳ này"
+            rowKey={(r) => r.code}
+          />
+        )}
       </div>
+    </div>
+  );
+}
+
+function ExpenseTypeReport({
+  data,
+  loading,
+}: {
+  data: ExpenseTypeBucket[];
+  loading: boolean;
+}) {
+  if (loading) {
+    return <div className="text-sm text-slate-500">Đang tải...</div>;
+  }
+  if (data.length === 0) {
+    return (
+      <div className="text-sm text-slate-400 py-6 text-center">
+        Không có đơn mua trong kỳ này
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-3">
+      {data.map((b) => (
+        <div
+          key={b.expenseTypeId ?? "__UNCATEGORIZED__"}
+          className="rounded-lg border border-slate-200 bg-white p-4"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <p className="font-medium text-slate-800">{b.name}</p>
+            <span className="text-xs text-slate-500">{b.count} đơn</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {b.totals.map((t) => (
+              <div key={t.code} className="rounded-md bg-slate-50 px-3 py-2">
+                <p className="text-xs uppercase tracking-wide text-slate-500">{t.code}</p>
+                <p className="text-sm font-semibold text-slate-800">
+                  {t.symbol}
+                  {parseFloat(t.total).toLocaleString("vi-VN", { maximumFractionDigits: 0 })}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

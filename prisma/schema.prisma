@@ -45,16 +45,18 @@ model AuditLog {
 }
 
 model BusinessUnit {
-  id           String        @id @default(uuid(7))
-  code         String        @unique
-  name         String
-  isActive     Boolean       @default(true)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  parties      Party[]
-  orders       Order[]
-  transactions Transaction[]
-  deposits     Deposit[]
+  id              String        @id @default(uuid(7))
+  code            String        @unique
+  name            String
+  // Order number config: MANUAL (user inputs) or AUTO (next sequential per party)
+  orderNumberMode String        @default("MANUAL")
+  isActive        Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  parties         Party[]
+  orders          Order[]
+  transactions    Transaction[]
+  deposits        Deposit[]
 }
 
 model Currency {
@@ -76,6 +78,7 @@ model ExpenseType {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  orders    Order[]
 }
 
 model Party {
@@ -133,6 +136,8 @@ model Order {
   id             String        @id @default(uuid(7))
   businessUnitId String
   partyId        String
+  // User-facing order number; uniqueness scoped to (businessUnitId, partyId)
+  orderNumber    String
   type           String        // SALE, PURCHASE
   status         String        @default("UNPAID") // UNPAID, PARTIAL_PAID, PAID, PARTIAL_REFUNDED, REFUNDED
   amountOriginal Decimal       @db.Decimal(18, 4)
@@ -141,17 +146,22 @@ model Order {
   notes          String?
   paidAmount     Decimal       @default(0) @db.Decimal(18, 4)
   refundedAmount Decimal       @default(0) @db.Decimal(18, 4)
+  // Expense category — only meaningful for PURCHASE orders; NULL for SALE
+  expenseTypeId  String?
   createdBy      String
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   businessUnit   BusinessUnit  @relation(fields: [businessUnitId], references: [id])
   party          Party         @relation(fields: [partyId], references: [id])
   currency       Currency      @relation(fields: [currencyId], references: [id])
+  expenseType    ExpenseType?  @relation(fields: [expenseTypeId], references: [id])
   transactions   Transaction[]
 
+  @@unique([businessUnitId, partyId, orderNumber])
   @@index([businessUnitId, status])
   @@index([partyId, orderDate])
   @@index([type, status])
+  @@index([expenseTypeId])
 }
 
 model Transaction {
@@ -168,6 +178,10 @@ model Transaction {
   bankReference   String?
   transactionDate DateTime
   notes           String?
+  // Bank fee borne by company (only populated when paymentMethod = BANK).
+  // Fee does NOT reduce paidAmount — customer debt is cleared by full amountOriginal.
+  bankFeeOriginal Decimal?       @db.Decimal(18, 4)
+  bankFeeVnd      Decimal?       @db.Decimal(18, 4)
   createdBy       String
   createdAt       DateTime       @default(now())
   order           Order?         @relation(fields: [orderId], references: [id])
@@ -177,4 +191,5 @@ model Transaction {
 
   @@index([orderId, type])
   @@index([businessUnitId, type, transactionDate])
+  @@index([businessUnitId, transactionDate, paymentMethod])
 }

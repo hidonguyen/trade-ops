@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
+import { useRegisterOrderDetailType } from "@/components/providers/nav-highlight-provider";
 import { Button } from "@/components/ui/button";
 import { PaymentForm } from "@/components/payment-form";
 import { OrderInfoCard } from "./order-info-card";
@@ -16,6 +17,7 @@ interface OrderReport {
     id: string;
     type: string;
     status: string;
+    orderNumber: string;
     orderDate: string;
     amountOriginal: string;
     notes: string | null;
@@ -43,6 +45,8 @@ interface OrderReport {
     bankReference: string | null;
     transactionDate: string;
     notes: string | null;
+    bankFeeOriginal: string | null;
+    bankFeeVnd: string | null;
     currency: { id: string; code: string; symbol: string };
   }[];
 }
@@ -62,13 +66,20 @@ export default function OrderDetailPage() {
       if (json.success) setReport(json.data);
       else router.push("/orders");
     } catch (err) {
-      console.error("Failed to fetch order report:", err);
+      console.error("Lỗi tải báo cáo đơn hàng:", err);
     } finally {
       setLoading(false);
     }
   }, [id, router]);
 
   useEffect(() => { fetchReport(); }, [fetchReport]);
+
+  // Push order type to nav highlight context so sidebar can highlight Đơn bán / Đơn mua
+  useRegisterOrderDetailType(
+    report?.order?.type === "SALE" || report?.order?.type === "PURCHASE"
+      ? report.order.type
+      : null
+  );
 
   if (loading) {
     return (
@@ -90,10 +101,10 @@ export default function OrderDetailPage() {
       <div className="flex items-center justify-between">
         <div>
           <button
-            onClick={() => router.push("/orders")}
+            onClick={() => router.push(`/orders?type=${order.type}`)}
             className="text-sm text-slate-500 hover:text-slate-700 mb-1"
           >
-            ← Đơn hàng
+            ← {order.type === "SALE" ? "Đơn bán" : "Đơn mua"}
           </button>
           <h1 className="text-xl font-semibold text-slate-900">
             Chi tiết đơn — {order.party?.name}

@@ -19,6 +19,8 @@ interface Transaction {
   bankReference: string | null;
   transactionDate: string;
   notes: string | null;
+  bankFeeOriginal: string | null;
+  bankFeeVnd: string | null;
   currency: { id: string; code: string; symbol: string };
 }
 
@@ -59,7 +61,7 @@ export function OrderTransactionsTable({
       if (!json.success) throw new Error(json.message ?? "Lỗi xóa giao dịch");
       onDeleted();
     } catch (err) {
-      console.error("Delete transaction error:", err);
+      console.error("Lỗi xóa giao dịch:", err);
     } finally {
       setDeleting(false);
       setDeleteId(null);
@@ -108,6 +110,21 @@ export function OrderTransactionsTable({
       render: (v) => (
         <CurrencyAmount amount={v} currencyCode="VND" currencySymbol="₫" />
       ),
+    },
+    {
+      key: "bankFeeOriginal",
+      label: "Phí NH",
+      align: "right",
+      render: (v, row) =>
+        v && parseFloat(v as string) > 0 ? (
+          <CurrencyAmount
+            amount={v as string}
+            currencyCode={row.currency?.code ?? "VND"}
+            currencySymbol={row.currency?.symbol ?? "₫"}
+          />
+        ) : (
+          <span className="text-slate-400">—</span>
+        ),
     },
     {
       key: "bankReference",

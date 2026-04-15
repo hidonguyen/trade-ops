@@ -3,11 +3,12 @@ import { NextRequest } from "next/server";
 import { withAuth, checkAccess, apiResponse } from "@/lib/api-helpers";
 import { prisma } from "@/lib/prisma";
 import Decimal from "decimal.js";
+import { MSG } from "@/lib/messages";
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await withAuth();
   if (!session) {
-    return Response.json(apiResponse(false, undefined, "Unauthorized"), { status: 401 });
+    return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
 
   const { id } = await params;
@@ -30,12 +31,12 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     });
 
     if (!order) {
-      return Response.json(apiResponse(false, undefined, "Order not found"), { status: 404 });
+      return Response.json(apiResponse(false, undefined, MSG.orderNotFound), { status: 404 });
     }
 
     const module = order.type === "SALE" ? "SALE" : "PURCHASE";
     if (!checkAccess(session.user.roles, "GET", module)) {
-      return Response.json(apiResponse(false, undefined, "Access denied"), { status: 403 });
+      return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
     }
 
     // Compute summary using Decimal for precision
@@ -76,6 +77,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         id: order.id,
         type: order.type,
         status: order.status,
+        orderNumber: order.orderNumber,
         amountOriginal: order.amountOriginal,
         orderDate: order.orderDate,
         notes: order.notes,
@@ -101,6 +103,6 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     return Response.json(apiResponse(true, report));
   } catch (error) {
     console.error("GET /api/orders/[id]/report error:", error);
-    return Response.json(apiResponse(false, undefined, "Internal server error"), { status: 500 });
+    return Response.json(apiResponse(false, undefined, MSG.internalError), { status: 500 });
   }
 }

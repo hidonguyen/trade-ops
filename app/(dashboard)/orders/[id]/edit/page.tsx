@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
+import { useRegisterOrderDetailType } from "@/components/providers/nav-highlight-provider";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { OrderForm, OrderFormData } from "@/components/order-form";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,6 +18,8 @@ interface OrderData {
   partyId: string;
   currencyId: string;
   businessUnitId: string;
+  orderNumber: string;
+  expenseTypeId: string | null;
 }
 
 export default function EditOrderPage() {
@@ -37,6 +40,11 @@ export default function EditOrderPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
+  // Push order type to nav highlight context so sidebar can highlight Đơn bán / Đơn mua
+  useRegisterOrderDetailType(
+    order?.type === "SALE" || order?.type === "PURCHASE" ? order.type : null
+  );
+
   async function handleSubmit(data: OrderFormData) {
     const res = await fetch(`/api/orders/${id}`, {
       method: "PATCH",
@@ -47,6 +55,9 @@ export default function EditOrderPage() {
         amountOriginal: data.amountOriginal,
         partyId: data.partyId,
         currencyId: data.currencyId,
+        orderNumber: data.orderNumber,
+        // Send null to clear; undefined stays absent (skipped in PATCH)
+        expenseTypeId: data.type === "PURCHASE" ? data.expenseTypeId || null : null,
       }),
     });
     const json = await res.json();
@@ -77,10 +88,12 @@ export default function EditOrderPage() {
     type: order.type,
     partyId: order.partyId,
     businessUnitId: order.businessUnitId,
+    orderNumber: order.orderNumber,
     amountOriginal: String(order.amountOriginal),
     currencyId: order.currencyId,
     orderDate: order.orderDate.split("T")[0],
     notes: order.notes ?? "",
+    expenseTypeId: order.expenseTypeId ?? "",
   };
 
   return (

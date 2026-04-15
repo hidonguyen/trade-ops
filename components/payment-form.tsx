@@ -18,6 +18,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
+// Sentinel value used in the deposit combobox to signal "auto-create a new deposit"
+// on REFUND + DEPOSIT. Client strips it before POST; backend auto-creates.
+const DEPOSIT_CREATE_NEW = "__CREATE_NEW__";
+
 interface Deposit {
   id: string;
   amountOriginal: string;
@@ -51,6 +55,9 @@ interface FormState {
   transactionDate: string;
   notes: string;
   depositId: string;
+  // Bank fee borne by company (only when paymentMethod = BANK)
+  bankFeeOriginal: string;
+  bankFeeVnd: string;
 }
 
 const defaultForm: FormState = {
@@ -63,6 +70,8 @@ const defaultForm: FormState = {
   transactionDate: new Date().toISOString().split("T")[0],
   notes: "",
   depositId: "",
+  bankFeeOriginal: "",
+  bankFeeVnd: "",
 };
 
 export function PaymentForm({ open, onClose, onSuccess, orderId, orderType, partyId, currency }: PaymentFormProps) {
@@ -81,6 +90,18 @@ export function PaymentForm({ open, onClose, onSuccess, orderId, orderType, part
     }
   }, [form.paymentMethod, partyId]);
 
+  // Auto-select "create new" when REFUND + DEPOSIT and party has no deposits
+  useEffect(() => {
+    if (
+      form.paymentMethod === "DEPOSIT" &&
+      form.paymentType === "REFUND" &&
+      deposits.length === 0 &&
+      !form.depositId
+    ) {
+      setForm((prev) => ({ ...prev, depositId: DEPOSIT_CREATE_NEW }));
+    }
+  }, [form.paymentMethod, form.paymentType, deposits.length, form.depositId]);
+
   // Reset form and stale deposits when dialog opens
   useEffect(() => {
     if (open) {
@@ -93,6 +114,10 @@ export function PaymentForm({ open, onClose, onSuccess, orderId, orderType, part
   function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => {
       const updated = { ...prev, [key]: value };
+      // Reset the "create new" sentinel if user switches to PAYMENT (not valid there)
+      if (key === "paymentType" && value === "PAYMENT" && prev.depositId === DEPOSIT_CREATE_NEW) {
+        updated.depositId = "";
+      }
       // Recompute amountVnd whenever amounts or rate change
       if (key === "amountOriginal" || key === "exchangeRate") {
         try {
@@ -102,6 +127,25 @@ export function PaymentForm({ open, onClose, onSuccess, orderId, orderType, part
         } catch {
           updated.amountVnd = "";
         }
+      }
+      // Recompute bankFeeVnd when fee or rate changes
+      if (key === "bankFeeOriginal" || key === "exchangeRate") {
+        if (!updated.bankFeeOriginal) {
+          updated.bankFeeVnd = "";
+        } else {
+          try {
+            const fee = new Decimal(updated.bankFeeOriginal || "0");
+            const rate = new Decimal(updated.exchangeRate || "1");
+            updated.bankFeeVnd = fee.times(rate).toDecimalPlaces(4).toString();
+          } catch {
+            updated.bankFeeVnd = "";
+          }
+        }
+      }
+      // Clear fee when switching away from BANK
+      if (key === "paymentMethod" && value !== "BANK") {
+        updated.bankFeeOriginal = "";
+        updated.bankFeeVnd = "";
       }
       return updated;
     });
@@ -115,7 +159,12 @@ export function PaymentForm({ open, onClose, onSuccess, orderId, orderType, part
     if (!form.exchangeRate || isNaN(parseFloat(form.exchangeRate)) || parseFloat(form.exchangeRate) <= 0)
       return "Tỷ giá không hợp lệ";
     if (!form.transactionDate) return "Ngày giao dịch là bắt buộc";
-    if (form.paymentMethod === "DEPOSIT" && !form.depositId) return "Vui lòng chọn cọc";
+    if (form.paymentMethod === "DEPOSIT") {
+      if (!form.depositId) return "Vui lòng chọn cọc";
+      if (form.paymentType === "PAYMENT" && form.depositId === DEPOSIT_CREATE_NEW) {
+        return "Thanh toán phải dùng cọc hiện có, không thể tạo mới";
+      }
+    }
     return null;
   }
 
@@ -125,6 +174,11 @@ export function PaymentForm({ open, onClose, onSuccess, orderId, orderType, part
     if (validationError) { setError(validationError); return; }
     setLoading(true);
     setError(null);
+
+    const hasBankFee =
+      form.paymentMethod === "BANK" &&
+      form.bankFeeOriginal &&
+      parseFloat(form.bankFeeOriginal) > 0;
 
     const payload = {
       type: orderType === "SALE" ? "SALE_PAYMENT" : "PURCHASE_PAYMENT",
@@ -137,7 +191,15 @@ export function PaymentForm({ open, onClose, onSuccess, orderId, orderType, part
       bankReference: form.bankReference || null,
       transactionDate: form.transactionDate,
       notes: form.notes || null,
-      ...(form.paymentMethod === "DEPOSIT" && form.depositId ? { depositId: form.depositId } : {}),
+      // "__CREATE_NEW__" is a UI sentinel — omit depositId so backend auto-creates
+      ...(form.paymentMethod === "DEPOSIT" &&
+      form.depositId &&
+      form.depositId !== DEPOSIT_CREATE_NEW
+        ? { depositId: form.depositId }
+        : {}),
+      ...(hasBankFee
+        ? { bankFeeOriginal: form.bankFeeOriginal, bankFeeVnd: form.bankFeeVnd }
+        : {}),
     };
 
     try {
@@ -205,12 +267,27 @@ export function PaymentForm({ open, onClose, onSuccess, orderId, orderType, part
               <Combobox
                 value={form.depositId}
                 onValueChange={(v) => setField("depositId", v)}
-                options={deposits.map((d) => ({
-                  value: d.id,
-                  label: `Còn lại: ${d.remainingOriginal} ${currency.code}${d.notes ? ` — ${d.notes}` : ""}`,
-                }))}
-                placeholder="Chọn cọc..."
+                options={[
+                  ...deposits.map((d) => ({
+                    value: d.id,
+                    label: `Còn lại: ${d.remainingOriginal} ${currency.code}${d.notes ? ` — ${d.notes}` : ""}`,
+                  })),
+                  // For refunds, allow creating a new deposit from the refund amount
+                  ...(form.paymentType === "REFUND"
+                    ? [{ value: DEPOSIT_CREATE_NEW, label: "+ Tạo cọc mới từ hoàn tiền" }]
+                    : []),
+                ]}
+                placeholder={
+                  form.paymentType === "REFUND" && deposits.length === 0
+                    ? "Sẽ tạo cọc mới"
+                    : "Chọn cọc..."
+                }
               />
+              {form.depositId === DEPOSIT_CREATE_NEW && (
+                <p className="text-xs text-slate-500">
+                  Cọc mới sẽ được tạo cho đối tác với số dư = số tiền hoàn
+                </p>
+              )}
             </div>
           )}
 
@@ -249,6 +326,27 @@ export function PaymentForm({ open, onClose, onSuccess, orderId, orderType, part
               <NumberInput value={form.amountVnd} onChange={() => {}} readOnly decimals={4} />
             </div>
           </div>
+
+          {form.paymentMethod === "BANK" && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Phí ngân hàng ({currency.code})</Label>
+                <NumberInput
+                  value={form.bankFeeOriginal}
+                  onChange={(v) => setField("bankFeeOriginal", v)}
+                  decimals={4}
+                  min={0}
+                  placeholder="0.0000"
+                />
+                <p className="text-xs text-slate-500">Phí do công ty chịu, không trừ vào công nợ</p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Phí VND</Label>
+                <NumberInput value={form.bankFeeVnd} onChange={() => {}} readOnly decimals={4} />
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">

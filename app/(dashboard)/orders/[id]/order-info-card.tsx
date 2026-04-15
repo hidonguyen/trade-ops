@@ -7,12 +7,14 @@ interface Order {
   id: string;
   type: string;
   status: string;
+  orderNumber: string;
   orderDate: string;
   amountOriginal: string;
   notes: string | null;
   party: { id: string; name: string; type: string };
   currency: { id: string; code: string; symbol: string };
   businessUnit: { id: string; code: string; name: string };
+  expenseType?: { id: string; name: string; isActive: boolean } | null;
 }
 
 interface OrderInfoCardProps {
@@ -30,6 +32,10 @@ export function OrderInfoCard({ order }: OrderInfoCardProps) {
       </CardHeader>
       <CardContent>
         <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3 text-sm">
+          <div>
+            <dt className="text-slate-500 text-xs uppercase tracking-wide">Số đơn hàng</dt>
+            <dd className="font-medium mt-0.5">{order.orderNumber}</dd>
+          </div>
           <div>
             <dt className="text-slate-500 text-xs uppercase tracking-wide">Đối tác</dt>
             <dd className="font-medium mt-0.5">{order.party?.name}</dd>
@@ -72,9 +78,20 @@ export function OrderInfoCard({ order }: OrderInfoCardProps) {
             <dt className="text-slate-500 text-xs uppercase tracking-wide">Đơn vị</dt>
             <dd className="font-medium mt-0.5">{order.businessUnit?.code}</dd>
           </div>
+          {order.type === "PURCHASE" && order.expenseType && (
+            <div>
+              <dt className="text-slate-500 text-xs uppercase tracking-wide">Loại chi phí</dt>
+              <dd className="font-medium mt-0.5">
+                {order.expenseType.name}
+                {!order.expenseType.isActive && (
+                  <span className="ml-1 text-xs text-slate-400">(ngừng)</span>
+                )}
+              </dd>
+            </div>
+          )}
           {order.notes && (
             <div className="col-span-2 sm:col-span-3">
-              <dt className="text-slate-500 text-xs uppercase tracking-wide">Ghi chú</dt>
+              <dt className="text-slate-500 text-xs uppercase tracking-wide">Diễn giải</dt>
               <dd className="mt-0.5 text-slate-700">{order.notes}</dd>
             </div>
           )}

@@ -3,8 +3,9 @@ import { NextRequest } from "next/server";
 import { withAuth, checkAccess, apiResponse } from "@/lib/api-helpers";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
-import { reverseDepositDeduction, deductDeposit } from "@/lib/deposit-deduction-service";
+import { reverseDepositDeduction, applyDepositOperation } from "@/lib/deposit-deduction-service";
 import { z } from "zod";
+import { MSG } from "@/lib/messages";
 
 const updateStandaloneSchema = z.object({
   amountOriginal: z.string().optional(),
@@ -14,12 +15,14 @@ const updateStandaloneSchema = z.object({
   transactionDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
   notes: z.string().max(1000).optional(),
   depositId: z.string().uuid().nullable().optional(),
+  // partyId required only if switching to DEPOSIT+REFUND with no depositId; not stored on tx
+  partyId: z.string().uuid().optional(),
 });
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await withAuth();
   if (!session) {
-    return Response.json(apiResponse(false, undefined, "Unauthorized"), { status: 401 });
+    return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
 
   const { id } = await params;
@@ -28,7 +31,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const validation = updateStandaloneSchema.safeParse(body);
   if (!validation.success) {
     return Response.json(
-      apiResponse(false, undefined, "Validation failed", validation.error.flatten().fieldErrors as Record<string, string[]>),
+      apiResponse(false, undefined, MSG.validationFailed, validation.error.flatten().fieldErrors as Record<string, string[]>),
       { status: 400 }
     );
   }
@@ -39,21 +42,21 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       include: { depositUsages: true },
     });
     if (!transaction) {
-      return Response.json(apiResponse(false, undefined, "Transaction not found"), { status: 404 });
+      return Response.json(apiResponse(false, undefined, MSG.transactionNotFound), { status: 404 });
     }
 
     const module = transaction.type === "RECEIPT" ? "RECEIPT" : "PAYMENT";
     if (!checkAccess(session.user.roles, "UPDATE", module)) {
-      return Response.json(apiResponse(false, undefined, "Access denied"), { status: 403 });
+      return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
     }
 
     const userId = session.user.id!;
-    const { depositId, ...updateFields } = validation.data;
+    const { depositId, partyId, ...updateFields } = validation.data;
     const prevDepositId = transaction.depositUsages[0]?.depositId ?? null;
     const newDepositId = depositId !== undefined ? depositId : prevDepositId;
 
     const result = await prisma.$transaction(async (tx: any) => {
-      if (prevDepositId) {
+      if (transaction.depositUsages.length > 0) {
         await reverseDepositDeduction(tx, id);
       }
 
@@ -67,9 +70,21 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
       const updated = await tx.transaction.update({ where: { id }, data: updateData });
 
-      if (newDepositId) {
+      if (transaction.paymentMethod === "DEPOSIT") {
         const amount = (updateData.amountOriginal as string | undefined) ?? transaction.amountOriginal.toString();
-        await deductDeposit(tx, newDepositId, amount, id);
+        await applyDepositOperation(tx, {
+          paymentType: transaction.paymentType as "PAYMENT" | "REFUND",
+          depositId: newDepositId ?? null,
+          amountOriginal: amount,
+          transactionId: id,
+          partyContext: partyId
+            ? {
+                partyId,
+                businessUnitId: transaction.businessUnitId,
+                currencyId: transaction.currencyId,
+              }
+            : undefined,
+        });
       }
 
       await createAuditLog(tx, userId, "UPDATE", "Transaction", id, updateData);
@@ -78,18 +93,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     return Response.json(apiResponse(true, result));
   } catch (error) {
-    if (error instanceof Error && error.message === "Insufficient deposit balance") {
+    if (error instanceof Error && error.message === MSG.insufficientDeposit) {
       return Response.json(apiResponse(false, undefined, error.message), { status: 422 });
     }
     console.error("PATCH /api/transactions/[id] error:", error);
-    return Response.json(apiResponse(false, undefined, "Internal server error"), { status: 500 });
+    return Response.json(apiResponse(false, undefined, MSG.internalError), { status: 500 });
   }
 }
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await withAuth();
   if (!session) {
-    return Response.json(apiResponse(false, undefined, "Unauthorized"), { status: 401 });
+    return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
 
   const { id } = await params;
@@ -100,12 +115,12 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
       select: { id: true, type: true },
     });
     if (!transaction) {
-      return Response.json(apiResponse(false, undefined, "Transaction not found"), { status: 404 });
+      return Response.json(apiResponse(false, undefined, MSG.transactionNotFound), { status: 404 });
     }
 
     const module = transaction.type === "RECEIPT" ? "RECEIPT" : "PAYMENT";
     if (!checkAccess(session.user.roles, "DELETE", module)) {
-      return Response.json(apiResponse(false, undefined, "Access denied"), { status: 403 });
+      return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
     }
 
     const userId = session.user.id!;
@@ -115,9 +130,9 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
       await createAuditLog(tx, userId, "DELETE", "Transaction", id);
     });
 
-    return Response.json(apiResponse(true, undefined, "Transaction deleted"));
+    return Response.json(apiResponse(true, undefined, "Đã xóa giao dịch"));
   } catch (error) {
     console.error("DELETE /api/transactions/[id] error:", error);
-    return Response.json(apiResponse(false, undefined, "Internal server error"), { status: 500 });
+    return Response.json(apiResponse(false, undefined, MSG.internalError), { status: 500 });
   }
 }

@@ -3,6 +3,7 @@ import { withAuth, checkAccess, apiResponse } from "@/lib/api-helpers";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import Decimal from "decimal.js";
+import { MSG } from "@/lib/messages";
 
 const querySchema = z.object({
   businessUnitId: z.string().uuid(),
@@ -16,17 +17,17 @@ const UNPAID_STATUSES = ["UNPAID", "PARTIAL_PAID", "PARTIAL_REFUNDED"];
 export async function GET(request: Request) {
   const session = await withAuth();
   if (!session) {
-    return Response.json(apiResponse(false, undefined, "Unauthorized"), { status: 401 });
+    return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
   if (!checkAccess(session.user.roles, "GET", "DASHBOARD")) {
-    return Response.json(apiResponse(false, undefined, "Access denied"), { status: 403 });
+    return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
 
   const { searchParams } = new URL(request.url);
   const parsed = querySchema.safeParse(Object.fromEntries(searchParams));
   if (!parsed.success) {
     return Response.json(
-      apiResponse(false, undefined, "Validation failed", parsed.error.flatten().fieldErrors as Record<string, string[]>),
+      apiResponse(false, undefined, MSG.validationFailed, parsed.error.flatten().fieldErrors as Record<string, string[]>),
       { status: 400 }
     );
   }
@@ -124,6 +125,6 @@ export async function GET(request: Request) {
     );
   } catch (error) {
     console.error("GET /api/reports/summary error:", error);
-    return Response.json(apiResponse(false, undefined, "Internal server error"), { status: 500 });
+    return Response.json(apiResponse(false, undefined, MSG.internalError), { status: 500 });
   }
 }

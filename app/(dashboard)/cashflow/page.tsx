@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { getDefaultBu } from "@/lib/utils";
+import { useSelectedBu } from "@/components/providers/bu-provider";
 import { Button } from "@/components/ui/button";
 import { DataTable, Column } from "@/components/shared/data-table";
 import { Pagination } from "@/components/shared/pagination";
@@ -21,6 +21,8 @@ interface CashflowTransaction {
   bankReference: string | null;
   transactionDate: string;
   notes: string | null;
+  bankFeeOriginal: string | null;
+  bankFeeVnd: string | null;
   currency: { id: string; code: string; symbol: string };
   businessUnit: { id: string; code: string; name: string };
 }
@@ -31,11 +33,14 @@ interface CurrencySummary {
   totalReceipts: string;
   totalPayments: string;
   netCashflow: string;
+  totalBankFee: string;
+  netAfterFee: string;
 }
 
 interface Currency { id: string; code: string; symbol: string; }
 
 export default function CashflowPage() {
+  const { selectedBuId } = useSelectedBu();
   const [transactions, setTransactions] = useState<CashflowTransaction[]>([]);
   const [summaries, setSummaries] = useState<CurrencySummary[]>([]);
   const [total, setTotal] = useState(0);
@@ -55,12 +60,11 @@ export default function CashflowPage() {
   const fetchReport = useCallback(async () => {
     setLoading(true);
     try {
-      const buId = getDefaultBu();
       const params = new URLSearchParams({
         format: "json",
         page: String(page),
         limit: String(limit),
-        ...(buId ? { businessUnitId: buId } : {}),
+        ...(selectedBuId ? { businessUnitId: selectedBuId } : {}),
         ...(filters.dateFrom ? { dateFrom: filters.dateFrom } : {}),
         ...(filters.dateTo ? { dateTo: filters.dateTo } : {}),
         ...(filters.currencyId ? { currencyId: filters.currencyId } : {}),
@@ -74,25 +78,32 @@ export default function CashflowPage() {
         setSummaries(computeSummaries(txs));
       }
     } catch (err) {
-      console.error("Failed to fetch cashflow:", err);
+      console.error("Lỗi tải dòng tiền:", err);
     } finally {
       setLoading(false);
     }
-  }, [page, limit, filters]);
+  }, [page, limit, filters, selectedBuId]);
 
   useEffect(() => { fetchReport(); }, [fetchReport]);
 
-  // Compute per-currency summaries from transaction list
+  // Compute per-currency summaries from transaction list (includes bank fee tracking)
   function computeSummaries(txs: CashflowTransaction[]): CurrencySummary[] {
-    const map = new Map<string, { symbol: string; receipts: Decimal; payments: Decimal }>();
+    const map = new Map<
+      string,
+      { symbol: string; receipts: Decimal; payments: Decimal; fees: Decimal }
+    >();
     for (const tx of txs) {
       const code = tx.currency?.code ?? "VND";
       const symbol = tx.currency?.symbol ?? "₫";
-      if (!map.has(code)) map.set(code, { symbol, receipts: new Decimal(0), payments: new Decimal(0) });
+      if (!map.has(code))
+        map.set(code, { symbol, receipts: new Decimal(0), payments: new Decimal(0), fees: new Decimal(0) });
       const entry = map.get(code)!;
       const amt = new Decimal(tx.amountOriginal ?? "0");
       if (tx.type === "RECEIPT") entry.receipts = entry.receipts.plus(amt);
       else entry.payments = entry.payments.plus(amt);
+      if (tx.bankFeeOriginal) {
+        entry.fees = entry.fees.plus(new Decimal(tx.bankFeeOriginal));
+      }
     }
     return Array.from(map.entries()).map(([code, v]) => ({
       currencyCode: code,
@@ -100,6 +111,8 @@ export default function CashflowPage() {
       totalReceipts: v.receipts.toFixed(4),
       totalPayments: v.payments.toFixed(4),
       netCashflow: v.receipts.minus(v.payments).toFixed(4),
+      totalBankFee: v.fees.toFixed(4),
+      netAfterFee: v.receipts.minus(v.payments).minus(v.fees).toFixed(4),
     }));
   }
 
@@ -109,10 +122,9 @@ export default function CashflowPage() {
   }
 
   function handleExportExcel() {
-    const buId = getDefaultBu();
     const params = new URLSearchParams({
       format: "xlsx",
-      ...(buId ? { businessUnitId: buId } : {}),
+      ...(selectedBuId ? { businessUnitId: selectedBuId } : {}),
       ...(filters.dateFrom ? { dateFrom: filters.dateFrom } : {}),
       ...(filters.dateTo ? { dateTo: filters.dateTo } : {}),
       ...(filters.currencyId ? { currencyId: filters.currencyId } : {}),
@@ -168,6 +180,21 @@ export default function CashflowPage() {
       key: "paymentMethod",
       label: "Phương thức",
       render: (v) => v === "BANK" ? "Ngân hàng" : "Cọc",
+    },
+    {
+      key: "bankFeeOriginal",
+      label: "Phí NH",
+      align: "right",
+      render: (v, row) =>
+        v && parseFloat(v as string) > 0 ? (
+          <CurrencyAmount
+            amount={v as string}
+            currencyCode={row.currency?.code ?? "VND"}
+            currencySymbol={row.currency?.symbol ?? "₫"}
+          />
+        ) : (
+          <span className="text-slate-400">—</span>
+        ),
     },
     {
       key: "bankReference",

@@ -3,11 +3,12 @@ import { withAuth, checkAccess, apiResponse } from "@/lib/api-helpers";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
 import { createBusinessUnitSchema } from "@/lib/validation-schemas";
+import { MSG } from "@/lib/messages";
 
 export async function GET() {
   const session = await withAuth();
   if (!session) {
-    return Response.json(apiResponse(false, undefined, "Unauthorized"), { status: 401 });
+    return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
 
   try {
@@ -18,24 +19,24 @@ export async function GET() {
     return Response.json(apiResponse(true, data));
   } catch (error) {
     console.error("GET /api/business-units error:", error);
-    return Response.json(apiResponse(false, undefined, "Internal server error"), { status: 500 });
+    return Response.json(apiResponse(false, undefined, MSG.internalError), { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
   const session = await withAuth();
   if (!session) {
-    return Response.json(apiResponse(false, undefined, "Unauthorized"), { status: 401 });
+    return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
   if (!checkAccess(session.user.roles, "CREATE", "ADMIN")) {
-    return Response.json(apiResponse(false, undefined, "Access denied"), { status: 403 });
+    return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
 
   const body = await request.json();
   const validation = createBusinessUnitSchema.safeParse(body);
   if (!validation.success) {
     return Response.json(
-      apiResponse(false, undefined, "Validation failed", validation.error.flatten().fieldErrors as Record<string, string[]>),
+      apiResponse(false, undefined, MSG.validationFailed, validation.error.flatten().fieldErrors as Record<string, string[]>),
       { status: 400 }
     );
   }
@@ -49,6 +50,6 @@ export async function POST(request: Request) {
     return Response.json(apiResponse(true, result), { status: 201 });
   } catch (error) {
     console.error("POST /api/business-units error:", error);
-    return Response.json(apiResponse(false, undefined, "Internal server error"), { status: 500 });
+    return Response.json(apiResponse(false, undefined, MSG.internalError), { status: 500 });
   }
 }

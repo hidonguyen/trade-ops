@@ -2,6 +2,7 @@
 import { withAuth, checkAccess, apiResponse, parsePagination } from "@/lib/api-helpers";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { MSG } from "@/lib/messages";
 
 const querySchema = z.object({
   userId: z.string().uuid().optional(),
@@ -14,10 +15,10 @@ const querySchema = z.object({
 export async function GET(request: Request) {
   const session = await withAuth();
   if (!session) {
-    return Response.json(apiResponse(false, undefined, "Unauthorized"), { status: 401 });
+    return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
   if (!checkAccess(session.user.roles, "GET", "ADMIN")) {
-    return Response.json(apiResponse(false, undefined, "Access denied"), { status: 403 });
+    return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
 
   const { searchParams } = new URL(request.url);
@@ -26,7 +27,7 @@ export async function GET(request: Request) {
   const parsed = querySchema.safeParse(Object.fromEntries(searchParams));
   if (!parsed.success) {
     return Response.json(
-      apiResponse(false, undefined, "Validation failed", parsed.error.flatten().fieldErrors as Record<string, string[]>),
+      apiResponse(false, undefined, MSG.validationFailed, parsed.error.flatten().fieldErrors as Record<string, string[]>),
       { status: 400 }
     );
   }
@@ -69,6 +70,6 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     console.error("GET /api/audit-logs error:", error);
-    return Response.json(apiResponse(false, undefined, "Internal server error"), { status: 500 });
+    return Response.json(apiResponse(false, undefined, MSG.internalError), { status: 500 });
   }
 }

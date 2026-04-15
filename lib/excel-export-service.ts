@@ -11,6 +11,8 @@ interface CashflowTransaction {
   bankReference?: string | null;
   paymentType: string;
   notes?: string | null;
+  bankFeeOriginal?: string | null;
+  bankFeeVnd?: string | null;
 }
 
 interface CashflowExportData {
@@ -20,6 +22,8 @@ interface CashflowExportData {
     totalIn: string;
     totalOut: string;
     net: string;
+    totalBankFee?: string;
+    netAfterFee?: string;
   }>;
   transactions: CashflowTransaction[];
 }
@@ -48,10 +52,16 @@ export async function exportCashflowToExcel(data: CashflowExportData): Promise<B
     { header: "Total In", key: "totalIn", width: 20 },
     { header: "Total Out", key: "totalOut", width: 20 },
     { header: "Net", key: "net", width: 20 },
+    { header: "Bank Fee", key: "totalBankFee", width: 18 },
+    { header: "Net After Fee", key: "netAfterFee", width: 20 },
   ];
   styleHeaderRow(summarySheet.getRow(1));
   for (const row of data.currencies) {
-    summarySheet.addRow(row);
+    summarySheet.addRow({
+      ...row,
+      totalBankFee: row.totalBankFee ?? "0",
+      netAfterFee: row.netAfterFee ?? row.net,
+    });
   }
 
   // Sheet 2: Transaction detail
@@ -64,6 +74,8 @@ export async function exportCashflowToExcel(data: CashflowExportData): Promise<B
     { header: "Currency", key: "currency", width: 10 },
     { header: "Method", key: "method", width: 12 },
     { header: "Payment Type", key: "paymentType", width: 14 },
+    { header: "Bank Fee (Orig)", key: "bankFeeOriginal", width: 18 },
+    { header: "Bank Fee (VND)", key: "bankFeeVnd", width: 18 },
     { header: "Reference", key: "reference", width: 22 },
     { header: "Notes", key: "notes", width: 30 },
   ];
@@ -82,6 +94,8 @@ export async function exportCashflowToExcel(data: CashflowExportData): Promise<B
       currency: tx.currencyCode,
       method: tx.paymentMethod,
       paymentType: tx.paymentType,
+      bankFeeOriginal: tx.bankFeeOriginal ?? "",
+      bankFeeVnd: tx.bankFeeVnd ?? "",
       reference: tx.bankReference ?? "",
       notes: tx.notes ?? "",
     });
@@ -188,6 +202,94 @@ export async function exportTransactionsToExcel(transactions: TransactionRow[]):
       paymentType: tx.paymentType,
       reference: tx.bankReference ?? "",
       notes: tx.notes ?? "",
+    });
+  }
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  return Buffer.from(buffer);
+}
+
+// Bank fee report export — transactions with company-borne bank fees
+interface BankFeeRow {
+  transactionDate: Date | string;
+  businessUnitCode: string;
+  partyName?: string | null;
+  orderNumber?: string | null;
+  type: string;
+  amountOriginal: string | number;
+  currencyCode: string;
+  bankFeeOriginal: string | number;
+  bankFeeVnd: string | number;
+  exchangeRate: string | number;
+  bankReference?: string | null;
+  notes?: string | null;
+}
+
+interface BankFeeExportData {
+  rows: BankFeeRow[];
+  totals: {
+    grandFeeVnd: string;
+    byCurrency: Array<{ code: string; totalFeeOriginal: string; totalFeeVnd: string }>;
+  };
+}
+
+export async function exportBankFeesToExcel(data: BankFeeExportData): Promise<Buffer> {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "Trade Ops";
+  workbook.created = new Date();
+
+  const totalsSheet = workbook.addWorksheet("Summary");
+  totalsSheet.columns = [
+    { header: "Currency", key: "code", width: 12 },
+    { header: "Total Fee (Orig)", key: "totalFeeOriginal", width: 22 },
+    { header: "Total Fee (VND)", key: "totalFeeVnd", width: 22 },
+  ];
+  styleHeaderRow(totalsSheet.getRow(1));
+  for (const row of data.totals.byCurrency) {
+    totalsSheet.addRow(row);
+  }
+  const grandRow = totalsSheet.addRow({
+    code: "GRAND TOTAL (VND)",
+    totalFeeOriginal: "",
+    totalFeeVnd: data.totals.grandFeeVnd,
+  });
+  grandRow.font = { bold: true };
+
+  const detailSheet = workbook.addWorksheet("Bank Fees");
+  detailSheet.columns = [
+    { header: "Date", key: "date", width: 15 },
+    { header: "Business Unit", key: "bu", width: 14 },
+    { header: "Party", key: "party", width: 25 },
+    { header: "Order No.", key: "orderNumber", width: 16 },
+    { header: "Type", key: "type", width: 18 },
+    { header: "Amount", key: "amount", width: 20 },
+    { header: "Currency", key: "currency", width: 10 },
+    { header: "Fee (Orig)", key: "feeOrig", width: 18 },
+    { header: "Fee (VND)", key: "feeVnd", width: 18 },
+    { header: "Exchange Rate", key: "rate", width: 16 },
+    { header: "Reference", key: "reference", width: 22 },
+    { header: "Notes", key: "notes", width: 30 },
+  ];
+  styleHeaderRow(detailSheet.getRow(1));
+
+  for (const row of data.rows) {
+    const dateVal =
+      row.transactionDate instanceof Date
+        ? row.transactionDate.toISOString().slice(0, 10)
+        : String(row.transactionDate).slice(0, 10);
+    detailSheet.addRow({
+      date: dateVal,
+      bu: row.businessUnitCode,
+      party: row.partyName ?? "",
+      orderNumber: row.orderNumber ?? "",
+      type: row.type,
+      amount: row.amountOriginal,
+      currency: row.currencyCode,
+      feeOrig: row.bankFeeOriginal,
+      feeVnd: row.bankFeeVnd,
+      rate: row.exchangeRate,
+      reference: row.bankReference ?? "",
+      notes: row.notes ?? "",
     });
   }
 

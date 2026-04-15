@@ -2,9 +2,10 @@
 // Fetches parties (filtered by type), business units, currencies on mount
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { getDefaultBu } from "@/lib/utils";
+import { useSelectedBu } from "@/components/providers/bu-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,29 +30,42 @@ export interface OrderFormData {
   type: string;
   partyId: string;
   businessUnitId: string;
+  orderNumber: string;
   amountOriginal: string;
   currencyId: string;
   orderDate: string;
   notes: string;
+  // PURCHASE-only — ignored on SALE (server rejects if sent with SALE)
+  expenseTypeId: string;
 }
 
 interface OrderFormProps {
   initialData?: Partial<OrderFormData> & { id?: string };
   onSubmit: (data: OrderFormData) => Promise<void>;
   mode: "create" | "edit";
+  // Disables the "Loại đơn" combobox (e.g. when creating from a type-filtered list)
+  lockType?: boolean;
 }
 
 const defaultForm: OrderFormData = {
   type: "SALE",
   partyId: "",
   businessUnitId: "",
+  orderNumber: "",
   amountOriginal: "",
   currencyId: "",
   orderDate: new Date().toISOString().split("T")[0],
   notes: "",
+  expenseTypeId: "",
 };
 
-export function OrderForm({ initialData, onSubmit, mode }: OrderFormProps) {
+interface ExpenseType {
+  id: string;
+  name: string;
+  isActive: boolean;
+}
+
+export function OrderForm({ initialData, onSubmit, mode, lockType }: OrderFormProps) {
   const [form, setForm] = useState<OrderFormData>(() => ({
     ...defaultForm,
     businessUnitId: getDefaultBu(),
@@ -59,23 +73,44 @@ export function OrderForm({ initialData, onSubmit, mode }: OrderFormProps) {
   }));
   const [parties, setParties] = useState<Party[]>([]);
   const [currencies, setCurrencies] = useState<Currency[]>([]);
+  const [expenseTypes, setExpenseTypes] = useState<ExpenseType[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const { businessUnits } = useSelectedBu();
+
+  // BU-level order number mode — controls whether user must input orderNumber or system auto-generates
+  const orderNumberMode = useMemo(() => {
+    const bu = businessUnits.find((b) => b.id === form.businessUnitId);
+    return bu?.orderNumberMode ?? "MANUAL";
+  }, [businessUnits, form.businessUnitId]);
+  const isAutoNumber = orderNumberMode === "AUTO" && mode === "create";
 
   // Load reference data
   useEffect(() => {
     async function loadData() {
       try {
-        const curRes = await fetch("/api/currencies");
+        const [curRes, etRes] = await Promise.all([
+          fetch("/api/currencies"),
+          fetch("/api/expense-types"),
+        ]);
         const curJson = await curRes.json();
         if (curJson.success) setCurrencies(curJson.data);
+        const etJson = await etRes.json();
+        if (etJson.success) setExpenseTypes(etJson.data);
       } catch {
         setError("Không thể tải dữ liệu tham chiếu");
       }
     }
     loadData();
   }, []);
+
+  // Clear expense type if user switches away from PURCHASE (server rejects it on SALE)
+  useEffect(() => {
+    if (form.type !== "PURCHASE" && form.expenseTypeId) {
+      setForm((prev) => ({ ...prev, expenseTypeId: "" }));
+    }
+  }, [form.type, form.expenseTypeId]);
 
   // Reload parties when type changes
   useEffect(() => {
@@ -100,6 +135,8 @@ export function OrderForm({ initialData, onSubmit, mode }: OrderFormProps) {
     if (!form.type) return "Loại đơn là bắt buộc";
     if (!form.partyId) return "Đối tác là bắt buộc";
     if (!form.businessUnitId) return "Vui lòng chọn đơn vị kinh doanh ở thanh tiêu đề";
+    // Order number required in MANUAL mode or when editing existing order
+    if (!isAutoNumber && !form.orderNumber.trim()) return "Số đơn hàng là bắt buộc";
     if (!form.amountOriginal || isNaN(parseFloat(form.amountOriginal)))
       return "Số tiền không hợp lệ";
     if (!form.currencyId) return "Tiền tệ là bắt buộc";
@@ -141,7 +178,7 @@ export function OrderForm({ initialData, onSubmit, mode }: OrderFormProps) {
               { value: "PURCHASE", label: "Mua hàng" },
             ]}
             placeholder="Chọn loại"
-            disabled={mode === "edit"}
+            disabled={mode === "edit" || lockType}
           />
         </div>
 
@@ -152,6 +189,18 @@ export function OrderForm({ initialData, onSubmit, mode }: OrderFormProps) {
             onValueChange={(v) => setField("partyId", v)}
             options={parties.map((p) => ({ value: p.id, label: p.name }))}
             placeholder="Chọn đối tác"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>
+            Số đơn hàng {!isAutoNumber && <span className="text-red-500">*</span>}
+          </Label>
+          <Input
+            value={isAutoNumber ? "" : form.orderNumber}
+            onChange={(e) => setField("orderNumber", e.target.value)}
+            placeholder={isAutoNumber ? "Tự động tạo khi lưu" : "VD: PO-2026-001"}
+            disabled={isAutoNumber}
           />
         </div>
 
@@ -183,12 +232,33 @@ export function OrderForm({ initialData, onSubmit, mode }: OrderFormProps) {
             onChange={(v) => setField("orderDate", v)}
           />
         </div>
+
+        {form.type === "PURCHASE" && (
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label>Loại chi phí</Label>
+            <Combobox
+              value={form.expenseTypeId}
+              onValueChange={(v) => setField("expenseTypeId", v)}
+              options={[
+                { value: "", label: "— Chưa phân loại —" },
+                ...expenseTypes
+                  // Include inactive ones only if currently selected (preserve legacy links)
+                  .filter((e) => e.isActive || e.id === form.expenseTypeId)
+                  .map((e) => ({
+                    value: e.id,
+                    label: e.isActive ? e.name : `${e.name} (ngừng)`,
+                  })),
+              ]}
+              placeholder="Chọn loại chi phí (tùy chọn)"
+            />
+          </div>
+        )}
       </div>
 
       <div className="space-y-1.5">
-        <Label>Ghi chú</Label>
+        <Label>Diễn giải</Label>
         <Textarea
-          placeholder="Ghi chú..."
+          placeholder="Diễn giải..."
           value={form.notes}
           onChange={(e) => setField("notes", e.target.value)}
           rows={3}

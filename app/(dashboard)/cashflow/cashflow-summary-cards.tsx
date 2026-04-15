@@ -8,6 +8,8 @@ interface CurrencySummary {
   totalReceipts: string;
   totalPayments: string;
   netCashflow: string;
+  totalBankFee: string;
+  netAfterFee: string;
 }
 
 interface CashflowSummaryCardsProps {
@@ -53,7 +55,7 @@ export function CashflowSummaryCards({ summaries }: CashflowSummaryCardsProps) {
             <p className="text-sm font-semibold text-slate-700 mb-3">
               {s.currencySymbol} {s.currencyCode}
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               <MetricCard
                 label="Tổng thu"
                 value={s.totalReceipts}
@@ -76,6 +78,24 @@ export function CashflowSummaryCards({ summaries }: CashflowSummaryCardsProps) {
                 colorClass={
                   parseFloat(s.netCashflow) >= 0
                     ? "bg-blue-50 border-blue-200"
+                    : "bg-orange-50 border-orange-200"
+                }
+              />
+              <MetricCard
+                label="Phí NH"
+                value={s.totalBankFee}
+                currencyCode={s.currencyCode}
+                currencySymbol={s.currencySymbol}
+                colorClass="bg-amber-50 border-amber-200"
+              />
+              <MetricCard
+                label="Ròng sau phí"
+                value={s.netAfterFee}
+                currencyCode={s.currencyCode}
+                currencySymbol={s.currencySymbol}
+                colorClass={
+                  parseFloat(s.netAfterFee) >= 0
+                    ? "bg-sky-50 border-sky-200"
                     : "bg-orange-50 border-orange-200"
                 }
               />

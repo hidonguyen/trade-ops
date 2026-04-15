@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
 import { createDepositSchema } from "@/lib/validation-schemas";
 import type { RbacAction, RbacModule } from "@/types";
+import { MSG } from "@/lib/messages";
 
 // Resolve RBAC modules for parent party type
 function partyModules(type: string): RbacModule[] {
@@ -21,7 +22,7 @@ function hasPartyAccess(roles: string[], action: RbacAction, type: string): bool
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await withAuth();
   if (!session) {
-    return Response.json(apiResponse(false, undefined, "Unauthorized"), { status: 401 });
+    return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
 
   const { id: partyId } = await params;
@@ -29,11 +30,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   try {
     const party = await prisma.party.findFirst({ where: { id: partyId, isActive: true } });
     if (!party) {
-      return Response.json(apiResponse(false, undefined, "Party not found"), { status: 404 });
+      return Response.json(apiResponse(false, undefined, MSG.partyNotFound), { status: 404 });
     }
 
     if (!hasPartyAccess(session.user.roles, "GET", party.type)) {
-      return Response.json(apiResponse(false, undefined, "Access denied"), { status: 403 });
+      return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -59,14 +60,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     });
   } catch (error) {
     console.error("GET /api/parties/[id]/deposits error:", error);
-    return Response.json(apiResponse(false, undefined, "Internal server error"), { status: 500 });
+    return Response.json(apiResponse(false, undefined, MSG.internalError), { status: 500 });
   }
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await withAuth();
   if (!session) {
-    return Response.json(apiResponse(false, undefined, "Unauthorized"), { status: 401 });
+    return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
 
   const { id: partyId } = await params;
@@ -74,18 +75,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   try {
     const party = await prisma.party.findFirst({ where: { id: partyId, isActive: true } });
     if (!party) {
-      return Response.json(apiResponse(false, undefined, "Party not found"), { status: 404 });
+      return Response.json(apiResponse(false, undefined, MSG.partyNotFound), { status: 404 });
     }
 
     if (!hasPartyAccess(session.user.roles, "CREATE", party.type)) {
-      return Response.json(apiResponse(false, undefined, "Access denied"), { status: 403 });
+      return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
     }
 
     const body = await request.json();
     const validation = createDepositSchema.safeParse(body);
     if (!validation.success) {
       return Response.json(
-        apiResponse(false, undefined, "Validation failed", validation.error.flatten().fieldErrors as Record<string, string[]>),
+        apiResponse(false, undefined, MSG.validationFailed, validation.error.flatten().fieldErrors as Record<string, string[]>),
         { status: 400 }
       );
     }
@@ -96,10 +97,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       prisma.businessUnit.findFirst({ where: { id: validation.data.businessUnitId, isActive: true } }),
     ]);
     if (!currency) {
-      return Response.json(apiResponse(false, undefined, "Currency not found"), { status: 404 });
+      return Response.json(apiResponse(false, undefined, MSG.currencyNotFound), { status: 404 });
     }
     if (!businessUnit) {
-      return Response.json(apiResponse(false, undefined, "Business unit not found"), { status: 404 });
+      return Response.json(apiResponse(false, undefined, MSG.businessUnitNotFound), { status: 404 });
     }
 
     const result = await prisma.$transaction(async (tx: any) => {
@@ -124,6 +125,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return Response.json(apiResponse(true, result), { status: 201 });
   } catch (error) {
     console.error("POST /api/parties/[id]/deposits error:", error);
-    return Response.json(apiResponse(false, undefined, "Internal server error"), { status: 500 });
+    return Response.json(apiResponse(false, undefined, MSG.internalError), { status: 500 });
   }
 }

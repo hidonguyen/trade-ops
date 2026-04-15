@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
 import { z } from "zod";
 import bcrypt from "bcrypt";
+import { MSG } from "@/lib/messages";
 
 const patchUserSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -30,10 +31,10 @@ const USER_SELECT = {
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await withAuth();
   if (!session) {
-    return Response.json(apiResponse(false, undefined, "Unauthorized"), { status: 401 });
+    return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
   if (!checkAccess(session.user.roles, "GET", "ADMIN")) {
-    return Response.json(apiResponse(false, undefined, "Access denied"), { status: 403 });
+    return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
 
   const { id } = await params;
@@ -41,22 +42,22 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   try {
     const user = await prisma.user.findUnique({ where: { id }, select: USER_SELECT });
     if (!user) {
-      return Response.json(apiResponse(false, undefined, "User not found"), { status: 404 });
+      return Response.json(apiResponse(false, undefined, MSG.userNotFound), { status: 404 });
     }
     return Response.json(apiResponse(true, user));
   } catch (error) {
     console.error("GET /api/users/[id] error:", error);
-    return Response.json(apiResponse(false, undefined, "Internal server error"), { status: 500 });
+    return Response.json(apiResponse(false, undefined, MSG.internalError), { status: 500 });
   }
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await withAuth();
   if (!session) {
-    return Response.json(apiResponse(false, undefined, "Unauthorized"), { status: 401 });
+    return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
   if (!checkAccess(session.user.roles, "UPDATE", "ADMIN")) {
-    return Response.json(apiResponse(false, undefined, "Access denied"), { status: 403 });
+    return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
 
   const { id } = await params;
@@ -71,7 +72,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const validation = patchUserSchema.safeParse(body);
   if (!validation.success) {
     return Response.json(
-      apiResponse(false, undefined, "Validation failed", validation.error.flatten().fieldErrors as Record<string, string[]>),
+      apiResponse(false, undefined, MSG.validationFailed, validation.error.flatten().fieldErrors as Record<string, string[]>),
       { status: 400 }
     );
   }
@@ -81,7 +82,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   try {
     const existing = await prisma.user.findUnique({ where: { id } });
     if (!existing) {
-      return Response.json(apiResponse(false, undefined, "User not found"), { status: 404 });
+      return Response.json(apiResponse(false, undefined, MSG.userNotFound), { status: 404 });
     }
 
     // Check email uniqueness if changing email
@@ -89,7 +90,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       const clash = await prisma.user.findUnique({ where: { email } });
       if (clash) {
         return Response.json(
-          apiResponse(false, undefined, "Validation failed", { email: ["Email already in use"] }),
+          apiResponse(false, undefined, MSG.validationFailed, { email: ["Email already in use"] }),
           { status: 409 }
         );
       }
@@ -128,17 +129,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return Response.json(apiResponse(true, result));
   } catch (error) {
     console.error("PATCH /api/users/[id] error:", error);
-    return Response.json(apiResponse(false, undefined, "Internal server error"), { status: 500 });
+    return Response.json(apiResponse(false, undefined, MSG.internalError), { status: 500 });
   }
 }
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await withAuth();
   if (!session) {
-    return Response.json(apiResponse(false, undefined, "Unauthorized"), { status: 401 });
+    return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
   if (!checkAccess(session.user.roles, "DELETE", "ADMIN")) {
-    return Response.json(apiResponse(false, undefined, "Access denied"), { status: 403 });
+    return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
 
   const { id } = await params;
@@ -153,7 +154,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   try {
     const existing = await prisma.user.findUnique({ where: { id } });
     if (!existing) {
-      return Response.json(apiResponse(false, undefined, "User not found"), { status: 404 });
+      return Response.json(apiResponse(false, undefined, MSG.userNotFound), { status: 404 });
     }
 
     await prisma.$transaction(async (tx: any) => {
@@ -164,6 +165,6 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     return Response.json(apiResponse(true, undefined, "User deactivated"));
   } catch (error) {
     console.error("DELETE /api/users/[id] error:", error);
-    return Response.json(apiResponse(false, undefined, "Internal server error"), { status: 500 });
+    return Response.json(apiResponse(false, undefined, MSG.internalError), { status: 500 });
   }
 }

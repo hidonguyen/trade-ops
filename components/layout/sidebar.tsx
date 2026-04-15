@@ -5,6 +5,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useNavHighlight } from "@/components/providers/nav-highlight-provider";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
   ShoppingCartIcon,
@@ -17,6 +18,7 @@ import {
   SettingsIcon,
   MenuIcon,
   UserCogIcon,
+  LandmarkIcon,
 } from "lucide-react";
 
 interface NavItem {
@@ -57,6 +59,7 @@ const NAV_GROUPS: NavGroup[] = [
     title: "Báo cáo",
     items: [
       { label: "Tổng hợp", href: "/reports", icon: BarChart3Icon },
+      { label: "Phí ngân hàng", href: "/reports/bank-fees", icon: LandmarkIcon },
     ],
   },
   {
@@ -73,10 +76,12 @@ interface SidebarNavProps {
   userRoles: string[];
   pathname: string;
   searchParams: URLSearchParams;
+  fallbackOrderType: "SALE" | "PURCHASE" | null;
+  fallbackPartyType: "CUSTOMER" | "SUPPLIER" | "BOTH" | null;
   onNavigate?: () => void;
 }
 
-function SidebarNav({ userRoles, pathname, searchParams, onNavigate }: SidebarNavProps) {
+function SidebarNav({ userRoles, pathname, searchParams, fallbackOrderType, fallbackPartyType, onNavigate }: SidebarNavProps) {
   const isAdmin = userRoles.includes("ADMIN");
 
   return (
@@ -94,9 +99,16 @@ function SidebarNav({ userRoles, pathname, searchParams, onNavigate }: SidebarNa
                 // Match active by pathname + query params (e.g. type=SALE vs type=PURCHASE)
                 const [itemPath, itemQuery] = item.href.split("?");
                 const itemType = new URLSearchParams(itemQuery || "").get("type");
-                const currentType = searchParams.get("type");
+                // On detail/edit routes URL has no ?type= — fall back to transient context
+                // pushed by the detail page after fetching the entity.
+                const isOrdersSubRoute = itemPath === "/orders" && pathname.startsWith("/orders/");
+                const isPartiesSubRoute = itemPath === "/parties" && pathname.startsWith("/parties/");
+                const fallbackType = isOrdersSubRoute ? fallbackOrderType : isPartiesSubRoute ? fallbackPartyType : null;
+                const currentType = searchParams.get("type") ?? fallbackType;
                 const pathMatches = pathname === itemPath || pathname.startsWith(itemPath + "/");
-                const isActive = pathMatches && (!itemType || itemType === currentType);
+                // BOTH parties match both Khách hàng and Nhà cung cấp menu items
+                const typeMatches = !itemType || itemType === currentType || (isPartiesSubRoute && currentType === "BOTH");
+                const isActive = pathMatches && typeMatches;
                 return (
                   <Link
                     key={item.href}
@@ -129,6 +141,7 @@ interface SidebarProps {
 export function Sidebar({ userRoles }: SidebarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { orderDetailType, partyDetailType } = useNavHighlight();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const logo = (
@@ -142,7 +155,13 @@ export function Sidebar({ userRoles }: SidebarProps) {
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex flex-col w-60 bg-slate-900 min-h-screen fixed left-0 top-0 bottom-0 z-30">
         {logo}
-        <SidebarNav userRoles={userRoles} pathname={pathname} searchParams={searchParams} />
+        <SidebarNav
+          userRoles={userRoles}
+          pathname={pathname}
+          searchParams={searchParams}
+          fallbackOrderType={orderDetailType}
+          fallbackPartyType={partyDetailType}
+        />
       </aside>
 
       {/* Mobile hamburger trigger (exported via data attribute for header to pick up) */}
@@ -166,6 +185,8 @@ export function Sidebar({ userRoles }: SidebarProps) {
             userRoles={userRoles}
             pathname={pathname}
             searchParams={searchParams}
+            fallbackOrderType={orderDetailType}
+            fallbackPartyType={partyDetailType}
             onNavigate={() => setMobileOpen(false)}
           />
         </SheetContent>

@@ -4,17 +4,19 @@ import { withAuth, checkAccess, apiResponse, parsePagination } from "@/lib/api-h
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
 import { createOrderSchema } from "@/lib/validation-schemas";
+import { MSG } from "@/lib/messages";
 
 const orderIncludes = {
   party: { select: { id: true, name: true, type: true } },
   currency: { select: { id: true, code: true, symbol: true } },
   businessUnit: { select: { id: true, code: true, name: true } },
+  expenseType: { select: { id: true, name: true, isActive: true } },
 };
 
 export async function GET(request: NextRequest) {
   const session = await withAuth();
   if (!session) {
-    return Response.json(apiResponse(false, undefined, "Unauthorized"), { status: 401 });
+    return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
 
   const { searchParams } = request.nextUrl;
@@ -22,6 +24,7 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get("status");
   const businessUnitId = searchParams.get("businessUnitId");
   const partyId = searchParams.get("partyId");
+  const expenseTypeId = searchParams.get("expenseTypeId");
   const dateFrom = searchParams.get("dateFrom");
   const dateTo = searchParams.get("dateTo");
 
@@ -29,7 +32,7 @@ export async function GET(request: NextRequest) {
   const canSale = checkAccess(session.user.roles, "GET", "SALE");
   const canPurchase = checkAccess(session.user.roles, "GET", "PURCHASE");
   if (!canSale && !canPurchase) {
-    return Response.json(apiResponse(false, undefined, "Access denied"), { status: 403 });
+    return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
 
   // Restrict by requested type or by what user can access
@@ -37,7 +40,7 @@ export async function GET(request: NextRequest) {
   if (!type || type === "SALE") { if (canSale) allowedTypes.push("SALE"); }
   if (!type || type === "PURCHASE") { if (canPurchase) allowedTypes.push("PURCHASE"); }
   if (allowedTypes.length === 0) {
-    return Response.json(apiResponse(false, undefined, "Access denied for requested type"), { status: 403 });
+    return Response.json(apiResponse(false, undefined, MSG.accessDeniedForType), { status: 403 });
   }
 
   const userId = session.user.id!;
@@ -57,6 +60,7 @@ export async function GET(request: NextRequest) {
     ...(status && { status }),
     ...(businessUnitId && { businessUnitId }),
     ...(partyId && { partyId }),
+    ...(expenseTypeId && { expenseTypeId }),
     ...(orderDateFilter && { orderDate: orderDateFilter }),
   };
 
@@ -77,21 +81,21 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("GET /api/orders error:", error);
-    return Response.json(apiResponse(false, undefined, "Internal server error"), { status: 500 });
+    return Response.json(apiResponse(false, undefined, MSG.internalError), { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
   const session = await withAuth();
   if (!session) {
-    return Response.json(apiResponse(false, undefined, "Unauthorized"), { status: 401 });
+    return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
 
   const body = await request.json();
   const validation = createOrderSchema.safeParse(body);
   if (!validation.success) {
     return Response.json(
-      apiResponse(false, undefined, "Validation failed", validation.error.flatten().fieldErrors as Record<string, string[]>),
+      apiResponse(false, undefined, MSG.validationFailed, validation.error.flatten().fieldErrors as Record<string, string[]>),
       { status: 400 }
     );
   }
@@ -100,21 +104,71 @@ export async function POST(request: Request) {
   const { type } = validation.data;
   const module = type === "SALE" ? "SALE" : "PURCHASE";
   if (!checkAccess(session.user.roles, "CREATE", module)) {
-    return Response.json(apiResponse(false, undefined, "Access denied"), { status: 403 });
+    return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
 
   try {
     const result = await prisma.$transaction(async (tx: any) => {
+      // Resolve orderNumber based on BU mode
+      const bu = await tx.businessUnit.findUnique({
+        where: { id: validation.data.businessUnitId },
+        select: { orderNumberMode: true },
+      });
+      if (!bu) throw new Error(MSG.businessUnitNotFound);
+
+      let orderNumber = validation.data.orderNumber?.trim() || "";
+      if (bu.orderNumberMode === "AUTO") {
+        // Auto: generate next sequential per (BU, party). Find max numeric existing value, +1.
+        // Fall back to 1 if none exists or none parseable as integer.
+        const existing = await tx.order.findMany({
+          where: {
+            businessUnitId: validation.data.businessUnitId,
+            partyId: validation.data.partyId,
+          },
+          select: { orderNumber: true },
+        });
+        const maxNum = existing.reduce((max: number, o: { orderNumber: string }) => {
+          const n = parseInt(o.orderNumber, 10);
+          return Number.isFinite(n) && n > max ? n : max;
+        }, 0);
+        orderNumber = String(maxNum + 1);
+      } else {
+        // MANUAL: orderNumber required from payload
+        if (!orderNumber) {
+          const err = new Error("orderNumber is required in MANUAL mode");
+          (err as Error & { code?: string }).code = "ORDER_NUMBER_REQUIRED";
+          throw err;
+        }
+      }
+
+      const { orderNumber: _omit, ...rest } = validation.data;
+      void _omit;
       const created = await tx.order.create({
-        data: { ...validation.data, createdBy: userId, status: "UNPAID" },
+        data: { ...rest, orderNumber, createdBy: userId, status: "UNPAID" },
         include: orderIncludes,
       });
-      await createAuditLog(tx, userId, "CREATE", "Order", created.id, { type, status: "UNPAID" });
+      await createAuditLog(tx, userId, "CREATE", "Order", created.id, { type, status: "UNPAID", orderNumber });
       return created;
     });
     return Response.json(apiResponse(true, result), { status: 201 });
   } catch (error) {
+    // Prisma P2002 unique constraint violation
+    const e = error as { code?: string; message?: string };
+    if (e?.code === "P2002") {
+      return Response.json(
+        apiResponse(false, undefined, "Số đơn hàng đã tồn tại cho đối tác này trong đơn vị kinh doanh này", {
+          orderNumber: ["Số đơn trùng với đơn hàng khác"],
+        }),
+        { status: 409 }
+      );
+    }
+    if (e?.code === "ORDER_NUMBER_REQUIRED") {
+      return Response.json(
+        apiResponse(false, undefined, "Số đơn hàng là bắt buộc", { orderNumber: ["Số đơn hàng là bắt buộc"] }),
+        { status: 400 }
+      );
+    }
     console.error("POST /api/orders error:", error);
-    return Response.json(apiResponse(false, undefined, "Internal server error"), { status: 500 });
+    return Response.json(apiResponse(false, undefined, MSG.internalError), { status: 500 });
   }
 }

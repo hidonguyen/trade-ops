@@ -47,6 +47,8 @@ interface FormState {
   notes: string;
   depositId: string;
   partyId: string;
+  bankFeeOriginal: string;
+  bankFeeVnd: string;
 }
 
 const defaultForm: FormState = {
@@ -62,6 +64,8 @@ const defaultForm: FormState = {
   notes: "",
   depositId: "",
   partyId: "",
+  bankFeeOriginal: "",
+  bankFeeVnd: "",
 };
 
 interface TransactionFormProps {
@@ -131,6 +135,24 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
           updated.amountVnd = "";
         }
       }
+      // Recompute bankFeeVnd when fee or rate changes
+      if (key === "bankFeeOriginal" || key === "exchangeRate") {
+        if (!updated.bankFeeOriginal) {
+          updated.bankFeeVnd = "";
+        } else {
+          try {
+            const fee = new Decimal(updated.bankFeeOriginal || "0");
+            const rate = new Decimal(updated.exchangeRate || "1");
+            updated.bankFeeVnd = fee.times(rate).toDecimalPlaces(4).toString();
+          } catch {
+            updated.bankFeeVnd = "";
+          }
+        }
+      }
+      if (key === "paymentMethod" && value !== "BANK") {
+        updated.bankFeeOriginal = "";
+        updated.bankFeeVnd = "";
+      }
       return updated;
     });
   }
@@ -156,6 +178,11 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
     setLoading(true);
     setError(null);
 
+    const hasBankFee =
+      form.paymentMethod === "BANK" &&
+      form.bankFeeOriginal &&
+      parseFloat(form.bankFeeOriginal) > 0;
+
     const payload = {
       type: form.type,
       businessUnitId: form.businessUnitId,
@@ -169,6 +196,9 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
       transactionDate: form.transactionDate,
       notes: form.notes || null,
       ...(form.paymentMethod === "DEPOSIT" && form.depositId ? { depositId: form.depositId } : {}),
+      ...(hasBankFee
+        ? { bankFeeOriginal: form.bankFeeOriginal, bankFeeVnd: form.bankFeeVnd }
+        : {}),
     };
 
     try {
@@ -282,6 +312,26 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
           />
         </div>
       </div>
+
+      {form.paymentMethod === "BANK" && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <Label>Phí ngân hàng {selectedCurrency ? `(${selectedCurrency.code})` : ""}</Label>
+            <NumberInput
+              value={form.bankFeeOriginal}
+              onChange={(v) => setField("bankFeeOriginal", v)}
+              decimals={4}
+              min={0}
+              placeholder="0.0000"
+            />
+            <p className="text-xs text-slate-500">Phí do công ty chịu</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Phí VND</Label>
+            <NumberInput value={form.bankFeeVnd} onChange={() => {}} readOnly decimals={4} />
+          </div>
+        </div>
+      )}
 
       {form.paymentMethod === "DEPOSIT" && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

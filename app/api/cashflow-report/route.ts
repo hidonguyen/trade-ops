@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { exportCashflowToExcel } from "@/lib/excel-export-service";
 import Decimal from "decimal.js";
 import { z } from "zod";
+import { MSG } from "@/lib/messages";
 
 const querySchema = z.object({
   businessUnitId: z.string().uuid(),
@@ -21,17 +22,17 @@ const MONEY_OUT_TYPES = ["PAYMENT", "PURCHASE_PAYMENT"];
 export async function GET(request: Request) {
   const session = await withAuth();
   if (!session) {
-    return Response.json(apiResponse(false, undefined, "Unauthorized"), { status: 401 });
+    return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
   if (!checkAccess(session.user.roles, "GET", "CASHFLOW")) {
-    return Response.json(apiResponse(false, undefined, "Access denied"), { status: 403 });
+    return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
 
   const { searchParams } = new URL(request.url);
   const parsed = querySchema.safeParse(Object.fromEntries(searchParams));
   if (!parsed.success) {
     return Response.json(
-      apiResponse(false, undefined, "Validation failed", parsed.error.flatten().fieldErrors as Record<string, string[]>),
+      apiResponse(false, undefined, MSG.validationFailed, parsed.error.flatten().fieldErrors as Record<string, string[]>),
       { status: 400 }
     );
   }
@@ -63,19 +64,32 @@ export async function GET(request: Request) {
       orderBy: { transactionDate: "asc" },
     });
 
-    // Group by currency and accumulate totals
+    // Group by currency and accumulate totals.
+    // bankFeeOriginal is tracked per-currency (same currency as tx).
     const currencyMap = new Map<
       string,
-      { code: string; symbol: string; totalIn: Decimal; totalOut: Decimal }
+      { code: string; symbol: string; totalIn: Decimal; totalOut: Decimal; totalFee: Decimal }
     >();
+    // Total bank fee in VND — aggregated across all currencies
+    let totalBankFeeVnd = new Decimal(0);
 
     for (const tx of transactions) {
       const { code, symbol } = tx.currency;
       if (!currencyMap.has(code)) {
-        currencyMap.set(code, { code, symbol, totalIn: new Decimal(0), totalOut: new Decimal(0) });
+        currencyMap.set(code, {
+          code,
+          symbol,
+          totalIn: new Decimal(0),
+          totalOut: new Decimal(0),
+          totalFee: new Decimal(0),
+        });
       }
       const entry = currencyMap.get(code)!;
       const amount = new Decimal(tx.amountOriginal.toString());
+      const feeOriginal = tx.bankFeeOriginal ? new Decimal(tx.bankFeeOriginal.toString()) : new Decimal(0);
+      const feeVnd = tx.bankFeeVnd ? new Decimal(tx.bankFeeVnd.toString()) : new Decimal(0);
+      entry.totalFee = entry.totalFee.plus(feeOriginal);
+      totalBankFeeVnd = totalBankFeeVnd.plus(feeVnd);
 
       if (tx.paymentType === "PAYMENT") {
         if (MONEY_IN_TYPES.includes(tx.type)) {
@@ -99,20 +113,29 @@ export async function GET(request: Request) {
       totalIn: c.totalIn.toFixed(4),
       totalOut: c.totalOut.toFixed(4),
       net: c.totalIn.minus(c.totalOut).toFixed(4),
+      totalBankFee: c.totalFee.toFixed(4),
+      // Net cash received after bank fee: only meaningful for money-in flows
+      netAfterFee: c.totalIn.minus(c.totalFee).minus(c.totalOut).toFixed(4),
     }));
 
-    const txRows = transactions.map((tx: any) => ({
-      id: tx.id,
-      transactionDate: tx.transactionDate,
-      type: tx.type,
-      paymentType: tx.paymentType,
-      paymentMethod: tx.paymentMethod,
-      amountOriginal: tx.amountOriginal.toString(),
-      currencyCode: tx.currency.code,
-      bankReference: tx.bankReference,
-      partyName: tx.order?.party?.name ?? null,
-      notes: tx.notes,
-    }));
+    const txRows = transactions.map((tx: any) => {
+      const feeOriginal = tx.bankFeeOriginal ? tx.bankFeeOriginal.toString() : null;
+      const feeVnd = tx.bankFeeVnd ? tx.bankFeeVnd.toString() : null;
+      return {
+        id: tx.id,
+        transactionDate: tx.transactionDate,
+        type: tx.type,
+        paymentType: tx.paymentType,
+        paymentMethod: tx.paymentMethod,
+        amountOriginal: tx.amountOriginal.toString(),
+        currencyCode: tx.currency.code,
+        bankReference: tx.bankReference,
+        partyName: tx.order?.party?.name ?? null,
+        notes: tx.notes,
+        bankFeeOriginal: feeOriginal,
+        bankFeeVnd: feeVnd,
+      };
+    });
 
     if (format === "xlsx") {
       const buffer = await exportCashflowToExcel({ currencies, transactions: txRows });
@@ -128,6 +151,6 @@ export async function GET(request: Request) {
     return Response.json(apiResponse(true, { currencies, transactions: txRows }));
   } catch (error) {
     console.error("GET /api/cashflow-report error:", error);
-    return Response.json(apiResponse(false, undefined, "Internal server error"), { status: 500 });
+    return Response.json(apiResponse(false, undefined, MSG.internalError), { status: 500 });
   }
 }

@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { getDefaultBu } from "@/lib/utils";
+import { useSelectedBu } from "@/components/providers/bu-provider";
 import { Button } from "@/components/ui/button";
 import { DataTable, Column } from "@/components/shared/data-table";
 import { Pagination } from "@/components/shared/pagination";
@@ -36,6 +36,7 @@ const METHOD_OPTIONS = [
 
 export default function TransactionsPage() {
   const router = useRouter();
+  const { selectedBuId } = useSelectedBu();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -46,11 +47,10 @@ export default function TransactionsPage() {
   const fetchTransactions = useCallback(async () => {
     setLoading(true);
     try {
-      const buId = getDefaultBu();
       const params = new URLSearchParams({
         page: String(page),
         limit: String(limit),
-        ...(buId ? { businessUnitId: buId } : {}),
+        ...(selectedBuId ? { businessUnitId: selectedBuId } : {}),
         ...(filters.type ? { type: filters.type } : {}),
       });
       const res = await fetch(`/api/transactions?${params}`);
@@ -60,11 +60,11 @@ export default function TransactionsPage() {
         setTotal(json.pagination?.total ?? 0);
       }
     } catch (err) {
-      console.error("Failed to fetch transactions:", err);
+      console.error("Lỗi tải giao dịch:", err);
     } finally {
       setLoading(false);
     }
-  }, [page, limit, filters]);
+  }, [page, limit, filters, selectedBuId]);
 
   useEffect(() => { fetchTransactions(); }, [fetchTransactions]);
 

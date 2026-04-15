@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
 import { z } from "zod";
 import bcrypt from "bcrypt";
+import { MSG } from "@/lib/messages";
 
 const createUserSchema = z.object({
   email: z.string().email(),
@@ -15,10 +16,10 @@ const createUserSchema = z.object({
 export async function GET(request: Request) {
   const session = await withAuth();
   if (!session) {
-    return Response.json(apiResponse(false, undefined, "Unauthorized"), { status: 401 });
+    return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
   if (!checkAccess(session.user.roles, "GET", "ADMIN")) {
-    return Response.json(apiResponse(false, undefined, "Access denied"), { status: 403 });
+    return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
 
   const { searchParams } = new URL(request.url);
@@ -51,17 +52,17 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     console.error("GET /api/users error:", error);
-    return Response.json(apiResponse(false, undefined, "Internal server error"), { status: 500 });
+    return Response.json(apiResponse(false, undefined, MSG.internalError), { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
   const session = await withAuth();
   if (!session) {
-    return Response.json(apiResponse(false, undefined, "Unauthorized"), { status: 401 });
+    return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
   if (!checkAccess(session.user.roles, "CREATE", "ADMIN")) {
-    return Response.json(apiResponse(false, undefined, "Access denied"), { status: 403 });
+    return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
 
   let body: unknown;
@@ -74,7 +75,7 @@ export async function POST(request: Request) {
   const validation = createUserSchema.safeParse(body);
   if (!validation.success) {
     return Response.json(
-      apiResponse(false, undefined, "Validation failed", validation.error.flatten().fieldErrors as Record<string, string[]>),
+      apiResponse(false, undefined, MSG.validationFailed, validation.error.flatten().fieldErrors as Record<string, string[]>),
       { status: 400 }
     );
   }
@@ -85,7 +86,7 @@ export async function POST(request: Request) {
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
       return Response.json(
-        apiResponse(false, undefined, "Validation failed", { email: ["Email already in use"] }),
+        apiResponse(false, undefined, MSG.validationFailed, { email: ["Email already in use"] }),
         { status: 409 }
       );
     }
@@ -124,6 +125,6 @@ export async function POST(request: Request) {
     return Response.json(apiResponse(true, result), { status: 201 });
   } catch (error) {
     console.error("POST /api/users error:", error);
-    return Response.json(apiResponse(false, undefined, "Internal server error"), { status: 500 });
+    return Response.json(apiResponse(false, undefined, MSG.internalError), { status: 500 });
   }
 }

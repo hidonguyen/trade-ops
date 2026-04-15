@@ -4,7 +4,8 @@ import { withAuth, checkAccess, apiResponse, parsePagination } from "@/lib/api-h
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
 import { createStandaloneTransactionSchema } from "@/lib/validation-schemas";
-import { deductDeposit } from "@/lib/deposit-deduction-service";
+import { applyDepositOperation } from "@/lib/deposit-deduction-service";
+import { MSG } from "@/lib/messages";
 
 const txIncludes = {
   currency: { select: { id: true, code: true, symbol: true } },
@@ -15,7 +16,7 @@ const txIncludes = {
 export async function GET(request: NextRequest) {
   const session = await withAuth();
   if (!session) {
-    return Response.json(apiResponse(false, undefined, "Unauthorized"), { status: 401 });
+    return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
 
   const { searchParams } = request.nextUrl;
@@ -24,14 +25,14 @@ export async function GET(request: NextRequest) {
   const canReceipt = checkAccess(session.user.roles, "GET", "RECEIPT");
   const canPayment = checkAccess(session.user.roles, "GET", "PAYMENT");
   if (!canReceipt && !canPayment) {
-    return Response.json(apiResponse(false, undefined, "Access denied"), { status: 403 });
+    return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
 
   const allowedTypes: string[] = [];
   if (!type || type === "RECEIPT") { if (canReceipt) allowedTypes.push("RECEIPT"); }
   if (!type || type === "PAYMENT") { if (canPayment) allowedTypes.push("PAYMENT"); }
   if (allowedTypes.length === 0) {
-    return Response.json(apiResponse(false, undefined, "Access denied for requested type"), { status: 403 });
+    return Response.json(apiResponse(false, undefined, MSG.accessDeniedForType), { status: 403 });
   }
 
   const businessUnitId = searchParams.get("businessUnitId");
@@ -60,21 +61,21 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("GET /api/transactions error:", error);
-    return Response.json(apiResponse(false, undefined, "Internal server error"), { status: 500 });
+    return Response.json(apiResponse(false, undefined, MSG.internalError), { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
   const session = await withAuth();
   if (!session) {
-    return Response.json(apiResponse(false, undefined, "Unauthorized"), { status: 401 });
+    return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
 
   const body = await request.json();
   const validation = createStandaloneTransactionSchema.safeParse(body);
   if (!validation.success) {
     return Response.json(
-      apiResponse(false, undefined, "Validation failed", validation.error.flatten().fieldErrors as Record<string, string[]>),
+      apiResponse(false, undefined, MSG.validationFailed, validation.error.flatten().fieldErrors as Record<string, string[]>),
       { status: 400 }
     );
   }
@@ -83,10 +84,11 @@ export async function POST(request: Request) {
   const { type } = validation.data;
   const module = type === "RECEIPT" ? "RECEIPT" : "PAYMENT";
   if (!checkAccess(session.user.roles, "CREATE", module)) {
-    return Response.json(apiResponse(false, undefined, "Access denied"), { status: 403 });
+    return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
 
-  const { depositId, ...txData } = validation.data;
+  // partyId is validation-only metadata used for auto-create; never stored on Transaction
+  const { depositId, partyId, ...txData } = validation.data;
 
   try {
     const result = await prisma.$transaction(async (tx: any) => {
@@ -95,14 +97,28 @@ export async function POST(request: Request) {
         include: txIncludes,
       });
 
-      if (depositId) {
-        await deductDeposit(tx, depositId, txData.amountOriginal, created.id);
+      // Deposit flow: deduct for PAYMENT, credit (or auto-create) for REFUND
+      if (txData.paymentMethod === "DEPOSIT") {
+        await applyDepositOperation(tx, {
+          paymentType: txData.paymentType,
+          depositId: depositId ?? null,
+          amountOriginal: txData.amountOriginal,
+          transactionId: created.id,
+          partyContext: partyId
+            ? {
+                partyId,
+                businessUnitId: txData.businessUnitId,
+                currencyId: txData.currencyId,
+              }
+            : undefined,
+        });
       }
 
       await createAuditLog(tx, userId, "CREATE", "Transaction", created.id, {
         type,
         amountOriginal: txData.amountOriginal,
         depositId,
+        partyId,
       });
 
       return created;
@@ -110,10 +126,10 @@ export async function POST(request: Request) {
 
     return Response.json(apiResponse(true, result), { status: 201 });
   } catch (error) {
-    if (error instanceof Error && error.message === "Insufficient deposit balance") {
+    if (error instanceof Error && error.message === MSG.insufficientDeposit) {
       return Response.json(apiResponse(false, undefined, error.message), { status: 422 });
     }
     console.error("POST /api/transactions error:", error);
-    return Response.json(apiResponse(false, undefined, "Internal server error"), { status: 500 });
+    return Response.json(apiResponse(false, undefined, MSG.internalError), { status: 500 });
   }
 }

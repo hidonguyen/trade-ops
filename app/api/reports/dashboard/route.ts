@@ -3,6 +3,7 @@ import { withAuth, checkAccess, apiResponse } from "@/lib/api-helpers";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import Decimal from "decimal.js";
+import { MSG } from "@/lib/messages";
 
 const querySchema = z.object({
   businessUnitId: z.string().uuid(),
@@ -19,17 +20,17 @@ type CurrencySummary = {
 export async function GET(request: Request) {
   const session = await withAuth();
   if (!session) {
-    return Response.json(apiResponse(false, undefined, "Unauthorized"), { status: 401 });
+    return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
   if (!checkAccess(session.user.roles, "GET", "DASHBOARD")) {
-    return Response.json(apiResponse(false, undefined, "Access denied"), { status: 403 });
+    return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
 
   const { searchParams } = new URL(request.url);
   const parsed = querySchema.safeParse(Object.fromEntries(searchParams));
   if (!parsed.success) {
     return Response.json(
-      apiResponse(false, undefined, "Validation failed", parsed.error.flatten().fieldErrors as Record<string, string[]>),
+      apiResponse(false, undefined, MSG.validationFailed, parsed.error.flatten().fieldErrors as Record<string, string[]>),
       { status: 400 }
     );
   }
@@ -39,7 +40,7 @@ export async function GET(request: Request) {
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
   try {
-    const [openSales, openPurchases, recentTxCount, deposits] = await Promise.all([
+    const [openSales, openPurchases, recentTxCount, deposits, bankFeeAgg] = await Promise.all([
       // Open SALE orders — for receivable KPI
       prisma.order.findMany({
         where: { businessUnitId, type: "SALE", status: { in: UNPAID_STATUSES } },
@@ -72,6 +73,16 @@ export async function GET(request: Request) {
         by: ["currencyId"],
         where: { businessUnitId, remainingOriginal: { gt: 0 } },
         _sum: { remainingOriginal: true },
+      }),
+      // Total bank fees in last 30 days (VND, company-borne expense)
+      prisma.transaction.aggregate({
+        where: {
+          businessUnitId,
+          paymentMethod: "BANK",
+          transactionDate: { gte: thirtyDaysAgo },
+          bankFeeVnd: { gt: 0 },
+        },
+        _sum: { bankFeeVnd: true },
       }),
     ]);
 
@@ -121,16 +132,19 @@ export async function GET(request: Request) {
       };
     });
 
+    const totalBankFeeVnd = (bankFeeAgg._sum.bankFeeVnd ?? new Decimal(0)).toString();
+
     return Response.json(
       apiResponse(true, {
         totalReceivable: calcRemaining(openSales),
         totalPayable: calcRemaining(openPurchases),
         recentTransactionCount: recentTxCount,
         depositBalances,
+        totalBankFeeVnd,
       })
     );
   } catch (error) {
     console.error("GET /api/reports/dashboard error:", error);
-    return Response.json(apiResponse(false, undefined, "Internal server error"), { status: 500 });
+    return Response.json(apiResponse(false, undefined, MSG.internalError), { status: 500 });
   }
 }

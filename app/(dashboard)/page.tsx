@@ -2,9 +2,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { TrendingUpIcon, TrendingDownIcon, PiggyBankIcon, ActivityIcon } from "lucide-react";
-import { getDefaultBu } from "@/lib/utils";
+import { TrendingUpIcon, TrendingDownIcon, PiggyBankIcon, ActivityIcon, LandmarkIcon } from "lucide-react";
+import { useSelectedBu } from "@/components/providers/bu-provider";
 import { KpiCard } from "@/components/kpi-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { BarDataPoint, PieDataPoint } from "@/components/dashboard-charts";
@@ -18,6 +19,7 @@ interface DashboardData {
   totalPayable: CurrencyAmount[];
   recentTransactionCount: number;
   depositBalances: CurrencyAmount[];
+  totalBankFeeVnd: string;
 }
 
 // Format multiple currency entries as compact string
@@ -52,17 +54,18 @@ function buildPlaceholderBarData(): BarDataPoint[] {
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
+  const { selectedBuId } = useSelectedBu();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchDashboard = useCallback(async () => {
-    const buId = getDefaultBu();
-    if (!buId) return;
+    if (!selectedBuId) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/reports/dashboard?businessUnitId=${buId}`);
+      const res = await fetch(`/api/reports/dashboard?businessUnitId=${selectedBuId}`);
       const json = await res.json();
       if (json.success) {
         setData(json.data);
@@ -74,7 +77,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedBuId]);
 
   useEffect(() => {
     fetchDashboard();
@@ -98,9 +101,9 @@ export default function DashboardPage() {
       )}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {loading ? (
-          Array.from({ length: 4 }).map((_, i) => (
+          Array.from({ length: 5 }).map((_, i) => (
             <Skeleton key={i} className="h-[108px] w-full rounded-xl" />
           ))
         ) : (
@@ -133,6 +136,32 @@ export default function DashboardPage() {
               accentColor="#7C3AED"
               icon={<ActivityIcon className="size-5" />}
             />
+            <button
+              type="button"
+              onClick={() => {
+                const today = new Date();
+                const thirtyDaysAgo = new Date();
+                thirtyDaysAgo.setDate(today.getDate() - 30);
+                const params = new URLSearchParams({
+                  dateFrom: thirtyDaysAgo.toISOString().slice(0, 10),
+                  dateTo: today.toISOString().slice(0, 10),
+                });
+                router.push(`/reports/bank-fees?${params}`);
+              }}
+              className="text-left"
+            >
+              <KpiCard
+                title="Phí NH (30 ngày)"
+                value={
+                  data
+                    ? `₫${parseFloat(data.totalBankFeeVnd ?? "0").toLocaleString("vi-VN", { maximumFractionDigits: 0 })}`
+                    : "—"
+                }
+                subtitle="Công ty chịu, xem chi tiết"
+                accentColor="#D97706"
+                icon={<LandmarkIcon className="size-5" />}
+              />
+            </button>
           </>
         )}
       </div>
