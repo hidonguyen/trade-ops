@@ -117,9 +117,18 @@ export default function PartyDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => router.push(`/orders?partyId=${partyId}`)}>
-            <ShoppingBagIcon className="size-4 mr-1" />Xem đơn hàng
-          </Button>
+          {(party.type === "CUSTOMER" || party.type === "BOTH") && (
+            <Button variant="outline" size="sm"
+              onClick={() => router.push(`/orders?type=SALE&partyId=${partyId}`)}>
+              <ShoppingBagIcon className="size-4 mr-1" />Xem đơn bán
+            </Button>
+          )}
+          {(party.type === "SUPPLIER" || party.type === "BOTH") && (
+            <Button variant="outline" size="sm"
+              onClick={() => router.push(`/orders?type=PURCHASE&partyId=${partyId}`)}>
+              <ShoppingBagIcon className="size-4 mr-1" />Xem đơn mua
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={() => router.push(`/parties/${partyId}/edit`)}>
             <PencilIcon className="size-4 mr-1" />Sửa
           </Button>

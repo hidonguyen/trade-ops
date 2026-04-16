@@ -6,6 +6,10 @@ import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
 import { z } from "zod";
 import { MSG } from "@/lib/messages";
+import { invalidateTags } from "@/lib/cache/invalidate";
+import { withCache } from "@/lib/cache/with-cache";
+import { TAG, TTL, orderDetailKey } from "@/lib/cache/keys";
+import { diffForAudit } from "@/lib/audit-diff";
 
 const orderIncludes = {
   party: { select: { id: true, name: true, type: true } },
@@ -37,7 +41,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { id } = await params;
 
   try {
-    const order = await prisma.order.findUnique({ where: { id }, include: orderIncludes });
+    const order = await withCache(
+      { key: orderDetailKey(id), tags: [TAG.order(id)], ttlMs: TTL.orderDetail },
+      () => prisma.order.findUnique({ where: { id }, include: orderIncludes })
+    );
     if (!order) {
       return Response.json(apiResponse(false, undefined, MSG.orderNotFound), { status: 404 });
     }
@@ -120,10 +127,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const userId = session.user.id!;
     const result = await prisma.$transaction(async (tx: any) => {
       const updated = await tx.order.update({ where: { id }, data: updateData, include: orderIncludes });
-      await createAuditLog(tx, userId, "UPDATE", "Order", id, updateData);
+      await createAuditLog(
+        tx,
+        userId,
+        "UPDATE",
+        "Order",
+        id,
+        diffForAudit(validation.data as Record<string, unknown>, order as unknown as Record<string, unknown>),
+      );
       return updated;
     });
 
+    invalidateTags([TAG.reportsByBu(result.businessUnitId), TAG.order(id)]);
     return Response.json(apiResponse(true, result));
   } catch (error) {
     const e = error as { code?: string };

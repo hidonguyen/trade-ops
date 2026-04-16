@@ -4,6 +4,8 @@ import { withAuth, checkAccess, apiResponse } from "@/lib/api-helpers";
 import { prisma } from "@/lib/prisma";
 import Decimal from "decimal.js";
 import { MSG } from "@/lib/messages";
+import { withCache } from "@/lib/cache/with-cache";
+import { TAG, TTL, orderReportKey } from "@/lib/cache/keys";
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await withAuth();
@@ -14,6 +16,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const { id } = await params;
 
   try {
+    const report = await withCache(
+      { key: orderReportKey(id), tags: [TAG.order(id)], ttlMs: TTL.orderReport },
+      async () => {
     const order = await prisma.order.findUnique({
       where: { id },
       include: {
@@ -30,14 +35,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       },
     });
 
-    if (!order) {
-      return Response.json(apiResponse(false, undefined, MSG.orderNotFound), { status: 404 });
-    }
-
-    const module = order.type === "SALE" ? "SALE" : "PURCHASE";
-    if (!checkAccess(session.user.roles, "GET", module)) {
-      return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
-    }
+    if (!order) return null;
 
     // Compute summary using Decimal for precision
     const payments = order.transactions.filter((t: any) => t.paymentType === "PAYMENT");
@@ -72,7 +70,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       .filter((t: any) => t.paymentMethod === "BANK" && t.paymentType === "PAYMENT")
       .reduce((sum: any, t: any) => sum.plus(new Decimal(t.amountOriginal.toString())), new Decimal(0));
 
-    const report = {
+    return {
       order: {
         id: order.id,
         type: order.type,
@@ -99,6 +97,18 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       },
       transactions: order.transactions,
     };
+      }
+    );
+
+    if (!report) {
+      return Response.json(apiResponse(false, undefined, MSG.orderNotFound), { status: 404 });
+    }
+
+    // Access check after cache: all viewers of the same order share cache; non-authorized get 403 on this branch.
+    const module = report.order.type === "SALE" ? "SALE" : "PURCHASE";
+    if (!checkAccess(session.user.roles, "GET", module)) {
+      return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
+    }
 
     return Response.json(apiResponse(true, report));
   } catch (error) {

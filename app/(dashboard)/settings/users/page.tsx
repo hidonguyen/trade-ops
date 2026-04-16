@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { PlusIcon, ShieldAlertIcon } from "lucide-react";
+import { PlusIcon, ShieldAlertIcon, ArrowLeftIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, Column } from "@/components/shared/data-table";
@@ -94,9 +94,14 @@ export default function UsersPage() {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Người dùng</h1>
-          <p className="mt-0.5 text-sm text-slate-500">Quản lý tài khoản và phân quyền</p>
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon-sm" onClick={() => router.back()}>
+            <ArrowLeftIcon className="size-4" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">Người dùng</h1>
+            <p className="mt-0.5 text-sm text-slate-500">Quản lý tài khoản và phân quyền</p>
+          </div>
         </div>
         <Button onClick={() => router.push("/settings/users/new")}>
           <PlusIcon className="size-4 mr-1.5" />

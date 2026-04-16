@@ -5,6 +5,9 @@ import { createAuditLog } from "@/lib/audit";
 import { z } from "zod";
 import bcrypt from "bcrypt";
 import { MSG } from "@/lib/messages";
+import { withCache } from "@/lib/cache/with-cache";
+import { userKey, TAG, TTL } from "@/lib/cache/keys";
+import { invalidateTags } from "@/lib/cache/invalidate";
 
 const patchUserSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -40,7 +43,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const { id } = await params;
 
   try {
-    const user = await prisma.user.findUnique({ where: { id }, select: USER_SELECT });
+    const user = await withCache(
+      { key: userKey(id), tags: [TAG.users, TAG.user(id)], ttlMs: TTL.userDetail },
+      () => prisma.user.findUnique({ where: { id }, select: USER_SELECT })
+    );
     if (!user) {
       return Response.json(apiResponse(false, undefined, MSG.userNotFound), { status: 404 });
     }
@@ -126,6 +132,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return updated;
     });
 
+    invalidateTags([TAG.users, TAG.user(id)]);
     return Response.json(apiResponse(true, result));
   } catch (error) {
     console.error("PATCH /api/users/[id] error:", error);
@@ -162,6 +169,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
       await createAuditLog(tx, actorId, "DELETE", "User", id);
     });
 
+    invalidateTags([TAG.users, TAG.user(id)]);
     return Response.json(apiResponse(true, undefined, "User deactivated"));
   } catch (error) {
     console.error("DELETE /api/users/[id] error:", error);

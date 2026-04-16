@@ -5,6 +5,9 @@ import { createAuditLog } from "@/lib/audit";
 import { z } from "zod";
 import bcrypt from "bcrypt";
 import { MSG } from "@/lib/messages";
+import { withCache } from "@/lib/cache/with-cache";
+import { usersListKey, TAG, TTL } from "@/lib/cache/keys";
+import { invalidateTags } from "@/lib/cache/invalidate";
 
 const createUserSchema = z.object({
   email: z.string().email(),
@@ -25,26 +28,34 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const { page, limit, skip, sortBy, order } = parsePagination(searchParams);
 
+  const cacheKey = usersListKey(`p=${page}:l=${limit}:s=${sortBy}:o=${order}`);
+
   try {
-    const [users, total] = await Promise.all([
-      prisma.user.findMany({
-        skip,
-        take: limit,
-        orderBy: { [sortBy]: order },
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          isActive: true,
-          createdAt: true,
-          updatedAt: true,
-          roles: {
-            select: { id: true, role: true, assignedAt: true, assignedBy: true },
-          },
-        },
-      }),
-      prisma.user.count(),
-    ]);
+    const { users, total } = await withCache(
+      { key: cacheKey, tags: [TAG.users], ttlMs: TTL.userList },
+      async () => {
+        const [items, count] = await Promise.all([
+          prisma.user.findMany({
+            skip,
+            take: limit,
+            orderBy: { [sortBy]: order },
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              isActive: true,
+              createdAt: true,
+              updatedAt: true,
+              roles: {
+                select: { id: true, role: true, assignedAt: true, assignedBy: true },
+              },
+            },
+          }),
+          prisma.user.count(),
+        ]);
+        return { users: items, total: count };
+      }
+    );
 
     return Response.json({
       ...apiResponse(true, users),
@@ -122,6 +133,7 @@ export async function POST(request: Request) {
       return user;
     });
 
+    invalidateTags([TAG.users]);
     return Response.json(apiResponse(true, result), { status: 201 });
   } catch (error) {
     console.error("POST /api/users error:", error);

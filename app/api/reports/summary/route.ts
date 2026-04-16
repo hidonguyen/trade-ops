@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import Decimal from "decimal.js";
 import { MSG } from "@/lib/messages";
+import { withCache } from "@/lib/cache/with-cache";
+import { reportKey, reportTags, TTL } from "@/lib/cache/keys";
 
 const querySchema = z.object({
   businessUnitId: z.string().uuid(),
@@ -38,6 +40,13 @@ export async function GET(request: Request) {
   toDate.setHours(23, 59, 59, 999);
 
   try {
+    const result = await withCache(
+      {
+        key: reportKey("summary", { buId: businessUnitId, from: dateFrom, to: dateTo }),
+        tags: reportTags("summary", businessUnitId),
+        ttlMs: TTL.report,
+      },
+      async () => {
     const [saleOrders, purchaseOrders, openSales, openPurchases] = await Promise.all([
       // Total sales in period
       prisma.order.findMany({
@@ -115,14 +124,16 @@ export async function GET(request: Request) {
       return Array.from(map.values()).map((e) => ({ code: e.code, symbol: e.symbol, total: e.total.toFixed(4) }));
     }
 
-    return Response.json(
-      apiResponse(true, {
-        totalSales: sumByCurrency(saleOrders),
-        totalPurchases: sumByCurrency(purchaseOrders),
-        totalReceivable: remainingByCurrency(openSales),
-        totalPayable: remainingByCurrency(openPurchases),
-      })
+        return {
+          totalSales: sumByCurrency(saleOrders),
+          totalPurchases: sumByCurrency(purchaseOrders),
+          totalReceivable: remainingByCurrency(openSales),
+          totalPayable: remainingByCurrency(openPurchases),
+        };
+      }
     );
+
+    return Response.json(apiResponse(true, result));
   } catch (error) {
     console.error("GET /api/reports/summary error:", error);
     return Response.json(apiResponse(false, undefined, MSG.internalError), { status: 500 });

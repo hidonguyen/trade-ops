@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
 import { createOrderSchema } from "@/lib/validation-schemas";
 import { MSG } from "@/lib/messages";
+import { invalidateTags } from "@/lib/cache/invalidate";
+import { TAG } from "@/lib/cache/keys";
 
 const orderIncludes = {
   party: { select: { id: true, name: true, type: true } },
@@ -24,6 +26,7 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get("status");
   const businessUnitId = searchParams.get("businessUnitId");
   const partyId = searchParams.get("partyId");
+  const orderNumber = searchParams.get("orderNumber");
   const expenseTypeId = searchParams.get("expenseTypeId");
   const dateFrom = searchParams.get("dateFrom");
   const dateTo = searchParams.get("dateTo");
@@ -60,6 +63,7 @@ export async function GET(request: NextRequest) {
     ...(status && { status }),
     ...(businessUnitId && { businessUnitId }),
     ...(partyId && { partyId }),
+    ...(orderNumber && { orderNumber: { contains: orderNumber, mode: "insensitive" as const } }),
     ...(expenseTypeId && { expenseTypeId }),
     ...(orderDateFilter && { orderDate: orderDateFilter }),
   };
@@ -147,9 +151,14 @@ export async function POST(request: Request) {
         data: { ...rest, orderNumber, createdBy: userId, status: "UNPAID" },
         include: orderIncludes,
       });
-      await createAuditLog(tx, userId, "CREATE", "Order", created.id, { type, status: "UNPAID", orderNumber });
+      await createAuditLog(tx, userId, "CREATE", "Order", created.id, {
+        ...(validation.data as Record<string, unknown>),
+        orderNumber,
+        status: "UNPAID",
+      });
       return created;
     });
+    invalidateTags([TAG.reportsByBu(result.businessUnitId)]);
     return Response.json(apiResponse(true, result), { status: 201 });
   } catch (error) {
     // Prisma P2002 unique constraint violation

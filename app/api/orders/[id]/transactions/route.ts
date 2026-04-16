@@ -8,6 +8,9 @@ import { createOrderTransactionSchema } from "@/lib/validation-schemas";
 import { applyDepositOperation } from "@/lib/deposit-deduction-service";
 import { recalculateOrderStatus } from "@/lib/order-status-calculator";
 import { MSG } from "@/lib/messages";
+import { invalidateTags } from "@/lib/cache/invalidate";
+import { withCache } from "@/lib/cache/with-cache";
+import { TAG, TTL, orderTxListKey } from "@/lib/cache/keys";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await withAuth();
@@ -32,16 +35,26 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const { page, limit, skip, order: sortOrder } = parsePagination(searchParams);
 
     const where = { orderId };
-    const [data, total] = await Promise.all([
-      prisma.transaction.findMany({
-        where,
-        include: { currency: { select: { id: true, code: true, symbol: true } }, depositUsages: true },
-        orderBy: { transactionDate: sortOrder },
-        skip,
-        take: limit,
-      }),
-      prisma.transaction.count({ where }),
-    ]);
+    const { data, total } = await withCache(
+      {
+        key: orderTxListKey(orderId, `p=${page}:l=${limit}:o=${sortOrder}`),
+        tags: [TAG.order(orderId)],
+        ttlMs: TTL.orderTxList,
+      },
+      async () => {
+        const [items, count] = await Promise.all([
+          prisma.transaction.findMany({
+            where,
+            include: { currency: { select: { id: true, code: true, symbol: true } }, depositUsages: true },
+            orderBy: { transactionDate: sortOrder },
+            skip,
+            take: limit,
+          }),
+          prisma.transaction.count({ where }),
+        ]);
+        return { data: items, total: count };
+      }
+    );
 
     return Response.json({
       ...apiResponse(true, data),
@@ -125,15 +138,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       await recalculateOrderStatus(orderId, tx);
 
       await createAuditLog(tx, userId, "CREATE", "Transaction", created.id, {
+        ...(validation.data as Record<string, unknown>),
         orderId,
-        paymentType: txData.paymentType,
-        amountOriginal: txData.amountOriginal,
-        depositId,
       });
 
       return created;
     });
 
+    const invalidations = [TAG.reportsByBu(result.businessUnitId), TAG.order(orderId)];
+    if (depositId) invalidations.push(TAG.partyDeposits(order.partyId));
+    invalidateTags(invalidations);
     return Response.json(apiResponse(true, result), { status: 201 });
   } catch (error) {
     if (error instanceof Error && error.message === MSG.insufficientDeposit) {

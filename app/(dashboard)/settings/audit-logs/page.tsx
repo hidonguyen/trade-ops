@@ -2,7 +2,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { ShieldAlertIcon, ChevronDownIcon, ChevronRightIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ShieldAlertIcon, ChevronDownIcon, ChevronRightIcon, ArrowLeftIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { DataTable, Column } from "@/components/shared/data-table";
 import { FilterBar, FilterConfig } from "@/components/shared/filter-bar";
 import { Pagination } from "@/components/shared/pagination";
@@ -13,7 +15,7 @@ interface AuditLog extends Record<string, unknown> {
   model: string;
   recordId: string;
   changes: unknown;
-  createdAt: string;
+  timestamp: string;
   user: { id: string; name: string; email: string } | null;
 }
 
@@ -56,7 +58,7 @@ function ChangesCell({ changes }: { changes: unknown }) {
 function buildColumns(): Column<AuditLog>[] {
   return [
     {
-      key: "createdAt",
+      key: "timestamp",
       label: "Thời gian",
       sortable: true,
       render: (val) =>
@@ -88,6 +90,7 @@ function buildColumns(): Column<AuditLog>[] {
 }
 
 export default function AuditLogsPage() {
+  const router = useRouter();
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
@@ -160,9 +163,14 @@ export default function AuditLogsPage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Nhật ký hệ thống</h1>
-        <p className="mt-0.5 text-sm text-slate-500">Lịch sử thay đổi dữ liệu</p>
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon-sm" onClick={() => router.back()}>
+          <ArrowLeftIcon className="size-4" />
+        </Button>
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Nhật ký hệ thống</h1>
+          <p className="mt-0.5 text-sm text-slate-500">Lịch sử thay đổi dữ liệu</p>
+        </div>
       </div>
 
       <FilterBar filters={filterConfigs} onFilterChange={handleFilterChange} values={filters} />

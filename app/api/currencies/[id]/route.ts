@@ -4,6 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
 import { createCurrencySchema } from "@/lib/validation-schemas";
 import { MSG } from "@/lib/messages";
+import { invalidateTags } from "@/lib/cache/invalidate";
+import { TAG } from "@/lib/cache/keys";
+import { diffForAudit } from "@/lib/audit-diff";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await withAuth();
@@ -25,16 +28,25 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   try {
-    const existing = await prisma.currency.findFirst({ where: { id, isActive: true } });
+    // Allow editing inactive items too so admin can re-activate them.
+    const existing = await prisma.currency.findUnique({ where: { id } });
     if (!existing) {
       return Response.json(apiResponse(false, undefined, MSG.currencyNotFound), { status: 404 });
     }
 
     const result = await prisma.$transaction(async (tx: any) => {
       const updated = await tx.currency.update({ where: { id }, data: validation.data });
-      await createAuditLog(tx, session.user.id!, "UPDATE", "Currency", id, validation.data as Record<string, unknown>);
+      await createAuditLog(
+        tx,
+        session.user.id!,
+        "UPDATE",
+        "Currency",
+        id,
+        diffForAudit(validation.data, existing as Record<string, unknown>),
+      );
       return updated;
     });
+    invalidateTags([TAG.currencies]);
     return Response.json(apiResponse(true, result));
   } catch (error) {
     console.error("PATCH /api/currencies/[id] error:", error);
@@ -63,6 +75,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
       await tx.currency.update({ where: { id }, data: { isActive: false } });
       await createAuditLog(tx, session.user.id!, "DELETE", "Currency", id);
     });
+    invalidateTags([TAG.currencies]);
     return Response.json(apiResponse(true, undefined, "Currency deleted"));
   } catch (error) {
     console.error("DELETE /api/currencies/[id] error:", error);

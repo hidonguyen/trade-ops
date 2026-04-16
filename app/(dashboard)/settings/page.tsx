@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { BuildingIcon, CoinsIcon, TagIcon, UsersIcon, ShieldAlertIcon } from "lucide-react";
+import { BuildingIcon, CoinsIcon, TagIcon, UsersIcon, ShieldAlertIcon, HistoryIcon } from "lucide-react";
 
 const SETTINGS_CARDS = [
   {
@@ -29,6 +29,12 @@ const SETTINGS_CARDS = [
     icon: UsersIcon,
     title: "Người dùng",
     description: "Quản lý tài khoản và phân quyền người dùng",
+  },
+  {
+    href: "/settings/audit-logs",
+    icon: HistoryIcon,
+    title: "Nhật ký hệ thống",
+    description: "Lịch sử thay đổi dữ liệu trong hệ thống",
   },
 ];
 

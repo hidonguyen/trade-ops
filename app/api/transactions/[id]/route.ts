@@ -6,6 +6,9 @@ import { createAuditLog } from "@/lib/audit";
 import { reverseDepositDeduction, applyDepositOperation } from "@/lib/deposit-deduction-service";
 import { z } from "zod";
 import { MSG } from "@/lib/messages";
+import { invalidateTags } from "@/lib/cache/invalidate";
+import { TAG } from "@/lib/cache/keys";
+import { diffForAudit } from "@/lib/audit-diff";
 
 const updateStandaloneSchema = z.object({
   amountOriginal: z.string().optional(),
@@ -87,10 +90,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         });
       }
 
-      await createAuditLog(tx, userId, "UPDATE", "Transaction", id, updateData);
+      await createAuditLog(
+        tx,
+        userId,
+        "UPDATE",
+        "Transaction",
+        id,
+        diffForAudit(validation.data, transaction as unknown as Record<string, unknown>),
+      );
       return updated;
     });
 
+    invalidateTags([TAG.reportsByBu(result.businessUnitId)]);
     return Response.json(apiResponse(true, result));
   } catch (error) {
     if (error instanceof Error && error.message === MSG.insufficientDeposit) {
@@ -112,7 +123,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   try {
     const transaction = await prisma.transaction.findUnique({
       where: { id, orderId: null },
-      select: { id: true, type: true },
+      select: { id: true, type: true, businessUnitId: true },
     });
     if (!transaction) {
       return Response.json(apiResponse(false, undefined, MSG.transactionNotFound), { status: 404 });
@@ -130,6 +141,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
       await createAuditLog(tx, userId, "DELETE", "Transaction", id);
     });
 
+    invalidateTags([TAG.reportsByBu(transaction.businessUnitId)]);
     return Response.json(apiResponse(true, undefined, "Đã xóa giao dịch"));
   } catch (error) {
     console.error("DELETE /api/transactions/[id] error:", error);

@@ -6,6 +6,9 @@ import { createAuditLog } from "@/lib/audit";
 import { createPartySchema } from "@/lib/validation-schemas";
 import type { RbacModule } from "@/types";
 import { MSG } from "@/lib/messages";
+import { withCache } from "@/lib/cache/with-cache";
+import { TAG, TTL } from "@/lib/cache/keys";
+import { invalidateTags } from "@/lib/cache/invalidate";
 
 // Determine which RBAC modules are required for a given party type
 function partyModules(type: string): RbacModule[] {
@@ -42,17 +45,26 @@ export async function GET(request: Request) {
   if (businessUnitId) where.businessUnitId = businessUnitId;
   if (search) where.name = { contains: search, mode: "insensitive" };
 
+  // Cache key includes all filter/pagination params so distinct queries get distinct entries.
+  const cacheKey = `catalog:parties:t=${type ?? "all"}:bu=${businessUnitId ?? "all"}:q=${search ?? ""}:p=${page}:l=${limit}:s=${sortBy}:o=${order}`;
+
   try {
-    const [data, total] = await prisma.$transaction([
-      prisma.party.findMany({
-        where,
-        include: { businessUnit: { select: { id: true, code: true, name: true } } },
-        orderBy: { [sortBy]: order },
-        skip,
-        take: limit,
-      }),
-      prisma.party.count({ where }),
-    ]);
+    const { data, total } = await withCache(
+      { key: cacheKey, tags: [TAG.parties], ttlMs: TTL.parties },
+      async () => {
+        const [items, count] = await prisma.$transaction([
+          prisma.party.findMany({
+            where,
+            include: { businessUnit: { select: { id: true, code: true, name: true } } },
+            orderBy: { [sortBy]: order },
+            skip,
+            take: limit,
+          }),
+          prisma.party.count({ where }),
+        ]);
+        return { data: items, total: count };
+      }
+    );
 
     return Response.json({
       ...apiResponse(true, data),
@@ -97,9 +109,17 @@ export async function POST(request: Request) {
   try {
     const result = await prisma.$transaction(async (tx: any) => {
       const created = await tx.party.create({ data: validation.data });
-      await createAuditLog(tx, session.user.id!, "CREATE", "Party", created.id);
+      await createAuditLog(
+        tx,
+        session.user.id!,
+        "CREATE",
+        "Party",
+        created.id,
+        validation.data as Record<string, unknown>,
+      );
       return created;
     });
+    invalidateTags([TAG.parties]);
     return Response.json(apiResponse(true, result), { status: 201 });
   } catch (error) {
     console.error("POST /api/parties error:", error);

@@ -2,7 +2,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { PlusIcon, PencilIcon, Trash2Icon } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { PlusIcon, PencilIcon, Trash2Icon, ArrowLeftIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,16 +22,21 @@ interface BusinessUnit {
 }
 
 type OrderNumberMode = "MANUAL" | "AUTO";
-interface FormState { name: string; code: string; orderNumberMode: OrderNumberMode; }
-const EMPTY_FORM: FormState = { name: "", code: "", orderNumberMode: "MANUAL" };
+interface FormState { name: string; code: string; orderNumberMode: OrderNumberMode; isActive: boolean; }
+const EMPTY_FORM: FormState = { name: "", code: "", orderNumberMode: "MANUAL", isActive: true };
 
 const ORDER_NUMBER_MODE_OPTIONS = [
   { value: "MANUAL", label: "Nhập tay" },
   { value: "AUTO", label: "Tự động tạo" },
 ];
+const STATUS_OPTIONS = [
+  { value: "true", label: "Hoạt động" },
+  { value: "false", label: "Ngừng" },
+];
 const MODE_LABELS: Record<OrderNumberMode, string> = { MANUAL: "Nhập tay", AUTO: "Tự động" };
 
 export default function BusinessUnitsPage() {
+  const router = useRouter();
   const { refetch: refetchGlobalBus } = useSelectedBu();
   const [items, setItems] = useState<BusinessUnit[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,7 +50,7 @@ export default function BusinessUnitsPage() {
   const fetchItems = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/business-units");
+      const res = await fetch("/api/business-units?includeInactive=true");
       const json = await res.json();
       if (json.success) setItems(json.data);
     } catch {
@@ -65,7 +71,7 @@ export default function BusinessUnitsPage() {
 
   function openEdit(bu: BusinessUnit) {
     setEditTarget(bu);
-    setForm({ name: bu.name, code: bu.code, orderNumberMode: bu.orderNumberMode ?? "MANUAL" });
+    setForm({ name: bu.name, code: bu.code, orderNumberMode: bu.orderNumberMode ?? "MANUAL", isActive: bu.isActive ?? true });
     setError(null);
     setDialogOpen(true);
   }
@@ -140,9 +146,14 @@ export default function BusinessUnitsPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">Đơn vị kinh doanh</h1>
-          <p className="text-sm text-slate-500">Quản lý các đơn vị kinh doanh</p>
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon-sm" onClick={() => router.back()}>
+            <ArrowLeftIcon className="size-4" />
+          </Button>
+          <div>
+            <h1 className="text-xl font-bold text-slate-900">Đơn vị kinh doanh</h1>
+            <p className="text-sm text-slate-500">Quản lý các đơn vị kinh doanh</p>
+          </div>
         </div>
         <Button onClick={openCreate} size="sm"><PlusIcon className="size-4 mr-1" />Thêm mới</Button>
       </div>
@@ -158,11 +169,11 @@ export default function BusinessUnitsPage() {
             {error && <p className="text-sm text-red-500">{error}</p>}
             <div className="space-y-1.5">
               <Label htmlFor="bu-name">Tên</Label>
-              <Input id="bu-name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Tên đơn vị kinh doanh" />
+              <Input id="bu-name" value={form.name ?? ""} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Tên đơn vị kinh doanh" />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="bu-code">Mã</Label>
-              <Input id="bu-code" value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="VD: TK, NT" />
+              <Input id="bu-code" value={form.code ?? ""} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="VD: TK, NT" />
             </div>
             <div className="space-y-1.5">
               <Label>Chế độ số đơn hàng</Label>
@@ -176,6 +187,17 @@ export default function BusinessUnitsPage() {
                 Nhập tay: người dùng tự điền số đơn. Tự động: hệ thống tạo số kế tiếp theo từng đối tác.
               </p>
             </div>
+            {editTarget && (
+              <div className="space-y-1.5">
+                <Label>Trạng thái</Label>
+                <Combobox
+                  value={String(form.isActive)}
+                  onValueChange={(v) => setForm((f) => ({ ...f, isActive: v === "true" }))}
+                  options={STATUS_OPTIONS}
+                  placeholder="Chọn trạng thái"
+                />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Hủy</Button>

@@ -5,6 +5,9 @@ import { createAuditLog } from "@/lib/audit";
 import { createDepositSchema } from "@/lib/validation-schemas";
 import type { RbacAction, RbacModule } from "@/types";
 import { MSG } from "@/lib/messages";
+import { withCache } from "@/lib/cache/with-cache";
+import { TAG, TTL, partyDepositsKey } from "@/lib/cache/keys";
+import { invalidateTags } from "@/lib/cache/invalidate";
 
 // Resolve RBAC modules for parent party type
 function partyModules(type: string): RbacModule[] {
@@ -40,19 +43,29 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const { searchParams } = new URL(request.url);
     const { page, limit, skip, order } = parsePagination(searchParams);
 
-    const [data, total] = await prisma.$transaction([
-      prisma.deposit.findMany({
-        where: { partyId },
-        include: {
-          currency: { select: { id: true, code: true, symbol: true } },
-          businessUnit: { select: { id: true, code: true, name: true } },
-        },
-        orderBy: { createdAt: order },
-        skip,
-        take: limit,
-      }),
-      prisma.deposit.count({ where: { partyId } }),
-    ]);
+    const { data, total } = await withCache(
+      {
+        key: partyDepositsKey(partyId, `p=${page}:l=${limit}:o=${order}`),
+        tags: [TAG.partyDeposits(partyId)],
+        ttlMs: TTL.partyDeposits,
+      },
+      async () => {
+        const [items, count] = await prisma.$transaction([
+          prisma.deposit.findMany({
+            where: { partyId },
+            include: {
+              currency: { select: { id: true, code: true, symbol: true } },
+              businessUnit: { select: { id: true, code: true, name: true } },
+            },
+            orderBy: { createdAt: order },
+            skip,
+            take: limit,
+          }),
+          prisma.deposit.count({ where: { partyId } }),
+        ]);
+        return { data: items, total: count };
+      }
+    );
 
     return Response.json({
       ...apiResponse(true, data),
@@ -118,10 +131,22 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           businessUnit: { select: { id: true, code: true, name: true } },
         },
       });
-      await createAuditLog(tx, session.user.id!, "CREATE", "Deposit", created.id);
+      await createAuditLog(
+        tx,
+        session.user.id!,
+        "CREATE",
+        "Deposit",
+        created.id,
+        validation.data as Record<string, unknown>,
+      );
       return created;
     });
 
+    invalidateTags([
+      TAG.partyDeposits(partyId),
+      TAG.party(partyId),
+      TAG.reportsByBu(result.businessUnitId),
+    ]);
     return Response.json(apiResponse(true, result), { status: 201 });
   } catch (error) {
     console.error("POST /api/parties/[id]/deposits error:", error);

@@ -17,7 +17,6 @@ import {
   BarChart3Icon,
   SettingsIcon,
   MenuIcon,
-  UserCogIcon,
   LandmarkIcon,
 } from "lucide-react";
 
@@ -58,7 +57,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: "Báo cáo",
     items: [
-      { label: "Tổng hợp", href: "/reports", icon: BarChart3Icon },
+      { label: "Tổng hợp", href: "/reports/summary", icon: BarChart3Icon },
       { label: "Phí ngân hàng", href: "/reports/bank-fees", icon: LandmarkIcon },
     ],
   },
@@ -66,7 +65,6 @@ const NAV_GROUPS: NavGroup[] = [
     title: "Cài đặt",
     adminOnly: true,
     items: [
-      { label: "Người dùng", href: "/settings/users", icon: UserCogIcon },
       { label: "Cấu hình", href: "/settings", icon: SettingsIcon },
     ],
   },

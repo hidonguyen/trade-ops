@@ -4,18 +4,31 @@ import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
 import { createCurrencySchema } from "@/lib/validation-schemas";
 import { MSG } from "@/lib/messages";
+import { withCache } from "@/lib/cache/with-cache";
+import { currenciesKey, TAG, TTL } from "@/lib/cache/keys";
+import { invalidateTags } from "@/lib/cache/invalidate";
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = await withAuth();
   if (!session) {
     return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
 
+  const { searchParams } = new URL(request.url);
+  const includeInactive = searchParams.get("includeInactive") === "true";
+
   try {
-    const data = await prisma.currency.findMany({
-      where: { isActive: true },
-      orderBy: { code: "asc" },
-    });
+    const data = await withCache(
+      {
+        key: `${currenciesKey()}:all=${includeInactive}`,
+        tags: [TAG.currencies],
+        ttlMs: TTL.catalog,
+      },
+      () => prisma.currency.findMany({
+        where: includeInactive ? {} : { isActive: true },
+        orderBy: [{ isActive: "desc" }, { code: "asc" }],
+      })
+    );
     return Response.json(apiResponse(true, data));
   } catch (error) {
     console.error("GET /api/currencies error:", error);
@@ -44,9 +57,17 @@ export async function POST(request: Request) {
   try {
     const result = await prisma.$transaction(async (tx: any) => {
       const created = await tx.currency.create({ data: validation.data });
-      await createAuditLog(tx, session.user.id!, "CREATE", "Currency", created.id);
+      await createAuditLog(
+        tx,
+        session.user.id!,
+        "CREATE",
+        "Currency",
+        created.id,
+        validation.data as Record<string, unknown>,
+      );
       return created;
     });
+    invalidateTags([TAG.currencies]);
     return Response.json(apiResponse(true, result), { status: 201 });
   } catch (error) {
     console.error("POST /api/currencies error:", error);

@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import Decimal from "decimal.js";
 import { z } from "zod";
 import { MSG } from "@/lib/messages";
+import { withCache } from "@/lib/cache/with-cache";
+import { reportKey, reportTags, TTL } from "@/lib/cache/keys";
 
 const querySchema = z.object({
   businessUnitId: z.string().uuid(),
@@ -38,6 +40,13 @@ export async function GET(request: Request) {
   toDate.setHours(23, 59, 59, 999);
 
   try {
+    const byExpenseType = await withCache(
+      {
+        key: reportKey("expense-type", { buId: businessUnitId, from: dateFrom, to: dateTo }),
+        tags: reportTags("expense-type", businessUnitId),
+        ttlMs: TTL.report,
+      },
+      async () => {
     const orders = await prisma.order.findMany({
       where: {
         businessUnitId,
@@ -89,7 +98,7 @@ export async function GET(request: Request) {
       cur.total = cur.total.plus(new Decimal(o.amountOriginal.toString()));
     }
 
-    const byExpenseType = Array.from(buckets.values())
+    return Array.from(buckets.values())
       .map((b) => ({
         expenseTypeId: b.expenseTypeId,
         name: b.name,
@@ -106,6 +115,8 @@ export async function GET(request: Request) {
         if (b.expenseTypeId === null) return -1;
         return a.name.localeCompare(b.name, "vi");
       });
+      }
+    );
 
     return Response.json(apiResponse(true, { byExpenseType }));
   } catch (error) {

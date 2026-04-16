@@ -59,16 +59,19 @@ export const createBusinessUnitSchema = z.object({
   code: z.string().min(2).max(3),
   name: z.string().min(1).max(100),
   orderNumberMode: z.enum(["MANUAL", "AUTO"]).optional(),
+  isActive: z.boolean().optional(),
 });
 
 export const createCurrencySchema = z.object({
   code: z.string().length(3),
   name: z.string().min(1).max(100),
   symbol: z.string().min(1).max(5),
+  isActive: z.boolean().optional(),
 });
 
 export const createExpenseTypeSchema = z.object({
   name: z.string().min(1).max(100),
+  isActive: z.boolean().optional(),
 });
 
 // Party (customer/supplier)

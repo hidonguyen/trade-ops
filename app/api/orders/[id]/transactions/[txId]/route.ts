@@ -7,6 +7,9 @@ import { reverseDepositDeduction, applyDepositOperation } from "@/lib/deposit-de
 import { recalculateOrderStatus } from "@/lib/order-status-calculator";
 import { z } from "zod";
 import { MSG } from "@/lib/messages";
+import { invalidateTags } from "@/lib/cache/invalidate";
+import { TAG } from "@/lib/cache/keys";
+import { diffForAudit } from "@/lib/audit-diff";
 
 const updateTransactionSchema = z.object({
   amountOriginal: z.string().optional(),
@@ -92,10 +95,21 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       }
 
       await recalculateOrderStatus(orderId, tx);
-      await createAuditLog(tx, userId, "UPDATE", "Transaction", txId, updateData);
+      await createAuditLog(
+        tx,
+        userId,
+        "UPDATE",
+        "Transaction",
+        txId,
+        diffForAudit(validation.data, transaction as unknown as Record<string, unknown>),
+      );
       return updated;
     });
 
+    const txInvalidations = [TAG.reportsByBu(result.businessUnitId), TAG.order(orderId)];
+    // Both previous and new deposit linkages must be flushed (may differ).
+    if (prevDepositId || newDepositId) txInvalidations.push(TAG.partyDeposits(order.partyId));
+    invalidateTags(txInvalidations);
     return Response.json(apiResponse(true, result));
   } catch (error) {
     if (error instanceof Error && error.message === MSG.insufficientDeposit) {
@@ -116,8 +130,14 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
 
   try {
     const [order, transaction] = await Promise.all([
-      prisma.order.findUnique({ where: { id: orderId }, select: { type: true } }),
-      prisma.transaction.findUnique({ where: { id: txId, orderId }, select: { id: true } }),
+      prisma.order.findUnique({
+        where: { id: orderId },
+        select: { type: true, businessUnitId: true, partyId: true },
+      }),
+      prisma.transaction.findUnique({
+        where: { id: txId, orderId },
+        select: { id: true, depositUsages: { select: { depositId: true } } },
+      }),
     ]);
 
     if (!order) return Response.json(apiResponse(false, undefined, MSG.orderNotFound), { status: 404 });
@@ -137,6 +157,9 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
       await createAuditLog(tx, userId, "DELETE", "Transaction", txId, { orderId });
     });
 
+    const delInvalidations = [TAG.reportsByBu(order.businessUnitId), TAG.order(orderId)];
+    if (transaction.depositUsages.length > 0) delInvalidations.push(TAG.partyDeposits(order.partyId));
+    invalidateTags(delInvalidations);
     return Response.json(apiResponse(true, undefined, "Đã xóa giao dịch"));
   } catch (error) {
     console.error("DELETE /api/orders/[id]/transactions/[txId] error:", error);

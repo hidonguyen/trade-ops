@@ -6,6 +6,8 @@ import { createAuditLog } from "@/lib/audit";
 import { createStandaloneTransactionSchema } from "@/lib/validation-schemas";
 import { applyDepositOperation } from "@/lib/deposit-deduction-service";
 import { MSG } from "@/lib/messages";
+import { invalidateTags } from "@/lib/cache/invalidate";
+import { TAG } from "@/lib/cache/keys";
 
 const txIncludes = {
   currency: { select: { id: true, code: true, symbol: true } },
@@ -114,16 +116,24 @@ export async function POST(request: Request) {
         });
       }
 
-      await createAuditLog(tx, userId, "CREATE", "Transaction", created.id, {
-        type,
-        amountOriginal: txData.amountOriginal,
-        depositId,
-        partyId,
-      });
+      await createAuditLog(
+        tx,
+        userId,
+        "CREATE",
+        "Transaction",
+        created.id,
+        validation.data as Record<string, unknown>,
+      );
 
       return created;
     });
 
+    const txInvalidations = [TAG.reportsByBu(result.businessUnitId)];
+    // Deposit-funded or deposit-topup transactions affect a party's deposit balances.
+    if (txData.paymentMethod === "DEPOSIT" && partyId) {
+      txInvalidations.push(TAG.partyDeposits(partyId), TAG.party(partyId));
+    }
+    invalidateTags(txInvalidations);
     return Response.json(apiResponse(true, result), { status: 201 });
   } catch (error) {
     if (error instanceof Error && error.message === MSG.insufficientDeposit) {

@@ -2,11 +2,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { PlusIcon, PencilIcon, Trash2Icon } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { PlusIcon, PencilIcon, Trash2Icon, ArrowLeftIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Combobox } from "@/components/ui/combobox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DataTable, Column } from "@/components/shared/data-table";
 import { ConfirmationDialog } from "@/components/shared/confirmation-dialog";
@@ -19,10 +21,16 @@ interface ExpenseType {
   isActive: boolean;
 }
 
-interface FormState { code: string; name: string; description: string; }
-const EMPTY_FORM: FormState = { code: "", name: "", description: "" };
+interface FormState { code: string; name: string; description: string; isActive: boolean; }
+const EMPTY_FORM: FormState = { code: "", name: "", description: "", isActive: true };
+
+const STATUS_OPTIONS = [
+  { value: "true", label: "Hoạt động" },
+  { value: "false", label: "Ngừng" },
+];
 
 export default function ExpenseTypesPage() {
+  const router = useRouter();
   const [items, setItems] = useState<ExpenseType[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -35,7 +43,7 @@ export default function ExpenseTypesPage() {
   const fetchItems = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/expense-types");
+      const res = await fetch("/api/expense-types?includeInactive=true");
       const json = await res.json();
       if (json.success) setItems(json.data);
     } catch {
@@ -56,7 +64,14 @@ export default function ExpenseTypesPage() {
 
   function openEdit(item: ExpenseType) {
     setEditTarget(item);
-    setForm({ code: item.code, name: item.name, description: item.description ?? "" });
+    // Coerce every field to a string so the form is fully controlled from first render
+    // (prevents Base UI "uncontrolled→controlled" warning on missing/nullish fields).
+    setForm({
+      code: item.code ?? "",
+      name: item.name ?? "",
+      description: item.description ?? "",
+      isActive: item.isActive ?? true,
+    });
     setError(null);
     setDialogOpen(true);
   }
@@ -96,9 +111,7 @@ export default function ExpenseTypesPage() {
   }
 
   const columns: Column<Record<string, unknown>>[] = [
-    { key: "code", label: "Mã", sortable: true },
     { key: "name", label: "Tên", sortable: true },
-    { key: "description", label: "Mô tả", render: (v) => <span className="text-slate-500">{String(v ?? "—")}</span> },
     {
       key: "isActive", label: "Trạng thái",
       render: (v) => (
@@ -127,9 +140,14 @@ export default function ExpenseTypesPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">Loại chi phí</h1>
-          <p className="text-sm text-slate-500">Quản lý danh mục phân loại chi phí</p>
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon-sm" onClick={() => router.back()}>
+            <ArrowLeftIcon className="size-4" />
+          </Button>
+          <div>
+            <h1 className="text-xl font-bold text-slate-900">Loại chi phí</h1>
+            <p className="text-sm text-slate-500">Quản lý danh mục phân loại chi phí</p>
+          </div>
         </div>
         <Button onClick={openCreate} size="sm"><PlusIcon className="size-4 mr-1" />Thêm mới</Button>
       </div>
@@ -145,16 +163,28 @@ export default function ExpenseTypesPage() {
             {error && <p className="text-sm text-red-500">{error}</p>}
             <div className="space-y-1.5">
               <Label htmlFor="et-code">Mã</Label>
-              <Input id="et-code" value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="VD: OFFICE, TRAVEL" />
+              <Input id="et-code" value={form.code ?? ""} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="VD: OFFICE, TRAVEL" />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="et-name">Tên</Label>
-              <Input id="et-name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Tên loại chi phí" />
+              <Input id="et-name" value={form.name ?? ""} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Tên loại chi phí" />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="et-desc">Mô tả</Label>
-              <Textarea id="et-desc" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="Mô tả (tùy chọn)" rows={3} />
+              <Textarea id="et-desc" value={form.description ?? ""} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="Mô tả (tùy chọn)" rows={3} />
             </div>
+            {editTarget && (
+              <div className="space-y-1.5">
+                <Label>Trạng thái</Label>
+                <Combobox
+                  value={String(form.isActive)}
+                  onValueChange={(v) => setForm((f) => ({ ...f, isActive: v === "true" }))}
+                  options={STATUS_OPTIONS}
+                  placeholder="Chọn trạng thái"
+                  className="w-full"
+                />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Hủy</Button>

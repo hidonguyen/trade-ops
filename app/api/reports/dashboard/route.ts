@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import Decimal from "decimal.js";
 import { MSG } from "@/lib/messages";
+import { withCache } from "@/lib/cache/with-cache";
+import { reportKey, reportTags, TTL } from "@/lib/cache/keys";
 
 const querySchema = z.object({
   businessUnitId: z.string().uuid(),
@@ -40,6 +42,13 @@ export async function GET(request: Request) {
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
   try {
+    const result = await withCache(
+      {
+        key: reportKey("dashboard", { buId: businessUnitId }),
+        tags: reportTags("dashboard", businessUnitId),
+        ttlMs: TTL.report,
+      },
+      async () => {
     const [openSales, openPurchases, recentTxCount, deposits, bankFeeAgg] = await Promise.all([
       // Open SALE orders — for receivable KPI
       prisma.order.findMany({
@@ -134,15 +143,17 @@ export async function GET(request: Request) {
 
     const totalBankFeeVnd = (bankFeeAgg._sum.bankFeeVnd ?? new Decimal(0)).toString();
 
-    return Response.json(
-      apiResponse(true, {
-        totalReceivable: calcRemaining(openSales),
-        totalPayable: calcRemaining(openPurchases),
-        recentTransactionCount: recentTxCount,
-        depositBalances,
-        totalBankFeeVnd,
-      })
+        return {
+          totalReceivable: calcRemaining(openSales),
+          totalPayable: calcRemaining(openPurchases),
+          recentTransactionCount: recentTxCount,
+          depositBalances,
+          totalBankFeeVnd,
+        };
+      }
     );
+
+    return Response.json(apiResponse(true, result));
   } catch (error) {
     console.error("GET /api/reports/dashboard error:", error);
     return Response.json(apiResponse(false, undefined, MSG.internalError), { status: 500 });

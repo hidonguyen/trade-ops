@@ -42,22 +42,38 @@ export default function OrdersPage() {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(25);
   const [loading, setLoading] = useState(true);
-  // Read initial type filter from URL search params (e.g. /orders?type=SALE)
+  // Read initial type + partyId filters from URL search params
   const [filters, setFilters] = useState<Record<string, string>>(() => {
     const type = searchParams.get("type");
-    return type ? { type } : ({} as Record<string, string>);
+    const partyId = searchParams.get("partyId");
+    return {
+      ...(type ? { type } : {}),
+      ...(partyId ? { partyId } : {}),
+    };
   });
 
-  // Sync type filter when URL search params change (soft navigation between sidebar links)
+  // Sync URL-driven filters (soft navigation from sidebar / party detail)
   const urlType = searchParams.get("type");
+  const urlPartyId = searchParams.get("partyId");
   useEffect(() => {
     setFilters((prev) => {
-      if (urlType && prev.type !== urlType) return { ...prev, type: urlType };
-      if (!urlType && prev.type) { const { type: _, ...rest } = prev; return rest; }
-      return prev;
+      const next = { ...prev };
+      if (urlType) next.type = urlType; else delete next.type;
+      if (urlPartyId) next.partyId = urlPartyId; else delete next.partyId;
+      return next;
     });
     setPage(1);
-  }, [urlType]);
+  }, [urlType, urlPartyId]);
+
+  // Fetch party name when filtered by party (for indicator bar)
+  const [filteredParty, setFilteredParty] = useState<{ name: string } | null>(null);
+  useEffect(() => {
+    if (!urlPartyId) { setFilteredParty(null); return; }
+    fetch(`/api/parties/${urlPartyId}`)
+      .then((r) => r.json())
+      .then((json) => { if (json.success) setFilteredParty({ name: json.data.name }); })
+      .catch(() => setFilteredParty(null));
+  }, [urlPartyId]);
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -67,6 +83,8 @@ export default function OrdersPage() {
         limit: String(limit),
         ...(selectedBuId ? { businessUnitId: selectedBuId } : {}),
         ...(filters.type ? { type: filters.type } : {}),
+        ...(filters.partyId ? { partyId: filters.partyId } : {}),
+        ...(filters.orderNumber ? { orderNumber: filters.orderNumber } : {}),
         ...(filters.status ? { status: filters.status } : {}),
         ...(filters.expenseTypeId ? { expenseTypeId: filters.expenseTypeId } : {}),
         ...(filters.dateFrom ? { dateFrom: filters.dateFrom } : {}),
@@ -105,10 +123,28 @@ export default function OrdersPage() {
     }
   }, [urlType]);
 
-  // Type is locked via URL (sidebar menu): no type filter, no type column needed.
-  // Expense-type filter only on PURCHASE.
+  // Load parties scoped to current page type (SALE→CUSTOMER, PURCHASE→SUPPLIER)
+  const [parties, setParties] = useState<Array<{ id: string; name: string }>>([]);
+  useEffect(() => {
+    if (!urlType) { setParties([]); return; }
+    const partyType = urlType === "SALE" ? "CUSTOMER" : "SUPPLIER";
+    fetch(`/api/parties?type=${partyType}`)
+      .then((r) => r.json())
+      .then((json) => { if (json.success) setParties(json.data); })
+      .catch(console.error);
+  }, [urlType]);
+
+  // Filter order: date-range → số đơn → đối tác → trạng thái → loại chi phí (PURCHASE only)
   const filterConfigs: FilterConfig[] = [
-    { key: "status", label: "Trạng thái", type: "select", options: STATUS_OPTIONS },
+    { key: "date", label: "Ngày đặt", type: "date-range" },
+    { key: "orderNumber", label: "Số đơn", type: "search", placeholder: "Tìm số đơn..." },
+    {
+      key: "partyId",
+      label: "Đối tác",
+      type: "select",
+      options: parties.map((p) => ({ value: p.id, label: p.name })),
+    },
+    { key: "status", label: "Trạng thái TT", type: "select", options: STATUS_OPTIONS },
     ...(urlType === "PURCHASE"
       ? [
           {
@@ -121,7 +157,6 @@ export default function OrdersPage() {
           },
         ]
       : []),
-    { key: "date", label: "Ngày đặt", type: "date-range" },
   ];
 
   const columns: Column<Order>[] = [
@@ -192,6 +227,21 @@ export default function OrdersPage() {
           Tạo đơn
         </Button>
       </div>
+
+      {filteredParty && (
+        <div className="flex items-center gap-2 text-sm bg-blue-50 border border-blue-200 rounded px-3 py-2">
+          <span className="text-slate-700">
+            Đang lọc theo đối tác: <strong>{filteredParty.name}</strong>
+          </span>
+          <button
+            type="button"
+            onClick={() => router.push(urlType ? `/orders?type=${urlType}` : "/orders")}
+            className="ml-auto text-blue-600 hover:text-blue-800 text-xs"
+          >
+            Bỏ lọc ×
+          </button>
+        </div>
+      )}
 
       <FilterBar filters={filterConfigs} onFilterChange={handleFilterChange} values={filters} />
 

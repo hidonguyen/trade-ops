@@ -6,6 +6,10 @@ import { createPartySchema } from "@/lib/validation-schemas";
 import type { RbacAction, RbacModule } from "@/types";
 import Decimal from "decimal.js";
 import { MSG } from "@/lib/messages";
+import { invalidateTags } from "@/lib/cache/invalidate";
+import { withCache } from "@/lib/cache/with-cache";
+import { TAG, TTL, partyDetailKey } from "@/lib/cache/keys";
+import { diffForAudit } from "@/lib/audit-diff";
 
 // Resolve required RBAC modules for a party type — BOTH requires access to at least one
 function partyModules(type: string): RbacModule[] {
@@ -32,7 +36,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const { id } = await params;
 
   try {
-    const party = await prisma.party.findFirst({
+    const party = await withCache(
+      {
+        key: partyDetailKey(id),
+        tags: [TAG.party(id), TAG.partyDeposits(id)],
+        ttlMs: TTL.partyDetail,
+      },
+      () => prisma.party.findFirst({
       where: { id, isActive: true },
       include: {
         businessUnit: { select: { id: true, code: true, name: true } },
@@ -47,7 +57,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
           },
         },
       },
-    });
+    })
+    );
 
     if (!party) {
       return Response.json(apiResponse(false, undefined, MSG.partyNotFound), { status: 404 });
@@ -116,9 +127,18 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const result = await prisma.$transaction(async (tx: any) => {
       const updated = await tx.party.update({ where: { id }, data: validation.data });
-      await createAuditLog(tx, session.user.id!, "UPDATE", "Party", id, validation.data as Record<string, unknown>);
+      await createAuditLog(
+        tx,
+        session.user.id!,
+        "UPDATE",
+        "Party",
+        id,
+        diffForAudit(validation.data, existing as Record<string, unknown>),
+      );
       return updated;
     });
+    // Invalidate catalog + any per-BU reports (party name/type appears in aggregations).
+    invalidateTags([TAG.parties, TAG.party(id), TAG.reportsByBu(existing.businessUnitId)]);
     return Response.json(apiResponse(true, result));
   } catch (error) {
     console.error("PATCH /api/parties/[id] error:", error);
@@ -148,6 +168,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
       await tx.party.update({ where: { id }, data: { isActive: false } });
       await createAuditLog(tx, session.user.id!, "DELETE", "Party", id);
     });
+    invalidateTags([TAG.parties, TAG.party(id), TAG.reportsByBu(existing.businessUnitId)]);
     return Response.json(apiResponse(true, undefined, "Party deleted"));
   } catch (error) {
     console.error("DELETE /api/parties/[id] error:", error);

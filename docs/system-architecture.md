@@ -482,6 +482,57 @@ const rate = amountVnd.dividedBy(amountOriginal);
 
 ---
 
+## Caching Layer
+
+In-process LRU cache with tag-based invalidation. Module: `lib/cache/`.
+
+**What's cached (read-through via `withCache`):**
+
+| Endpoint | Tag(s) | TTL |
+|----------|--------|-----|
+| `GET /api/currencies` | `catalog:currencies` | 10min |
+| `GET /api/business-units` | `catalog:business-units` | 10min |
+| `GET /api/expense-types` | `catalog:expense-types` | 10min |
+| `GET /api/parties` (all filter combos) | `catalog:parties` | 5min |
+| `GET /api/reports/dashboard` | `reports:bu:{buId}`, `reports:dashboard` | 60s |
+| `GET /api/reports/summary` | `reports:bu:{buId}`, `reports:summary` | 60s |
+| `GET /api/reports/expense-type-summary` | `reports:bu:{buId}`, `reports:expense-type` | 60s |
+| `GET /api/users` + `[id]` | `catalog:users`, `user:{id}` | 5min |
+| `GET /api/parties/[id]` | `party:{id}`, `party:{id}:deposits` | 2min |
+| `GET /api/parties/[id]/deposits` | `party:{id}:deposits` | 60s |
+| `GET /api/orders/[id]` | `order:{id}` | 30s |
+| `GET /api/orders/[id]/transactions` | `order:{id}` | 30s |
+| `GET /api/orders/[id]/report` | `order:{id}` | 60s |
+
+**Not cached:** orders/transactions/audit-logs LIST endpoints (dynamic filter explosion), auth, cashflow & bank-fees reports (xlsx branching — future work).
+
+**Invalidation:** Mutation handlers call `invalidateTags(...)` AFTER the DB transaction commits.
+
+| Mutation | Invalidates |
+|----------|-------------|
+| Currency CRUD | `catalog:currencies` |
+| Business-unit CRUD | `catalog:business-units` |
+| Expense-type CRUD | `catalog:expense-types`, `reports:expense-type` |
+| Party CRUD | `catalog:parties`, `reports:bu:{buId}` (on edit/delete) |
+| Order POST/PATCH | `reports:bu:{buId}` |
+| Transaction POST/PATCH/DELETE (standalone + order-nested) | `reports:bu:{buId}`; `order:{orderId}` (order-nested); `party:{partyId}:deposits` (deposit-funded) |
+| User CRUD | `catalog:users`, `user:{id}` |
+| Deposit POST | `party:{partyId}:deposits`, `party:{partyId}`, `reports:bu:{buId}` |
+
+60s TTL on reports caps worst-case staleness if any invalidation path is missed.
+
+**Toggle / operations:**
+- `CACHE_ENABLED=false` — disables all caching (debugging).
+- `CACHE_DRIVER=lru` (default) — in-process. Swappable via `CacheStore` interface.
+- `GET /api/admin/cache-stats` — ADMIN-only stats (size, hits, misses, hit-ratio, tagCount).
+- `POST /api/admin/cache-stats?action=clear` — flush all entries.
+
+**Upgrade path (multi-replica):** Implement `RedisCacheStore` satisfying `CacheStore` interface, flip `CACHE_DRIVER=redis` in `lib/cache/index.ts`. Current LRU assumes single-container deployment; multi-replica will see cache divergence.
+
+**Memory cap:** 500 entries (LRU eviction). Tag index self-cleans via `dispose` hook.
+
+---
+
 ## Related Documentation
 
 - `/docs/code-standards.md` – Implementation patterns
