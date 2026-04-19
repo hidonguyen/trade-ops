@@ -9,6 +9,7 @@ import { Pagination } from "@/components/shared/pagination";
 import { CurrencyAmount } from "@/components/shared/currency-amount";
 import { FilterBar, FilterConfig } from "@/components/shared/filter-bar";
 import { CashflowSummaryCards } from "./cashflow-summary-cards";
+import { DateQuickPresets, getThisWeekRange } from "@/components/shared/date-quick-presets";
 import { DownloadIcon } from "lucide-react";
 import Decimal from "decimal.js";
 
@@ -48,7 +49,7 @@ export default function CashflowPage() {
   const [limit, setLimit] = useState(25);
   const [loading, setLoading] = useState(false);
   const [currencies, setCurrencies] = useState<Currency[]>([]);
-  const [filters, setFilters] = useState<Record<string, string>>({});
+  const [filters, setFilters] = useState<Record<string, string>>(getThisWeekRange);
 
   useEffect(() => {
     fetch("/api/currencies")
@@ -99,7 +100,8 @@ export default function CashflowPage() {
         map.set(code, { symbol, receipts: new Decimal(0), payments: new Decimal(0), fees: new Decimal(0) });
       const entry = map.get(code)!;
       const amt = new Decimal(tx.amountOriginal ?? "0");
-      if (tx.type === "RECEIPT") entry.receipts = entry.receipts.plus(amt);
+      const isMoneyIn = tx.type === "RECEIPT" || tx.type === "SALE_PAYMENT";
+      if (isMoneyIn) entry.receipts = entry.receipts.plus(amt);
       else entry.payments = entry.payments.plus(amt);
       if (tx.bankFeeOriginal) {
         entry.fees = entry.fees.plus(new Decimal(tx.bankFeeOriginal));
@@ -135,10 +137,25 @@ export default function CashflowPage() {
   const curOptions = currencies.map((c) => ({ value: c.id, label: `${c.symbol} ${c.code}` }));
 
   const filterConfigs: FilterConfig[] = [
-    { key: "currencyId", label: "Tiền tệ", type: "select", options: curOptions },
     { key: "dateFrom", label: "Từ ngày", type: "date" },
     { key: "dateTo", label: "Đến ngày", type: "date" },
+    { key: "currencyId", label: "Tiền tệ", type: "select", options: curOptions },
   ];
+
+  const TYPE_LABEL: Record<string, string> = {
+    RECEIPT: "Thu",
+    SALE_PAYMENT: "Thu bán hàng",
+    PAYMENT: "Chi",
+    PURCHASE_PAYMENT: "Chi mua hàng",
+  };
+
+  // Compute "thực thu/chi": Thu = nguyên tệ - phí NH, Chi = nguyên tệ + phí NH
+  function computeNetAmount(row: CashflowTransaction): string {
+    const amt = new Decimal(row.amountOriginal ?? "0");
+    const fee = new Decimal(row.bankFeeOriginal ?? "0");
+    const isMoneyIn = row.type === "RECEIPT" || row.type === "SALE_PAYMENT";
+    return (isMoneyIn ? amt.minus(fee) : amt.plus(fee)).toDecimalPlaces(4).toString();
+  }
 
   const columns: Column<CashflowTransaction>[] = [
     {
@@ -150,17 +167,20 @@ export default function CashflowPage() {
     {
       key: "type",
       label: "Loại",
-      render: (v) => (
-        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-          v === "RECEIPT" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-        }`}>
-          {v === "RECEIPT" ? "Thu" : "Chi"}
-        </span>
-      ),
+      render: (v) => {
+        const isMoneyIn = v === "RECEIPT" || v === "SALE_PAYMENT";
+        return (
+          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+            isMoneyIn ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+          }`}>
+            {TYPE_LABEL[v] ?? v}
+          </span>
+        );
+      },
     },
     {
       key: "amountOriginal",
-      label: "Số tiền",
+      label: "Nguyên tệ",
       align: "right",
       render: (v, row) => (
         <CurrencyAmount
@@ -169,17 +189,6 @@ export default function CashflowPage() {
           currencySymbol={row.currency?.symbol ?? "₫"}
         />
       ),
-    },
-    {
-      key: "amountVnd",
-      label: "VND",
-      align: "right",
-      render: (v) => <CurrencyAmount amount={v} currencyCode="VND" currencySymbol="₫" />,
-    },
-    {
-      key: "paymentMethod",
-      label: "Phương thức",
-      render: (v) => v === "BANK" ? "Ngân hàng" : "Cọc",
     },
     {
       key: "bankFeeOriginal",
@@ -192,6 +201,29 @@ export default function CashflowPage() {
             currencyCode={row.currency?.code ?? "VND"}
             currencySymbol={row.currency?.symbol ?? "₫"}
           />
+        ) : (
+          <span className="text-slate-400">—</span>
+        ),
+    },
+    {
+      key: "netAmount",
+      label: "Thực thu/chi",
+      align: "right",
+      render: (_: unknown, row: CashflowTransaction) => (
+        <CurrencyAmount
+          amount={computeNetAmount(row)}
+          currencyCode={row.currency?.code ?? "VND"}
+          currencySymbol={row.currency?.symbol ?? "₫"}
+        />
+      ),
+    },
+    {
+      key: "amountVnd",
+      label: "Quy đổi VND",
+      align: "right",
+      render: (v, row) =>
+        row.currency?.code !== "VND" ? (
+          <CurrencyAmount amount={v} currencyCode="VND" currencySymbol="₫" />
         ) : (
           <span className="text-slate-400">—</span>
         ),
@@ -219,6 +251,10 @@ export default function CashflowPage() {
       </div>
 
       <FilterBar filters={filterConfigs} onFilterChange={handleFilterChange} values={filters} />
+      <DateQuickPresets onSelect={(from, to) => {
+        setFilters((prev) => ({ ...prev, dateFrom: from, dateTo: to }));
+        setPage(1);
+      }} />
 
       <CashflowSummaryCards summaries={summaries} />
 

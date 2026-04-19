@@ -54,7 +54,8 @@ export async function GET(request: Request) {
         ...currencyFilter,
       },
       include: {
-        currency: { select: { code: true, symbol: true } },
+        currency: { select: { id: true, code: true, symbol: true } },
+        businessUnit: { select: { id: true, code: true, name: true } },
         order: {
           include: {
             party: { select: { name: true } },

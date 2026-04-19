@@ -18,6 +18,7 @@ import {
   SettingsIcon,
   MenuIcon,
   LandmarkIcon,
+  WalletIcon,
 } from "lucide-react";
 
 interface NavItem {
@@ -51,14 +52,15 @@ const NAV_GROUPS: NavGroup[] = [
     title: "Thu Chi",
     items: [
       { label: "Giao dịch", href: "/transactions", icon: ArrowLeftRightIcon },
-      { label: "Dòng tiền", href: "/cashflow", icon: TrendingUpIcon },
     ],
   },
   {
     title: "Báo cáo",
     items: [
       { label: "Tổng hợp", href: "/reports/summary", icon: BarChart3Icon },
+      { label: "Dòng tiền", href: "/reports/cashflow", icon: TrendingUpIcon },
       { label: "Phí ngân hàng", href: "/reports/bank-fees", icon: LandmarkIcon },
+      { label: "Theo dõi cọc", href: "/reports/deposits", icon: WalletIcon },
     ],
   },
   {
