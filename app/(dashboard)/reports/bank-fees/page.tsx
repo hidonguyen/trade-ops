@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { DataTable, Column } from "@/components/shared/data-table";
 import { Pagination } from "@/components/shared/pagination";
 import { FilterBar, FilterConfig } from "@/components/shared/filter-bar";
+import { DateQuickPresets, getThisWeekRange } from "@/components/shared/date-quick-presets";
 import { CurrencyAmount } from "@/components/shared/currency-amount";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -47,14 +48,6 @@ interface Currency {
   symbol: string;
 }
 
-function getDefaultDateRange() {
-  const now = new Date();
-  const from = new Date(now.getFullYear(), now.getMonth(), 1);
-  return {
-    dateFrom: from.toISOString().slice(0, 10),
-    dateTo: now.toISOString().slice(0, 10),
-  };
-}
 
 const TX_TYPE_LABEL: Record<string, string> = {
   SALE_PAYMENT: "TT bán",
@@ -65,11 +58,7 @@ const TX_TYPE_LABEL: Record<string, string> = {
 
 export default function BankFeesReportPage() {
   const { selectedBuId } = useSelectedBu();
-  const defaults = getDefaultDateRange();
-  const [filters, setFilters] = useState<Record<string, string>>({
-    dateFrom: defaults.dateFrom,
-    dateTo: defaults.dateTo,
-  });
+  const [filters, setFilters] = useState<Record<string, string>>(getThisWeekRange);
   const [rows, setRows] = useState<BankFeeRow[]>([]);
   const [totals, setTotals] = useState<Totals>({ grandFeeVnd: "0", byCurrency: [] });
   const [currencies, setCurrencies] = useState<Currency[]>([]);
@@ -202,6 +191,10 @@ export default function BankFeesReportPage() {
       </div>
 
       <FilterBar filters={filterConfigs} onFilterChange={handleFilterChange} values={filters} />
+      <DateQuickPresets onSelect={(from, to) => {
+        setFilters((prev) => ({ ...prev, dateFrom: from, dateTo: to }));
+        setPage(1);
+      }} />
 
       {/* Totals summary */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">

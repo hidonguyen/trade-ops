@@ -10,7 +10,9 @@ import { Pagination } from "@/components/shared/pagination";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { CurrencyAmount } from "@/components/shared/currency-amount";
 import { FilterBar, FilterConfig } from "@/components/shared/filter-bar";
+import { DateQuickPresets, getThisWeekRange } from "@/components/shared/date-quick-presets";
 import { PlusIcon } from "lucide-react";
+import Decimal from "decimal.js";
 
 interface Order extends Record<string, unknown> {
   id: string;
@@ -19,6 +21,8 @@ interface Order extends Record<string, unknown> {
   orderNumber: string;
   orderDate: string;
   amountOriginal: string;
+  paidAmount: string;
+  refundedAmount: string;
   party: { id: string; name: string };
   currency: { id: string; code: string; symbol: string };
   businessUnit: { id: string; code: string; name: string };
@@ -46,7 +50,9 @@ export default function OrdersPage() {
   const [filters, setFilters] = useState<Record<string, string>>(() => {
     const type = searchParams.get("type");
     const partyId = searchParams.get("partyId");
+    const weekRange = getThisWeekRange();
     return {
+      ...weekRange,
       ...(type ? { type } : {}),
       ...(partyId ? { partyId } : {}),
     };
@@ -179,7 +185,7 @@ export default function OrdersPage() {
     },
     {
       key: "amountOriginal",
-      label: "Số tiền",
+      label: "Giá trị đơn hàng",
       align: "right",
       render: (v, row) => (
         <CurrencyAmount
@@ -188,6 +194,38 @@ export default function OrdersPage() {
           currencySymbol={row.currency?.symbol ?? "₫"}
         />
       ),
+    },
+    {
+      key: "paidAmount",
+      label: "Đã thanh toán",
+      align: "right",
+      render: (v, row) => (
+        <CurrencyAmount
+          amount={v}
+          currencyCode={row.currency?.code ?? "VND"}
+          currencySymbol={row.currency?.symbol ?? "₫"}
+        />
+      ),
+    },
+    {
+      key: "balance",
+      label: "Còn phải TT",
+      align: "right",
+      render: (_, row) => {
+        // Còn phải TT = (orderAmount - refunded) - (paid - refunded) = orderAmount - paid
+        const orderAmt = new Decimal(row.amountOriginal ?? "0");
+        const paid = new Decimal(row.paidAmount ?? "0");
+        const balance = Decimal.max(orderAmt.minus(paid), new Decimal(0));
+        return (
+          <span className={balance.greaterThan(0) ? "text-red-600 font-medium" : "text-green-600"}>
+            <CurrencyAmount
+              amount={balance.toDecimalPlaces(4).toString()}
+              currencyCode={row.currency?.code ?? "VND"}
+              currencySymbol={row.currency?.symbol ?? "₫"}
+            />
+          </span>
+        );
+      },
     },
     {
       key: "status",
@@ -244,6 +282,10 @@ export default function OrdersPage() {
       )}
 
       <FilterBar filters={filterConfigs} onFilterChange={handleFilterChange} values={filters} />
+      <DateQuickPresets onSelect={(from, to) => {
+        setFilters((prev) => ({ ...prev, dateFrom: from, dateTo: to }));
+        setPage(1);
+      }} />
 
       <DataTable
         columns={columns as unknown as Column<Record<string, unknown>>[]}

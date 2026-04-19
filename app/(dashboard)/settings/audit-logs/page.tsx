@@ -7,6 +7,7 @@ import { ShieldAlertIcon, ChevronDownIcon, ChevronRightIcon, ArrowLeftIcon } fro
 import { Button } from "@/components/ui/button";
 import { DataTable, Column } from "@/components/shared/data-table";
 import { FilterBar, FilterConfig } from "@/components/shared/filter-bar";
+import { DateQuickPresets, getThisWeekRange } from "@/components/shared/date-quick-presets";
 import { Pagination } from "@/components/shared/pagination";
 
 interface AuditLog extends Record<string, unknown> {
@@ -96,7 +97,7 @@ export default function AuditLogsPage() {
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [users, setUsers] = useState<UserOption[]>([]);
-  const [filters, setFilters] = useState<Record<string, string>>({});
+  const [filters, setFilters] = useState<Record<string, string>>(getThisWeekRange);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(25);
   const [total, setTotal] = useState(0);
@@ -139,6 +140,8 @@ export default function AuditLogsPage() {
   }
 
   const filterConfigs: FilterConfig[] = [
+    { key: "dateFrom", label: "Từ ngày", type: "date" },
+    { key: "dateTo", label: "Đến ngày", type: "date" },
     {
       key: "userId",
       label: "Người dùng",
@@ -147,8 +150,6 @@ export default function AuditLogsPage() {
     },
     { key: "model", label: "Đối tượng", type: "select", options: MODEL_OPTIONS },
     { key: "action", label: "Hành động", type: "select", options: ACTION_OPTIONS },
-    { key: "dateFrom", label: "Từ ngày", type: "date" },
-    { key: "dateTo", label: "Đến ngày", type: "date" },
   ];
 
   if (isAdmin === false) {
@@ -174,6 +175,10 @@ export default function AuditLogsPage() {
       </div>
 
       <FilterBar filters={filterConfigs} onFilterChange={handleFilterChange} values={filters} />
+      <DateQuickPresets onSelect={(from, to) => {
+        setFilters((prev) => ({ ...prev, dateFrom: from, dateTo: to }));
+        setPage(1);
+      }} />
 
       {error && (
         <p className="text-sm text-red-600 bg-red-50 rounded-lg px-4 py-2">{error}</p>
