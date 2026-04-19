@@ -1,20 +1,16 @@
-// Summary report — sales/purchase totals + receivable/payable by currency
+// Summary report — detailed per-order debt tracking + standalone transactions
+// 4 sections: customer receipts, other receipts, supplier payments, other payments
 import { withAuth, checkAccess, apiResponse } from "@/lib/api-helpers";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import Decimal from "decimal.js";
 import { MSG } from "@/lib/messages";
-import { withCache } from "@/lib/cache/with-cache";
-import { reportKey, reportTags, TTL } from "@/lib/cache/keys";
 
 const querySchema = z.object({
   businessUnitId: z.string().uuid(),
   dateFrom: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
   dateTo: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
 });
-
-// Orders that are not fully settled (receivable or payable)
-const UNPAID_STATUSES = ["UNPAID", "PARTIAL_PAID", "PARTIAL_REFUNDED"];
 
 export async function GET(request: Request) {
   const session = await withAuth();
@@ -40,100 +36,107 @@ export async function GET(request: Request) {
   toDate.setHours(23, 59, 59, 999);
 
   try {
-    const result = await withCache(
-      {
-        key: reportKey("summary", { buId: businessUnitId, from: dateFrom, to: dateTo }),
-        tags: reportTags("summary", businessUnitId),
-        ttlMs: TTL.report,
+    // Orders with PAYMENT transactions in the report period
+    const ordersWithTxs = await prisma.order.findMany({
+      where: {
+        businessUnitId,
+        transactions: {
+          some: {
+            paymentType: "PAYMENT",
+            transactionDate: { gte: fromDate, lte: toDate },
+          },
+        },
       },
-      async () => {
-    const [saleOrders, purchaseOrders, openSales, openPurchases] = await Promise.all([
-      // Total sales in period
-      prisma.order.findMany({
+      include: {
+        party: { select: { name: true } },
+        currency: { select: { code: true, symbol: true } },
+        transactions: {
+          where: { paymentType: "PAYMENT" },
+          select: { amountOriginal: true, transactionDate: true },
+        },
+      },
+      orderBy: { orderDate: "asc" },
+    });
+
+    // Compute debt rows per order
+    function buildDebtRows(orders: typeof ordersWithTxs) {
+      return orders.map((order) => {
+        const orderAmt = new Decimal(order.amountOriginal.toString());
+
+        // Sum payments before period
+        const paidBefore = order.transactions
+          .filter((t) => t.transactionDate < fromDate)
+          .reduce((s, t) => s.plus(new Decimal(t.amountOriginal.toString())), new Decimal(0));
+
+        // Sum payments in period
+        const paidInPeriod = order.transactions
+          .filter((t) => t.transactionDate >= fromDate && t.transactionDate <= toDate)
+          .reduce((s, t) => s.plus(new Decimal(t.amountOriginal.toString())), new Decimal(0));
+
+        const priorDebt = Decimal.max(orderAmt.minus(paidBefore), new Decimal(0));
+        const remainingDebt = Decimal.max(orderAmt.minus(paidBefore).minus(paidInPeriod), new Decimal(0));
+
+        return {
+          orderId: order.id,
+          partyName: order.party.name,
+          orderNumber: order.orderNumber,
+          orderDate: order.orderDate.toISOString(),
+          currencyCode: order.currency.code,
+          currencySymbol: order.currency.symbol,
+          priorDebt: priorDebt.toFixed(4),
+          periodPayment: paidInPeriod.toFixed(4),
+          remainingDebt: remainingDebt.toFixed(4),
+          notes: order.notes,
+        };
+      });
+    }
+
+    const saleOrders = ordersWithTxs.filter((o) => o.type === "SALE");
+    const purchaseOrders = ordersWithTxs.filter((o) => o.type === "PURCHASE");
+
+    // Standalone transactions in period
+    const [receipts, payments] = await Promise.all([
+      prisma.transaction.findMany({
         where: {
           businessUnitId,
-          type: "SALE",
-          orderDate: { gte: fromDate, lte: toDate },
+          orderId: null,
+          type: "RECEIPT",
+          transactionDate: { gte: fromDate, lte: toDate },
         },
-        select: { amountOriginal: true, currencyId: true, currency: { select: { code: true, symbol: true } } },
+        include: { currency: { select: { code: true, symbol: true } } },
+        orderBy: { transactionDate: "asc" },
       }),
-      // Total purchases in period
-      prisma.order.findMany({
+      prisma.transaction.findMany({
         where: {
           businessUnitId,
-          type: "PURCHASE",
-          orderDate: { gte: fromDate, lte: toDate },
+          orderId: null,
+          type: "PAYMENT",
+          transactionDate: { gte: fromDate, lte: toDate },
         },
-        select: { amountOriginal: true, currencyId: true, currency: { select: { code: true, symbol: true } } },
-      }),
-      // Open receivables (unpaid/partial SALE orders — no date filter, reflects current state)
-      prisma.order.findMany({
-        where: { businessUnitId, type: "SALE", status: { in: UNPAID_STATUSES } },
-        select: {
-          amountOriginal: true,
-          paidAmount: true,
-          refundedAmount: true,
-          currencyId: true,
-          currency: { select: { code: true, symbol: true } },
-        },
-      }),
-      // Open payables (unpaid/partial PURCHASE orders)
-      prisma.order.findMany({
-        where: { businessUnitId, type: "PURCHASE", status: { in: UNPAID_STATUSES } },
-        select: {
-          amountOriginal: true,
-          paidAmount: true,
-          refundedAmount: true,
-          currencyId: true,
-          currency: { select: { code: true, symbol: true } },
-        },
+        include: { currency: { select: { code: true, symbol: true } } },
+        orderBy: { transactionDate: "asc" },
       }),
     ]);
 
-    // Aggregate by currency helper
-    function sumByCurrency(
-      rows: Array<{ amountOriginal: { toString(): string }; currency: { code: string; symbol: string } }>
-    ) {
-      const map = new Map<string, { code: string; symbol: string; total: Decimal }>();
-      for (const r of rows) {
-        const { code, symbol } = r.currency;
-        if (!map.has(code)) map.set(code, { code, symbol, total: new Decimal(0) });
-        map.get(code)!.total = map.get(code)!.total.plus(new Decimal(r.amountOriginal.toString()));
-      }
-      return Array.from(map.values()).map((e) => ({ code: e.code, symbol: e.symbol, total: e.total.toFixed(4) }));
+    function buildStandaloneRows(txs: typeof receipts) {
+      return txs.map((t) => ({
+        id: t.id,
+        transactionDate: t.transactionDate.toISOString(),
+        amountOriginal: t.amountOriginal.toString(),
+        currencyCode: t.currency.code,
+        currencySymbol: t.currency.symbol,
+        paymentMethod: t.paymentMethod,
+        bankReference: t.bankReference,
+        notes: t.notes,
+      }));
     }
 
-    // Remaining = amountOriginal - paidAmount + refundedAmount
-    function remainingByCurrency(
-      rows: Array<{
-        amountOriginal: { toString(): string };
-        paidAmount: { toString(): string };
-        refundedAmount: { toString(): string };
-        currency: { code: string; symbol: string };
-      }>
-    ) {
-      const map = new Map<string, { code: string; symbol: string; total: Decimal }>();
-      for (const r of rows) {
-        const { code, symbol } = r.currency;
-        if (!map.has(code)) map.set(code, { code, symbol, total: new Decimal(0) });
-        const remaining = new Decimal(r.amountOriginal.toString())
-          .minus(new Decimal(r.paidAmount.toString()))
-          .plus(new Decimal(r.refundedAmount.toString()));
-        map.get(code)!.total = map.get(code)!.total.plus(remaining);
-      }
-      return Array.from(map.values()).map((e) => ({ code: e.code, symbol: e.symbol, total: e.total.toFixed(4) }));
-    }
-
-        return {
-          totalSales: sumByCurrency(saleOrders),
-          totalPurchases: sumByCurrency(purchaseOrders),
-          totalReceivable: remainingByCurrency(openSales),
-          totalPayable: remainingByCurrency(openPurchases),
-        };
-      }
-    );
-
-    return Response.json(apiResponse(true, result));
+    return Response.json(apiResponse(true, {
+      customerReceipts: buildDebtRows(saleOrders),
+      otherReceipts: buildStandaloneRows(receipts),
+      supplierPayments: buildDebtRows(purchaseOrders),
+      otherPayments: buildStandaloneRows(payments),
+    }));
   } catch (error) {
     console.error("GET /api/reports/summary error:", error);
     return Response.json(apiResponse(false, undefined, MSG.internalError), { status: 500 });
