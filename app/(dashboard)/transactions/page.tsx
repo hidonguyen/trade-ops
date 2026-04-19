@@ -1,4 +1,5 @@
 // Standalone transaction list — RECEIPT/PAYMENT not linked to orders
+// Supports edit (dialog) and delete (confirmation) actions
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -9,7 +10,10 @@ import { DataTable, Column } from "@/components/shared/data-table";
 import { Pagination } from "@/components/shared/pagination";
 import { CurrencyAmount } from "@/components/shared/currency-amount";
 import { FilterBar, FilterConfig } from "@/components/shared/filter-bar";
-import { PlusIcon } from "lucide-react";
+import { ConfirmationDialog } from "@/components/shared/confirmation-dialog";
+import { TransactionEditDialog, EditableTransaction } from "@/components/transaction-edit-dialog";
+import { DateQuickPresets, getThisWeekRange } from "@/components/shared/date-quick-presets";
+import { PlusIcon, PencilIcon, Trash2Icon } from "lucide-react";
 
 interface Transaction {
   id: string;
@@ -17,9 +21,12 @@ interface Transaction {
   paymentMethod: string;
   amountOriginal: string;
   amountVnd: string;
+  exchangeRate: string;
   bankReference: string | null;
   transactionDate: string;
   notes: string | null;
+  bankFeeOriginal: string | null;
+  bankFeeVnd: string | null;
   currency: { id: string; code: string; symbol: string };
   businessUnit: { id: string; code: string; name: string };
 }
@@ -42,7 +49,11 @@ export default function TransactionsPage() {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(25);
   const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState<Record<string, string>>({});
+  const [filters, setFilters] = useState<Record<string, string>>(getThisWeekRange);
+  const [editingTx, setEditingTx] = useState<EditableTransaction | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchTransactions = useCallback(async () => {
     setLoading(true);
@@ -52,6 +63,9 @@ export default function TransactionsPage() {
         limit: String(limit),
         ...(selectedBuId ? { businessUnitId: selectedBuId } : {}),
         ...(filters.type ? { type: filters.type } : {}),
+        ...(filters.dateFrom ? { dateFrom: filters.dateFrom } : {}),
+        ...(filters.dateTo ? { dateTo: filters.dateTo } : {}),
+        ...(filters.bankReference ? { bankReference: filters.bankReference } : {}),
       });
       const res = await fetch(`/api/transactions?${params}`);
       const json = await res.json();
@@ -73,7 +87,25 @@ export default function TransactionsPage() {
     setPage(1);
   }
 
+  async function handleDelete() {
+    if (!deleteId) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/transactions/${deleteId}`, { method: "DELETE" });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.message ?? "Lỗi xóa giao dịch");
+      fetchTransactions();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Lỗi xóa giao dịch");
+    } finally {
+      setDeleting(false);
+      setDeleteId(null);
+    }
+  }
+
   const filterConfigs: FilterConfig[] = [
+    { key: "date", label: "Thời gian", type: "date-range" },
+    { key: "bankReference", label: "Tham chiếu", type: "search", placeholder: "Tìm mã tham chiếu..." },
     { key: "type", label: "Loại giao dịch", type: "select", options: TYPE_OPTIONS },
     { key: "paymentMethod", label: "Phương thức", type: "select", options: METHOD_OPTIONS },
   ];
@@ -129,6 +161,30 @@ export default function TransactionsPage() {
       label: "Đơn vị",
       render: (_, row) => row.businessUnit?.code ?? "—",
     },
+    {
+      key: "actions",
+      label: "",
+      render: (_: unknown, row: Transaction) => (
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="text-slate-500 hover:text-blue-600 hover:bg-blue-50"
+            onClick={(e) => { e.stopPropagation(); setEditingTx(row as EditableTransaction); }}
+          >
+            <PencilIcon className="size-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="text-red-500 hover:text-red-700 hover:bg-red-50"
+            onClick={(e) => { e.stopPropagation(); setDeleteId(row.id); }}
+          >
+            <Trash2Icon className="size-4" />
+          </Button>
+        </div>
+      ),
+    },
   ];
 
   return (
@@ -141,7 +197,18 @@ export default function TransactionsPage() {
         </Button>
       </div>
 
+      {error && (
+        <div className="rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+          {error}
+          <button onClick={() => setError(null)} className="ml-2 text-red-500 hover:text-red-700">×</button>
+        </div>
+      )}
+
       <FilterBar filters={filterConfigs} onFilterChange={handleFilterChange} values={filters} />
+      <DateQuickPresets onSelect={(from, to) => {
+        setFilters((prev) => ({ ...prev, dateFrom: from, dateTo: to }));
+        setPage(1);
+      }} />
 
       <DataTable
         columns={columns as unknown as Column<Record<string, unknown>>[]}
@@ -156,6 +223,25 @@ export default function TransactionsPage() {
         total={total}
         onPageChange={setPage}
         onLimitChange={(l) => { setLimit(l); setPage(1); }}
+      />
+
+      {/* Edit dialog */}
+      <TransactionEditDialog
+        open={!!editingTx}
+        onClose={() => setEditingTx(null)}
+        onSuccess={fetchTransactions}
+        transaction={editingTx}
+      />
+
+      {/* Delete confirmation */}
+      <ConfirmationDialog
+        open={!!deleteId}
+        title="Xóa giao dịch"
+        description="Giao dịch này sẽ bị xóa vĩnh viễn. Bạn có chắc chắn?"
+        variant="danger"
+        confirmLabel={deleting ? "Đang xóa..." : "Xóa"}
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteId(null)}
       />
     </div>
   );

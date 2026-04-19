@@ -12,10 +12,16 @@ export async function deductDeposit(
   tx: any,
   depositId: string,
   amountOriginal: string,
-  transactionId: string
+  transactionId: string,
+  currencyId?: string
 ) {
   const deposit = await tx.deposit.findUnique({ where: { id: depositId } });
   if (!deposit) throw new Error(MSG.depositNotFound);
+
+  // Validate currency match — deposit and transaction must use same currency
+  if (currencyId && deposit.currencyId !== currencyId) {
+    throw new Error(MSG.depositCurrencyMismatch);
+  }
 
   const remaining = new Decimal(deposit.remainingOriginal.toString());
   const deductAmount = new Decimal(amountOriginal);
@@ -41,10 +47,16 @@ export async function creditDeposit(
   tx: any,
   depositId: string,
   amountOriginal: string,
-  transactionId: string
+  transactionId: string,
+  currencyId?: string
 ) {
   const deposit = await tx.deposit.findUnique({ where: { id: depositId } });
   if (!deposit) throw new Error(MSG.depositNotFound);
+
+  // Validate currency match — deposit and transaction must use same currency
+  if (currencyId && deposit.currencyId !== currencyId) {
+    throw new Error(MSG.depositCurrencyMismatch);
+  }
 
   const amount = new Decimal(amountOriginal);
   await tx.deposit.update({
@@ -134,18 +146,21 @@ export async function applyDepositOperation(
     depositId: string | null;
     amountOriginal: string;
     transactionId: string;
+    // Currency of the transaction — used to validate deposit currency match
+    currencyId?: string;
     // Required when depositId is null and paymentType is REFUND (auto-create path)
     partyContext?: { partyId: string; businessUnitId: string; currencyId: string };
   }
 ) {
+  const txCurrencyId = args.currencyId ?? args.partyContext?.currencyId;
   if (args.paymentType === "PAYMENT") {
     if (!args.depositId) throw new Error(MSG.depositIdRequiredPayment);
-    await deductDeposit(tx, args.depositId, args.amountOriginal, args.transactionId);
+    await deductDeposit(tx, args.depositId, args.amountOriginal, args.transactionId, txCurrencyId);
     return;
   }
   // REFUND
   if (args.depositId) {
-    await creditDeposit(tx, args.depositId, args.amountOriginal, args.transactionId);
+    await creditDeposit(tx, args.depositId, args.amountOriginal, args.transactionId, txCurrencyId);
     return;
   }
   if (!args.partyContext) {

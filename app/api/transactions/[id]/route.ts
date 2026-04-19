@@ -9,14 +9,15 @@ import { MSG } from "@/lib/messages";
 import { invalidateTags } from "@/lib/cache/invalidate";
 import { TAG } from "@/lib/cache/keys";
 import { diffForAudit } from "@/lib/audit-diff";
+import { decimalString } from "@/lib/validation-schemas";
 
 const updateStandaloneSchema = z.object({
-  amountOriginal: z.string().optional(),
-  amountVnd: z.string().optional(),
-  exchangeRate: z.string().optional(),
-  bankReference: z.string().max(100).optional(),
+  amountOriginal: decimalString.optional(),
+  amountVnd: decimalString.optional(),
+  exchangeRate: decimalString.optional(),
+  bankReference: z.string().max(100).nullable().optional(),
   transactionDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
-  notes: z.string().max(1000).optional(),
+  notes: z.string().max(1000).nullable().optional(),
   depositId: z.string().uuid().nullable().optional(),
   // partyId required only if switching to DEPOSIT+REFUND with no depositId; not stored on tx
   partyId: z.string().uuid().optional(),
@@ -80,6 +81,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           depositId: newDepositId ?? null,
           amountOriginal: amount,
           transactionId: id,
+          currencyId: transaction.currencyId,
           partyContext: partyId
             ? {
                 partyId,
@@ -104,7 +106,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     invalidateTags([TAG.reportsByBu(result.businessUnitId)]);
     return Response.json(apiResponse(true, result));
   } catch (error) {
-    if (error instanceof Error && error.message === MSG.insufficientDeposit) {
+    if (error instanceof Error && (error.message === MSG.insufficientDeposit || error.message === MSG.depositCurrencyMismatch)) {
       return Response.json(apiResponse(false, undefined, error.message), { status: 422 });
     }
     console.error("PATCH /api/transactions/[id] error:", error);

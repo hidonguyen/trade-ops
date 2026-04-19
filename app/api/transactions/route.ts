@@ -38,12 +38,26 @@ export async function GET(request: NextRequest) {
   }
 
   const businessUnitId = searchParams.get("businessUnitId");
+  const dateFrom = searchParams.get("dateFrom");
+  const dateTo = searchParams.get("dateTo");
+  const bankReference = searchParams.get("bankReference");
   const { page, limit, skip, sortBy, order } = parsePagination(searchParams);
+
+  // Build date range filter — include full last day
+  const dateFilter: Record<string, Date> = {};
+  if (dateFrom) dateFilter.gte = new Date(dateFrom);
+  if (dateTo) {
+    const end = new Date(dateTo);
+    end.setHours(23, 59, 59, 999);
+    dateFilter.lte = end;
+  }
 
   const where = {
     orderId: null,
     type: { in: allowedTypes },
     ...(businessUnitId && { businessUnitId }),
+    ...(Object.keys(dateFilter).length > 0 && { transactionDate: dateFilter }),
+    ...(bankReference && { bankReference: { contains: bankReference, mode: "insensitive" as const } }),
   };
 
   try {
@@ -106,6 +120,7 @@ export async function POST(request: Request) {
           depositId: depositId ?? null,
           amountOriginal: txData.amountOriginal,
           transactionId: created.id,
+          currencyId: txData.currencyId,
           partyContext: partyId
             ? {
                 partyId,
@@ -136,7 +151,7 @@ export async function POST(request: Request) {
     invalidateTags(txInvalidations);
     return Response.json(apiResponse(true, result), { status: 201 });
   } catch (error) {
-    if (error instanceof Error && error.message === MSG.insufficientDeposit) {
+    if (error instanceof Error && (error.message === MSG.insufficientDeposit || error.message === MSG.depositCurrencyMismatch)) {
       return Response.json(apiResponse(false, undefined, error.message), { status: 422 });
     }
     console.error("POST /api/transactions error:", error);

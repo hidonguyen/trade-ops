@@ -1,0 +1,238 @@
+// Dialog for editing standalone transactions (RECEIPT/PAYMENT)
+// Locks type, paymentMethod, currency — only editable: amount, rate, reference, date, notes, fees
+"use client";
+
+import { useState, useEffect } from "react";
+import Decimal from "decimal.js";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { DatePicker } from "@/components/ui/date-picker";
+import { NumberInput } from "@/components/ui/number-input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+
+export interface EditableTransaction {
+  id: string;
+  type: string;
+  paymentMethod: string;
+  amountOriginal: string;
+  amountVnd: string;
+  exchangeRate: string;
+  bankReference: string | null;
+  transactionDate: string;
+  notes: string | null;
+  bankFeeOriginal: string | null;
+  bankFeeVnd: string | null;
+  currency: { id: string; code: string; symbol: string };
+}
+
+interface TransactionEditDialogProps {
+  open: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+  transaction: EditableTransaction | null;
+}
+
+interface EditFormState {
+  amountOriginal: string;
+  exchangeRate: string;
+  amountVnd: string;
+  bankReference: string;
+  transactionDate: string;
+  notes: string;
+}
+
+const TYPE_LABEL: Record<string, string> = {
+  RECEIPT: "Thu tiền",
+  PAYMENT: "Chi tiền",
+};
+
+export function TransactionEditDialog({ open, onClose, onSuccess, transaction }: TransactionEditDialogProps) {
+  const [form, setForm] = useState<EditFormState>({
+    amountOriginal: "", exchangeRate: "1", amountVnd: "",
+    bankReference: "", transactionDate: "", notes: "",
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Pre-fill form when dialog opens
+  useEffect(() => {
+    if (!open || !transaction) return;
+    setError(null);
+    setForm({
+      amountOriginal: transaction.amountOriginal,
+      exchangeRate: transaction.exchangeRate,
+      amountVnd: transaction.amountVnd,
+      bankReference: transaction.bankReference ?? "",
+      transactionDate: transaction.transactionDate.split("T")[0],
+      notes: transaction.notes ?? "",
+    });
+  }, [open, transaction]);
+
+  if (!transaction) return null;
+
+  const currencyCode = transaction.currency?.code ?? "VND";
+  const currencySymbol = transaction.currency?.symbol ?? "₫";
+
+  function setField<K extends keyof EditFormState>(key: K, value: EditFormState[K]) {
+    setForm((prev) => {
+      const updated = { ...prev, [key]: value };
+      if (key === "amountOriginal" || key === "exchangeRate") {
+        try {
+          const amt = new Decimal(updated.amountOriginal || "0");
+          const rate = new Decimal(updated.exchangeRate || "1");
+          updated.amountVnd = amt.times(rate).toDecimalPlaces(4).toString();
+        } catch { updated.amountVnd = ""; }
+      }
+      // Bank fees are set at creation time and not editable
+      return updated;
+    });
+  }
+
+  function validate(): string | null {
+    if (!form.amountOriginal || isNaN(parseFloat(form.amountOriginal)) || parseFloat(form.amountOriginal) <= 0)
+      return "Số tiền phải lớn hơn 0";
+    if (!form.exchangeRate || isNaN(parseFloat(form.exchangeRate)) || parseFloat(form.exchangeRate) <= 0)
+      return "Tỷ giá không hợp lệ";
+    if (!form.transactionDate) return "Ngày giao dịch là bắt buộc";
+    return null;
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const validationError = validate();
+    if (validationError) { setError(validationError); return; }
+    setLoading(true);
+    setError(null);
+
+    const payload: Record<string, unknown> = {
+      amountOriginal: form.amountOriginal,
+      amountVnd: form.amountVnd,
+      exchangeRate: form.exchangeRate,
+      bankReference: form.bankReference || null,
+      transactionDate: form.transactionDate,
+      notes: form.notes || null,
+    };
+
+    try {
+      const res = await fetch(`/api/transactions/${transaction!.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.message ?? "Lỗi cập nhật giao dịch");
+      onSuccess();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Lỗi không xác định");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Chỉnh sửa giao dịch</DialogTitle>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4 mt-2">
+          {error && (
+            <div className="rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+
+          {/* Locked fields — display only */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Loại giao dịch</Label>
+              <Input value={TYPE_LABEL[transaction.type] ?? transaction.type} readOnly className="bg-slate-50" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Tiền tệ</Label>
+              <Input value={`${currencySymbol} ${currencyCode}`} readOnly className="bg-slate-50" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Số tiền ({currencyCode}) <span className="text-red-500">*</span></Label>
+              <NumberInput
+                value={form.amountOriginal}
+                onChange={(v) => setField("amountOriginal", v)}
+                decimals={4}
+                min={0}
+                placeholder="0.0000"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Phương thức</Label>
+              <Input value={transaction.paymentMethod === "BANK" ? "Ngân hàng" : "Cọc"} readOnly className="bg-slate-50" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Tỷ giá <span className="text-red-500">*</span></Label>
+              <NumberInput
+                value={form.exchangeRate}
+                onChange={(v) => setField("exchangeRate", v)}
+                decimals={8}
+                min={0}
+                placeholder="1"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Thành tiền VND</Label>
+              <NumberInput value={form.amountVnd} onChange={() => {}} readOnly decimals={4} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Mã tham chiếu</Label>
+              <Input
+                placeholder="Số chứng từ..."
+                value={form.bankReference}
+                onChange={(e) => setField("bankReference", e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Ngày giao dịch <span className="text-red-500">*</span></Label>
+              <DatePicker
+                value={form.transactionDate}
+                onChange={(v) => setField("transactionDate", v)}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Ghi chú</Label>
+            <Textarea
+              placeholder="Ghi chú..."
+              value={form.notes}
+              onChange={(e) => setField("notes", e.target.value)}
+              rows={2}
+            />
+          </div>
+
+          <div className="flex gap-2 justify-end">
+            <Button type="button" variant="outline" onClick={onClose}>Hủy</Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? "Đang lưu..." : "Cập nhật"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
