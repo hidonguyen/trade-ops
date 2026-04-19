@@ -1,4 +1,4 @@
-// Payment form for order-linked transactions — supports BANK and DEPOSIT methods
+// Payment form for order-linked transactions — supports CREATE and EDIT modes
 // amountVnd is auto-computed using Decimal.js (no floating-point errors)
 "use client";
 
@@ -35,6 +35,20 @@ interface Currency {
   symbol: string;
 }
 
+export interface EditingTransaction {
+  id: string;
+  paymentType: string;
+  paymentMethod: string;
+  amountOriginal: string;
+  exchangeRate: string;
+  amountVnd: string;
+  bankReference: string | null;
+  transactionDate: string;
+  notes: string | null;
+  bankFeeOriginal: string | null;
+  bankFeeVnd: string | null;
+}
+
 interface PaymentFormProps {
   open: boolean;
   onClose: () => void;
@@ -43,6 +57,10 @@ interface PaymentFormProps {
   orderType: string; // "SALE" | "PURCHASE"
   partyId: string;
   currency: Currency;
+  // Edit mode: pre-fill form and call PATCH instead of POST
+  editingTransaction?: EditingTransaction | null;
+  // Remaining balance for overpayment hint (in original currency)
+  maxPaymentAmount?: string;
 }
 
 interface FormState {
@@ -74,18 +92,27 @@ const defaultForm: FormState = {
   bankFeeVnd: "",
 };
 
-export function PaymentForm({ open, onClose, onSuccess, orderId, orderType, partyId, currency }: PaymentFormProps) {
+export function PaymentForm({
+  open, onClose, onSuccess, orderId, orderType, partyId, currency,
+  editingTransaction, maxPaymentAmount,
+}: PaymentFormProps) {
+  const isEditing = !!editingTransaction;
   const [form, setForm] = useState<FormState>({ ...defaultForm });
   const [deposits, setDeposits] = useState<Deposit[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load party deposits when method = DEPOSIT
+  // Load party deposits when method = DEPOSIT — filter by currency to prevent mismatch
   useEffect(() => {
     if (form.paymentMethod === "DEPOSIT" && partyId) {
       fetch(`/api/parties/${partyId}/deposits`)
         .then((r) => r.json())
-        .then((json) => { if (json.success) setDeposits(json.data); })
+        .then((json) => {
+          if (json.success) {
+            const filtered = json.data.filter((d: any) => d.currencyId === currency.id || d.currency?.id === currency.id);
+            setDeposits(filtered);
+          }
+        })
         .catch(() => setError("Không thể tải danh sách cọc"));
     }
   }, [form.paymentMethod, partyId]);
@@ -102,14 +129,31 @@ export function PaymentForm({ open, onClose, onSuccess, orderId, orderType, part
     }
   }, [form.paymentMethod, form.paymentType, deposits.length, form.depositId]);
 
-  // Reset form and stale deposits when dialog opens
+  // Reset/pre-fill form when dialog opens
   useEffect(() => {
-    if (open) {
+    if (!open) return;
+    setError(null);
+    setDeposits([]);
+
+    if (editingTransaction) {
+      // Pre-fill from existing transaction
+      setForm({
+        paymentType: editingTransaction.paymentType,
+        paymentMethod: editingTransaction.paymentMethod,
+        amountOriginal: editingTransaction.amountOriginal,
+        exchangeRate: editingTransaction.exchangeRate,
+        amountVnd: editingTransaction.amountVnd,
+        bankReference: editingTransaction.bankReference ?? "",
+        transactionDate: editingTransaction.transactionDate.split("T")[0],
+        notes: editingTransaction.notes ?? "",
+        depositId: "",
+        bankFeeOriginal: editingTransaction.bankFeeOriginal ?? "",
+        bankFeeVnd: editingTransaction.bankFeeVnd ?? "",
+      });
+    } else {
       setForm({ ...defaultForm });
-      setDeposits([]);
-      setError(null);
     }
-  }, [open]);
+  }, [open, editingTransaction]);
 
   function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => {
@@ -151,6 +195,18 @@ export function PaymentForm({ open, onClose, onSuccess, orderId, orderType, part
     });
   }
 
+  // Check if current amount exceeds max (client-side hint only)
+  const isOverMax = (() => {
+    if (!maxPaymentAmount || form.paymentType !== "PAYMENT") return false;
+    try {
+      const amt = new Decimal(form.amountOriginal || "0");
+      const max = new Decimal(maxPaymentAmount);
+      return amt.greaterThan(max);
+    } catch {
+      return false;
+    }
+  })();
+
   function validate(): string | null {
     if (!form.paymentType) return "Loại thanh toán là bắt buộc";
     if (!form.paymentMethod) return "Phương thức thanh toán là bắt buộc";
@@ -158,8 +214,9 @@ export function PaymentForm({ open, onClose, onSuccess, orderId, orderType, part
       return "Số tiền phải lớn hơn 0";
     if (!form.exchangeRate || isNaN(parseFloat(form.exchangeRate)) || parseFloat(form.exchangeRate) <= 0)
       return "Tỷ giá không hợp lệ";
+    if (!form.bankReference?.trim()) return "Mã tham chiếu là bắt buộc";
     if (!form.transactionDate) return "Ngày giao dịch là bắt buộc";
-    if (form.paymentMethod === "DEPOSIT") {
+    if (form.paymentMethod === "DEPOSIT" && !isEditing) {
       if (!form.depositId) return "Vui lòng chọn cọc";
       if (form.paymentType === "PAYMENT" && form.depositId === DEPOSIT_CREATE_NEW) {
         return "Thanh toán phải dùng cọc hiện có, không thể tạo mới";
@@ -180,36 +237,55 @@ export function PaymentForm({ open, onClose, onSuccess, orderId, orderType, part
       form.bankFeeOriginal &&
       parseFloat(form.bankFeeOriginal) > 0;
 
-    const payload = {
-      type: orderType === "SALE" ? "SALE_PAYMENT" : "PURCHASE_PAYMENT",
-      paymentType: form.paymentType,
-      paymentMethod: form.paymentMethod,
-      amountOriginal: form.amountOriginal,
-      exchangeRate: form.exchangeRate,
-      amountVnd: form.amountVnd,
-      currencyId: currency.id,
-      bankReference: form.bankReference || null,
-      transactionDate: form.transactionDate,
-      notes: form.notes || null,
-      // "__CREATE_NEW__" is a UI sentinel — omit depositId so backend auto-creates
-      ...(form.paymentMethod === "DEPOSIT" &&
-      form.depositId &&
-      form.depositId !== DEPOSIT_CREATE_NEW
-        ? { depositId: form.depositId }
-        : {}),
-      ...(hasBankFee
-        ? { bankFeeOriginal: form.bankFeeOriginal, bankFeeVnd: form.bankFeeVnd }
-        : {}),
-    };
-
     try {
-      const res = await fetch(`/api/orders/${orderId}/transactions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      let res: Response;
+
+      if (isEditing) {
+        // PATCH — only send changed fields
+        const patchPayload: Record<string, unknown> = {
+          amountOriginal: form.amountOriginal,
+          amountVnd: form.amountVnd,
+          exchangeRate: form.exchangeRate,
+          bankReference: form.bankReference || null,
+          transactionDate: form.transactionDate,
+          notes: form.notes || null,
+        };
+        res = await fetch(`/api/orders/${orderId}/transactions/${editingTransaction!.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(patchPayload),
+        });
+      } else {
+        // POST — full payload for create
+        const payload = {
+          type: orderType === "SALE" ? "SALE_PAYMENT" : "PURCHASE_PAYMENT",
+          paymentType: form.paymentType,
+          paymentMethod: form.paymentMethod,
+          amountOriginal: form.amountOriginal,
+          exchangeRate: form.exchangeRate,
+          amountVnd: form.amountVnd,
+          currencyId: currency.id,
+          bankReference: form.bankReference || null,
+          transactionDate: form.transactionDate,
+          notes: form.notes || null,
+          ...(form.paymentMethod === "DEPOSIT" &&
+          form.depositId &&
+          form.depositId !== DEPOSIT_CREATE_NEW
+            ? { depositId: form.depositId }
+            : {}),
+          ...(hasBankFee
+            ? { bankFeeOriginal: form.bankFeeOriginal, bankFeeVnd: form.bankFeeVnd }
+            : {}),
+        };
+        res = await fetch(`/api/orders/${orderId}/transactions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      }
+
       const json = await res.json();
-      if (!json.success) throw new Error(json.message ?? "Lỗi tạo thanh toán");
+      if (!json.success) throw new Error(json.message ?? (isEditing ? "Lỗi cập nhật thanh toán" : "Lỗi tạo thanh toán"));
       onSuccess();
       onClose();
     } catch (err) {
@@ -223,7 +299,7 @@ export function PaymentForm({ open, onClose, onSuccess, orderId, orderType, part
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Thêm thanh toán</DialogTitle>
+          <DialogTitle>{isEditing ? "Chỉnh sửa thanh toán" : "Thêm thanh toán"}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 mt-2">
@@ -235,7 +311,7 @@ export function PaymentForm({ open, onClose, onSuccess, orderId, orderType, part
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Loại thanh toán</Label>
+              <Label>Loại thanh toán <span className="text-red-500">*</span></Label>
               <Combobox
                 value={form.paymentType}
                 onValueChange={(v) => setField("paymentType", v)}
@@ -244,11 +320,12 @@ export function PaymentForm({ open, onClose, onSuccess, orderId, orderType, part
                   { value: "REFUND", label: "Hoàn tiền" },
                 ]}
                 placeholder="Chọn loại"
+                disabled={isEditing}
               />
             </div>
 
             <div className="space-y-1.5">
-              <Label>Phương thức</Label>
+              <Label>Phương thức <span className="text-red-500">*</span></Label>
               <Combobox
                 value={form.paymentMethod}
                 onValueChange={(v) => { setField("paymentMethod", v); setField("depositId", ""); }}
@@ -257,13 +334,14 @@ export function PaymentForm({ open, onClose, onSuccess, orderId, orderType, part
                   { value: "DEPOSIT", label: "Cọc" },
                 ]}
                 placeholder="Chọn phương thức"
+                disabled={isEditing}
               />
             </div>
           </div>
 
-          {form.paymentMethod === "DEPOSIT" && (
+          {form.paymentMethod === "DEPOSIT" && !isEditing && (
             <div className="space-y-1.5">
-              <Label>Chọn cọc</Label>
+              <Label>Chọn cọc <span className="text-red-500">*</span></Label>
               <Combobox
                 value={form.depositId}
                 onValueChange={(v) => setField("depositId", v)}
@@ -293,7 +371,7 @@ export function PaymentForm({ open, onClose, onSuccess, orderId, orderType, part
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Số tiền ({currency.code})</Label>
+              <Label>Số tiền ({currency.code}) <span className="text-red-500">*</span></Label>
               <NumberInput
                 value={form.amountOriginal}
                 onChange={(v) => setField("amountOriginal", v)}
@@ -301,6 +379,13 @@ export function PaymentForm({ open, onClose, onSuccess, orderId, orderType, part
                 min={0}
                 placeholder="0.0000"
               />
+              {/* Overpayment hint — warn when amount exceeds remaining balance */}
+              {maxPaymentAmount && form.paymentType === "PAYMENT" && (
+                <p className={`text-xs ${isOverMax ? "text-red-500 font-medium" : "text-slate-500"}`}>
+                  Còn phải thanh toán: {new Decimal(maxPaymentAmount).toDecimalPlaces(4).toString()} {currency.code}
+                  {isOverMax && " — vượt quá!"}
+                </p>
+              )}
             </div>
 
             <div className="space-y-1.5">
@@ -311,7 +396,7 @@ export function PaymentForm({ open, onClose, onSuccess, orderId, orderType, part
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Tỷ giá</Label>
+              <Label>Tỷ giá <span className="text-red-500">*</span></Label>
               <NumberInput
                 value={form.exchangeRate}
                 onChange={(v) => setField("exchangeRate", v)}
@@ -350,7 +435,7 @@ export function PaymentForm({ open, onClose, onSuccess, orderId, orderType, part
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Mã tham chiếu</Label>
+              <Label>Mã tham chiếu <span className="text-red-500">*</span></Label>
               <Input
                 placeholder="Số chứng từ..."
                 value={form.bankReference}
@@ -359,7 +444,7 @@ export function PaymentForm({ open, onClose, onSuccess, orderId, orderType, part
             </div>
 
             <div className="space-y-1.5">
-              <Label>Ngày giao dịch</Label>
+              <Label>Ngày giao dịch <span className="text-red-500">*</span></Label>
               <DatePicker
                 value={form.transactionDate}
                 onChange={(v) => setField("transactionDate", v)}
@@ -380,7 +465,7 @@ export function PaymentForm({ open, onClose, onSuccess, orderId, orderType, part
           <div className="flex gap-2 justify-end">
             <Button type="button" variant="outline" onClick={onClose}>Hủy</Button>
             <Button type="submit" disabled={loading}>
-              {loading ? "Đang lưu..." : "Lưu thanh toán"}
+              {loading ? "Đang lưu..." : isEditing ? "Cập nhật" : "Lưu thanh toán"}
             </Button>
           </div>
         </form>

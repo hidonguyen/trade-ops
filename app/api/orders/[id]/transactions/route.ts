@@ -7,6 +7,7 @@ import { createAuditLog } from "@/lib/audit";
 import { createOrderTransactionSchema } from "@/lib/validation-schemas";
 import { applyDepositOperation } from "@/lib/deposit-deduction-service";
 import { recalculateOrderStatus } from "@/lib/order-status-calculator";
+import { checkOverpayment } from "@/lib/overpayment-guard";
 import { MSG } from "@/lib/messages";
 import { invalidateTags } from "@/lib/cache/invalidate";
 import { withCache } from "@/lib/cache/with-cache";
@@ -109,6 +110,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const result = await prisma.$transaction(async (tx: any) => {
+      // Reject if payment would exceed remaining order balance
+      await checkOverpayment(tx, orderId, txData.amountOriginal, txData.paymentType);
+
       const created = await tx.transaction.create({
         data: {
           ...txData,
@@ -150,7 +154,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     invalidateTags(invalidations);
     return Response.json(apiResponse(true, result), { status: 201 });
   } catch (error) {
-    if (error instanceof Error && error.message === MSG.insufficientDeposit) {
+    if (error instanceof Error && (error.message === MSG.insufficientDeposit || error.message === MSG.overpaymentExceeded || error.message === MSG.overRefundExceeded)) {
       return Response.json(apiResponse(false, undefined, error.message), { status: 422 });
     }
     console.error("POST /api/orders/[id]/transactions error:", error);

@@ -233,7 +233,7 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1.5">
-          <Label>Loại giao dịch</Label>
+          <Label>Loại giao dịch <span className="text-red-500">*</span></Label>
           <Combobox
             value={form.type}
             onValueChange={(v) => setField("type", v)}
@@ -246,7 +246,7 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
         </div>
 
         <div className="space-y-1.5">
-          <Label>Tiền tệ</Label>
+          <Label>Tiền tệ <span className="text-red-500">*</span></Label>
           <Combobox
             value={form.currencyId}
             onValueChange={(v) => setField("currencyId", v)}
@@ -256,7 +256,7 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
         </div>
 
         <div className="space-y-1.5">
-          <Label>Phương thức thanh toán</Label>
+          <Label>Phương thức thanh toán <span className="text-red-500">*</span></Label>
           <Combobox
             value={form.paymentMethod}
             onValueChange={(v) => { setField("paymentMethod", v); setField("depositId", ""); }}
@@ -269,7 +269,7 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
         </div>
 
         <div className="space-y-1.5">
-          <Label>Số tiền {selectedCurrency ? `(${selectedCurrency.code})` : ""}</Label>
+          <Label>Số tiền {selectedCurrency ? `(${selectedCurrency.code})` : ""} <span className="text-red-500">*</span></Label>
           <NumberInput
             value={form.amountOriginal}
             onChange={(v) => setField("amountOriginal", v)}
@@ -280,7 +280,7 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
         </div>
 
         <div className="space-y-1.5">
-          <Label>Tỷ giá</Label>
+          <Label>Tỷ giá <span className="text-red-500">*</span></Label>
           <NumberInput
             value={form.exchangeRate}
             onChange={(v) => setField("exchangeRate", v)}
@@ -305,7 +305,7 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
         </div>
 
         <div className="space-y-1.5">
-          <Label>Ngày giao dịch</Label>
+          <Label>Ngày giao dịch <span className="text-red-500">*</span></Label>
           <DatePicker
             value={form.transactionDate}
             onChange={(v) => setField("transactionDate", v)}
@@ -336,7 +336,7 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
       {form.paymentMethod === "DEPOSIT" && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <Label>Đối tác (cọc)</Label>
+            <Label>Đối tác (cọc) <span className="text-red-500">*</span></Label>
             <Combobox
               value={form.partyId}
               onValueChange={(v) => { setField("partyId", v); setField("depositId", ""); }}
@@ -345,7 +345,7 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
             />
           </div>
           <div className="space-y-1.5">
-            <Label>Chọn cọc</Label>
+            <Label>Chọn cọc <span className="text-red-500">*</span></Label>
             <Combobox
               value={form.depositId}
               onValueChange={(v) => setField("depositId", v)}

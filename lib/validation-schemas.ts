@@ -176,9 +176,9 @@ export const createOrderTransactionSchema = refineDepositRules(
       currencyId: z.string().uuid(),
       amountVnd: decimalString,
       exchangeRate: decimalAny,
-      bankReference: z.string().max(100).optional(),
+      bankReference: z.string().max(100).nullable().optional(),
       transactionDate: dateField,
-      notes: z.string().max(1000).optional(),
+      notes: z.string().max(1000).nullable().optional(),
       depositId: z.string().uuid().optional(),
       ...bankFeeFields,
     })
@@ -199,9 +199,9 @@ export const createStandaloneTransactionSchema = refineDepositRules(
       currencyId: z.string().uuid(),
       amountVnd: decimalString,
       exchangeRate: decimalAny,
-      bankReference: z.string().max(100).optional(),
+      bankReference: z.string().max(100).nullable().optional(),
       transactionDate: dateField,
-      notes: z.string().max(1000).optional(),
+      notes: z.string().max(1000).nullable().optional(),
       depositId: z.string().uuid().optional(),
       // partyId is required when auto-creating a deposit on REFUND + DEPOSIT
       partyId: z.string().uuid().optional(),

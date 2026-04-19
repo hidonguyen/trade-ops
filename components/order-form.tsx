@@ -169,7 +169,7 @@ export function OrderForm({ initialData, onSubmit, mode, lockType }: OrderFormPr
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1.5">
-          <Label>Loại đơn</Label>
+          <Label>Loại đơn <span className="text-red-500">*</span></Label>
           <Combobox
             value={form.type}
             onValueChange={(v) => { setField("type", v); setField("partyId", ""); }}
@@ -183,7 +183,7 @@ export function OrderForm({ initialData, onSubmit, mode, lockType }: OrderFormPr
         </div>
 
         <div className="space-y-1.5">
-          <Label>Đối tác</Label>
+          <Label>Đối tác <span className="text-red-500">*</span></Label>
           <Combobox
             value={form.partyId}
             onValueChange={(v) => setField("partyId", v)}
@@ -205,7 +205,7 @@ export function OrderForm({ initialData, onSubmit, mode, lockType }: OrderFormPr
         </div>
 
         <div className="space-y-1.5">
-          <Label>Tiền tệ</Label>
+          <Label>Tiền tệ <span className="text-red-500">*</span></Label>
           <Combobox
             value={form.currencyId}
             onValueChange={(v) => setField("currencyId", v)}
@@ -215,7 +215,7 @@ export function OrderForm({ initialData, onSubmit, mode, lockType }: OrderFormPr
         </div>
 
         <div className="space-y-1.5">
-          <Label>Số tiền</Label>
+          <Label>Số tiền <span className="text-red-500">*</span></Label>
           <NumberInput
             value={form.amountOriginal}
             onChange={(v) => setField("amountOriginal", v)}
@@ -226,7 +226,7 @@ export function OrderForm({ initialData, onSubmit, mode, lockType }: OrderFormPr
         </div>
 
         <div className="space-y-1.5">
-          <Label>Ngày đặt</Label>
+          <Label>Ngày đặt <span className="text-red-500">*</span></Label>
           <DatePicker
             value={form.orderDate}
             onChange={(v) => setField("orderDate", v)}

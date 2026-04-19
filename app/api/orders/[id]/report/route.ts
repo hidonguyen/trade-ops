@@ -60,7 +60,10 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
     const orderAmount = new Decimal(order.amountOriginal.toString());
     const netPaidOriginal = totalPaidOriginal.minus(totalRefundedOriginal);
-    const balanceOriginal = orderAmount.minus(netPaidOriginal);
+    // Adjusted values: refund deducted from both order value and paid amount
+    // adjustedOrder = orderAmount - refunded, adjustedPaid = paid - refunded
+    // balance = orderAmount - paid (refund cancels on both sides)
+    const balanceOriginal = Decimal.max(orderAmount.minus(totalPaidOriginal), new Decimal(0));
 
     const depositPayments = order.transactions
       .filter((t: any) => t.paymentMethod === "DEPOSIT")

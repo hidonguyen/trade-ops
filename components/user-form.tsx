@@ -77,11 +77,11 @@ export function UserForm({ initialData, onSubmit, mode, submitting, error }: Use
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label htmlFor="name">Họ và tên</Label>
+          <Label htmlFor="name">Họ và tên <span className="text-red-500">*</span></Label>
           <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nguyễn Văn A" />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="email">Email <span className="text-red-500">*</span></Label>
           <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="user@example.com" disabled={mode === "edit"} />
         </div>
       </div>
@@ -89,7 +89,7 @@ export function UserForm({ initialData, onSubmit, mode, submitting, error }: Use
       {/* Password field */}
       {mode === "create" ? (
         <div className="space-y-1.5">
-          <Label htmlFor="password">Mật khẩu</Label>
+          <Label htmlFor="password">Mật khẩu <span className="text-red-500">*</span></Label>
           <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Tối thiểu 8 ký tự" />
         </div>
       ) : (
@@ -119,7 +119,7 @@ export function UserForm({ initialData, onSubmit, mode, submitting, error }: Use
 
       {/* Roles */}
       <div className="space-y-2">
-        <Label>Vai trò</Label>
+        <Label>Vai trò <span className="text-red-500">*</span></Label>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {ALL_ROLES.map((r) => (
             <label key={r.value} className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">

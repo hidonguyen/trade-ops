@@ -1,5 +1,5 @@
 // Transaction list sub-component for order detail page
-// Shows all linked transactions with delete action
+// Shows all linked transactions with edit and delete actions
 "use client";
 
 import { useState } from "react";
@@ -7,7 +7,7 @@ import { DataTable, Column } from "@/components/shared/data-table";
 import { ConfirmationDialog } from "@/components/shared/confirmation-dialog";
 import { CurrencyAmount } from "@/components/shared/currency-amount";
 import { Button } from "@/components/ui/button";
-import { Trash2Icon } from "lucide-react";
+import { Trash2Icon, PencilIcon } from "lucide-react";
 
 interface Transaction {
   id: string;
@@ -28,7 +28,9 @@ interface OrderTransactionsTableProps {
   orderId: string;
   transactions: Transaction[];
   onDeleted: () => void;
+  onEdit?: (transaction: Transaction) => void;
   canDelete?: boolean;
+  canEdit?: boolean;
 }
 
 const PAYMENT_TYPE_LABEL: Record<string, string> = {
@@ -45,7 +47,9 @@ export function OrderTransactionsTable({
   orderId,
   transactions,
   onDeleted,
+  onEdit,
   canDelete = true,
+  canEdit = true,
 }: OrderTransactionsTableProps) {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -67,6 +71,8 @@ export function OrderTransactionsTable({
       setDeleteId(null);
     }
   }
+
+  const hasActions = canEdit || canDelete;
 
   const columns: Column<Transaction>[] = [
     {
@@ -131,19 +137,33 @@ export function OrderTransactionsTable({
       label: "Tham chiếu",
       render: (v) => v ?? "—",
     },
-    ...(canDelete
+    ...(hasActions
       ? [{
           key: "actions",
           label: "",
           render: (_: unknown, row: Transaction) => (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="text-red-500 hover:text-red-700 hover:bg-red-50"
-              onClick={(e) => { e.stopPropagation(); setDeleteId(row.id); }}
-            >
-              <Trash2Icon className="size-4" />
-            </Button>
+            <div className="flex items-center gap-1">
+              {canEdit && onEdit && (
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-slate-500 hover:text-blue-600 hover:bg-blue-50"
+                  onClick={(e) => { e.stopPropagation(); onEdit(row); }}
+                >
+                  <PencilIcon className="size-4" />
+                </Button>
+              )}
+              {canDelete && (
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                  onClick={(e) => { e.stopPropagation(); setDeleteId(row.id); }}
+                >
+                  <Trash2Icon className="size-4" />
+                </Button>
+              )}
+            </div>
           ),
         } as Column<Transaction>]
       : []),

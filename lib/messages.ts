@@ -31,6 +31,9 @@ export const MSG = {
   orderNumberRequired: "Số đơn hàng là bắt buộc",
   cannotModifyFinancial: "Không thể sửa trường tài chính khi đã có giao dịch",
   insufficientDeposit: "Số dư cọc không đủ",
+  overpaymentExceeded: "Số tiền thanh toán vượt quá số tiền còn phải thanh toán",
+  overRefundExceeded: "Số tiền hoàn không được vượt quá số tiền đã thanh toán",
+  depositCurrencyMismatch: "Tiền tệ của cọc không khớp với tiền tệ giao dịch",
   businessUnitRequired: "Không tìm thấy đơn vị kinh doanh",
 
   // Deposit refund auto-create

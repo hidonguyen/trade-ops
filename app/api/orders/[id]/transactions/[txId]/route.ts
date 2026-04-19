@@ -5,19 +5,21 @@ import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
 import { reverseDepositDeduction, applyDepositOperation } from "@/lib/deposit-deduction-service";
 import { recalculateOrderStatus } from "@/lib/order-status-calculator";
+import { checkOverpayment } from "@/lib/overpayment-guard";
 import { z } from "zod";
 import { MSG } from "@/lib/messages";
 import { invalidateTags } from "@/lib/cache/invalidate";
 import { TAG } from "@/lib/cache/keys";
 import { diffForAudit } from "@/lib/audit-diff";
+import { decimalString } from "@/lib/validation-schemas";
 
 const updateTransactionSchema = z.object({
-  amountOriginal: z.string().optional(),
-  amountVnd: z.string().optional(),
-  exchangeRate: z.string().optional(),
-  bankReference: z.string().max(100).optional(),
+  amountOriginal: decimalString.optional(),
+  amountVnd: decimalString.optional(),
+  exchangeRate: decimalString.optional(),
+  bankReference: z.string().max(100).nullable().optional(),
   transactionDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
-  notes: z.string().max(1000).optional(),
+  notes: z.string().max(1000).nullable().optional(),
   depositId: z.string().uuid().nullable().optional(),
 });
 
@@ -68,6 +70,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         await reverseDepositDeduction(tx, txId);
       }
 
+      // Reject if updated payment would exceed remaining order balance
+      const updatedAmount = (updateFields.amountOriginal ?? transaction.amountOriginal.toString());
+      await checkOverpayment(tx, orderId, updatedAmount, transaction.paymentType, txId);
+
       const updateData: Record<string, unknown> = {};
       if (updateFields.amountOriginal !== undefined) updateData.amountOriginal = updateFields.amountOriginal;
       if (updateFields.amountVnd !== undefined) updateData.amountVnd = updateFields.amountVnd;
@@ -112,7 +118,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     invalidateTags(txInvalidations);
     return Response.json(apiResponse(true, result));
   } catch (error) {
-    if (error instanceof Error && error.message === MSG.insufficientDeposit) {
+    if (error instanceof Error && (error.message === MSG.insufficientDeposit || error.message === MSG.overpaymentExceeded || error.message === MSG.overRefundExceeded)) {
       return Response.json(apiResponse(false, undefined, error.message), { status: 422 });
     }
     console.error("PATCH /api/orders/[id]/transactions/[txId] error:", error);
