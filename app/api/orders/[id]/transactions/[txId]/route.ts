@@ -11,7 +11,7 @@ import { MSG } from "@/lib/messages";
 import { invalidateTags } from "@/lib/cache/invalidate";
 import { TAG } from "@/lib/cache/keys";
 import { diffForAudit } from "@/lib/audit-diff";
-import { decimalString, decimalStringOrZero } from "@/lib/validation-schemas";
+import { decimalStringOrZero } from "@/lib/validation-schemas";
 import Decimal from "decimal.js";
 
 // amountOriginal for PATCH: validated at runtime depending on existing tx.paymentType
@@ -29,9 +29,10 @@ const _decimalAnyNonZero = z.string().refine(
 );
 
 const updateTransactionSchema = z.object({
-  // Allow signed decimals for ADJUSTMENT transactions; server validates via checkOverpayment
+  // Allow signed decimals for ADJUSTMENT transactions; server validates via checkOverpayment.
+  // amountVnd likewise signed — for adjustments it tracks sign of amountOriginal.
   amountOriginal: _decimalAnyNonZero.optional(),
-  amountVnd: decimalString.optional(),
+  amountVnd: _decimalAnyNonZero.optional(),
   exchangeRate: decimalStringOrZero.optional(),
   bankReference: z.string().max(100).nullable().optional(),
   transactionDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),

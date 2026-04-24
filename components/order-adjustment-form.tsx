@@ -39,6 +39,15 @@ const defaultForm: FormState = {
   notes: "",
 };
 
+export interface EditingAdjustment {
+  id: string;
+  amountOriginal: string;
+  exchangeRate: string;
+  amountVnd: string;
+  transactionDate: string;
+  notes: string | null;
+}
+
 interface OrderAdjustmentFormProps {
   open: boolean;
   onClose: () => void;
@@ -46,19 +55,33 @@ interface OrderAdjustmentFormProps {
   orderId: string;
   orderType: string; // "SALE" | "PURCHASE"
   currency: Currency;
+  editingTransaction?: EditingAdjustment | null;
 }
 
 export function OrderAdjustmentForm({
-  open, onClose, onSuccess, orderId, orderType, currency,
+  open, onClose, onSuccess, orderId, orderType, currency, editingTransaction,
 }: OrderAdjustmentFormProps) {
   const [form, setForm] = useState<FormState>({ ...defaultForm });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isEditing = !!editingTransaction;
 
-  // Reset form on open
+  // Reset form on open — prefill when editing
   useEffect(() => {
-    if (open) { setForm({ ...defaultForm }); setError(null); }
-  }, [open]);
+    if (!open) return;
+    setError(null);
+    if (editingTransaction) {
+      setForm({
+        amountOriginal: editingTransaction.amountOriginal,
+        exchangeRate: editingTransaction.exchangeRate,
+        amountVnd: editingTransaction.amountVnd,
+        transactionDate: editingTransaction.transactionDate.split("T")[0],
+        notes: editingTransaction.notes ?? "",
+      });
+    } else {
+      setForm({ ...defaultForm });
+    }
+  }, [open, editingTransaction]);
 
   function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => {
@@ -95,29 +118,41 @@ export function OrderAdjustmentForm({
     setError(null);
 
     try {
-      const payload = {
-        type: orderType === "SALE" ? "SALE_PAYMENT" : "PURCHASE_PAYMENT",
-        paymentType: "ADJUSTMENT",
-        paymentMethod: "BANK",
-        amountOriginal: form.amountOriginal,
-        exchangeRate: form.exchangeRate,
-        amountVnd: form.amountVnd || "0",
-        currencyId: currency.id,
-        transactionDate: form.transactionDate,
-        notes: form.notes || null,
-        // ORDER_ADJUSTMENT requires type field override
-        // backend route validator recognizes ADJUSTMENT paymentType
-      };
-
-      // Override type to ORDER_ADJUSTMENT per server validation schema
-      const res = await fetch(`/api/orders/${orderId}/transactions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...payload, type: "ORDER_ADJUSTMENT" }),
-      });
+      let res: Response;
+      if (isEditing && editingTransaction) {
+        // PATCH: send only mutable fields (schema allows signed amountOriginal)
+        res = await fetch(`/api/orders/${orderId}/transactions/${editingTransaction.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            amountOriginal: form.amountOriginal,
+            exchangeRate: form.exchangeRate,
+            amountVnd: form.amountVnd || "0",
+            transactionDate: form.transactionDate,
+            notes: form.notes || null,
+          }),
+        });
+      } else {
+        const payload = {
+          type: "ORDER_ADJUSTMENT",
+          paymentType: "ADJUSTMENT",
+          paymentMethod: "BANK",
+          amountOriginal: form.amountOriginal,
+          exchangeRate: form.exchangeRate,
+          amountVnd: form.amountVnd || "0",
+          currencyId: currency.id,
+          transactionDate: form.transactionDate,
+          notes: form.notes || null,
+        };
+        res = await fetch(`/api/orders/${orderId}/transactions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      }
 
       const json = await res.json();
-      if (!json.success) throw new Error(json.message ?? "Lỗi tạo điều chỉnh");
+      if (!json.success) throw new Error(json.message ?? (isEditing ? "Lỗi cập nhật điều chỉnh" : "Lỗi tạo điều chỉnh"));
       onSuccess();
       onClose();
     } catch (err) {
@@ -131,7 +166,7 @@ export function OrderAdjustmentForm({
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Thêm điều chỉnh giá trị đơn hàng</DialogTitle>
+          <DialogTitle>{isEditing ? "Chỉnh sửa điều chỉnh giá trị đơn hàng" : "Thêm điều chỉnh giá trị đơn hàng"}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 mt-2">
@@ -196,7 +231,7 @@ export function OrderAdjustmentForm({
           <div className="flex gap-2 justify-end">
             <Button type="button" variant="outline" onClick={onClose}>Hủy</Button>
             <Button type="submit" disabled={loading}>
-              {loading ? "Đang lưu..." : "Lưu điều chỉnh"}
+              {loading ? "Đang lưu..." : isEditing ? "Cập nhật" : "Lưu điều chỉnh"}
             </Button>
           </div>
         </form>

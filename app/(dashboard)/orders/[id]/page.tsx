@@ -6,7 +6,7 @@ import { useRouter, useParams } from "next/navigation";
 import { useRegisterOrderDetailType } from "@/components/providers/nav-highlight-provider";
 import { Button } from "@/components/ui/button";
 import { PaymentForm, EditingTransaction } from "@/components/payment-form";
-import { OrderAdjustmentForm } from "@/components/order-adjustment-form";
+import { OrderAdjustmentForm, EditingAdjustment } from "@/components/order-adjustment-form";
 import { OrderInfoCard } from "./order-info-card";
 import { FinancialSummaryCard } from "./financial-summary-card";
 import { OrderTransactionsTable } from "./order-transactions-table";
@@ -66,6 +66,7 @@ export default function OrderDetailPage() {
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [adjustmentOpen, setAdjustmentOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<EditingTransaction | null>(null);
+  const [editingAdj, setEditingAdj] = useState<EditingAdjustment | null>(null);
 
   const fetchReport = useCallback(async () => {
     setLoading(true);
@@ -108,8 +109,26 @@ export default function OrderDetailPage() {
   }, [report, editingTx]);
 
   function handleOpenCreate() { setEditingTx(null); setPaymentOpen(true); }
-  function handleEdit(tx: EditingTransaction) { setEditingTx(tx); setPaymentOpen(true); }
+  function handleOpenAdjustment() { setEditingAdj(null); setAdjustmentOpen(true); }
+  function handleEdit(tx: EditingTransaction) {
+    // Route ADJUSTMENT edits to the dedicated adjustment form; regular payments to PaymentForm
+    if (tx.paymentType === "ADJUSTMENT") {
+      setEditingAdj({
+        id: tx.id,
+        amountOriginal: tx.amountOriginal,
+        exchangeRate: tx.exchangeRate,
+        amountVnd: tx.amountVnd,
+        transactionDate: tx.transactionDate,
+        notes: tx.notes,
+      });
+      setAdjustmentOpen(true);
+    } else {
+      setEditingTx(tx);
+      setPaymentOpen(true);
+    }
+  }
   function handleClosePayment() { setPaymentOpen(false); setEditingTx(null); }
+  function handleCloseAdjustment() { setAdjustmentOpen(false); setEditingAdj(null); }
 
   if (loading) {
     return (
@@ -165,7 +184,7 @@ export default function OrderDetailPage() {
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-slate-800">Giao dịch thanh toán</h2>
           <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={() => setAdjustmentOpen(true)}>
+            <Button size="sm" variant="outline" onClick={handleOpenAdjustment}>
               <SlidersHorizontalIcon className="size-4 mr-1.5" />
               Thêm điều chỉnh
             </Button>
@@ -196,14 +215,15 @@ export default function OrderDetailPage() {
         maxPaymentAmount={maxPaymentAmount}
       />
 
-      {/* Adjustment dialog */}
+      {/* Adjustment dialog (create + edit) */}
       <OrderAdjustmentForm
         open={adjustmentOpen}
-        onClose={() => setAdjustmentOpen(false)}
+        onClose={handleCloseAdjustment}
         onSuccess={fetchReport}
         orderId={id}
         orderType={order.type}
         currency={order.currency}
+        editingTransaction={editingAdj}
       />
     </div>
   );
