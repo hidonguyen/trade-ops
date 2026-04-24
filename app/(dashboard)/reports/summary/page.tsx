@@ -3,7 +3,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { DownloadIcon, FileTextIcon } from "lucide-react";
+import { DownloadIcon, TableIcon } from "lucide-react";
 import { useSelectedBu } from "@/components/providers/bu-provider";
 import { Button } from "@/components/ui/button";
 import { FilterBar, FilterConfig } from "@/components/shared/filter-bar";
@@ -220,8 +220,8 @@ export default function ReportsSummaryPage() {
             window.open(`/api/reports/summary/export?${params}`, "_blank");
           }}
         >
-          <FileTextIcon className="size-4 mr-1.5" />
-          Xuất báo cáo tổng hợp
+          <TableIcon className="size-4 mr-1.5" />
+          Xuất báo cáo tổng hợp (Excel)
         </Button>
       </div>
 

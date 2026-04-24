@@ -1,5 +1,6 @@
 // Excel export helpers using ExcelJS — cashflow, orders, and transactions
 import ExcelJS from "exceljs";
+import { applyHeaderStyle } from "./excel-report-utils";
 
 interface CashflowTransaction {
   transactionDate: Date | string;
@@ -28,17 +29,6 @@ interface CashflowExportData {
   transactions: CashflowTransaction[];
 }
 
-// Style header row bold with background
-function styleHeaderRow(row: ExcelJS.Row) {
-  row.font = { bold: true };
-  row.fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: "FFD3D3D3" },
-  };
-  row.alignment = { horizontal: "center" };
-}
-
 export async function exportCashflowToExcel(data: CashflowExportData): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Trade Ops";
@@ -55,7 +45,7 @@ export async function exportCashflowToExcel(data: CashflowExportData): Promise<B
     { header: "Bank Fee", key: "totalBankFee", width: 18 },
     { header: "Net After Fee", key: "netAfterFee", width: 20 },
   ];
-  styleHeaderRow(summarySheet.getRow(1));
+  applyHeaderStyle(summarySheet.getRow(1));
   for (const row of data.currencies) {
     summarySheet.addRow({
       ...row,
@@ -79,7 +69,7 @@ export async function exportCashflowToExcel(data: CashflowExportData): Promise<B
     { header: "Reference", key: "reference", width: 22 },
     { header: "Notes", key: "notes", width: 30 },
   ];
-  styleHeaderRow(txSheet.getRow(1));
+  applyHeaderStyle(txSheet.getRow(1));
 
   for (const tx of data.transactions) {
     const dateVal =
@@ -133,7 +123,7 @@ export async function exportOrdersToExcel(orders: OrderRow[]): Promise<Buffer> {
     { header: "Refunded", key: "refundedAmount", width: 20 },
     { header: "Notes", key: "notes", width: 30 },
   ];
-  styleHeaderRow(sheet.getRow(1));
+  applyHeaderStyle(sheet.getRow(1));
 
   for (const order of orders) {
     const dateVal =
@@ -185,7 +175,7 @@ export async function exportTransactionsToExcel(transactions: TransactionRow[]):
     { header: "Reference", key: "reference", width: 22 },
     { header: "Notes", key: "notes", width: 30 },
   ];
-  styleHeaderRow(sheet.getRow(1));
+  applyHeaderStyle(sheet.getRow(1));
 
   for (const tx of transactions) {
     const dateVal =
@@ -244,7 +234,7 @@ export async function exportBankFeesToExcel(data: BankFeeExportData): Promise<Bu
     { header: "Total Fee (Orig)", key: "totalFeeOriginal", width: 22 },
     { header: "Total Fee (VND)", key: "totalFeeVnd", width: 22 },
   ];
-  styleHeaderRow(totalsSheet.getRow(1));
+  applyHeaderStyle(totalsSheet.getRow(1));
   for (const row of data.totals.byCurrency) {
     totalsSheet.addRow(row);
   }
@@ -270,7 +260,7 @@ export async function exportBankFeesToExcel(data: BankFeeExportData): Promise<Bu
     { header: "Reference", key: "reference", width: 22 },
     { header: "Notes", key: "notes", width: 30 },
   ];
-  styleHeaderRow(detailSheet.getRow(1));
+  applyHeaderStyle(detailSheet.getRow(1));
 
   for (const row of data.rows) {
     const dateVal =
