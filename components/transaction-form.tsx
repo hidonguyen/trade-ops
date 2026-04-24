@@ -34,6 +34,12 @@ interface Party {
   type: string;
 }
 
+interface ExpenseType {
+  id: string;
+  name: string;
+  isActive: boolean;
+}
+
 interface FormState {
   type: string;
   businessUnitId: string;
@@ -49,6 +55,7 @@ interface FormState {
   partyId: string;
   bankFeeOriginal: string;
   bankFeeVnd: string;
+  expenseTypeId: string;
 }
 
 const defaultForm: FormState = {
@@ -66,6 +73,7 @@ const defaultForm: FormState = {
   partyId: "",
   bankFeeOriginal: "",
   bankFeeVnd: "",
+  expenseTypeId: "",
 };
 
 interface TransactionFormProps {
@@ -80,6 +88,7 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [deposits, setDeposits] = useState<Deposit[]>([]);
   const [parties, setParties] = useState<Party[]>([]);
+  const [expenseTypes, setExpenseTypes] = useState<ExpenseType[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -88,9 +97,14 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
   useEffect(() => {
     async function loadData() {
       try {
-        const curRes = await fetch("/api/currencies");
+        const [curRes, etRes] = await Promise.all([
+          fetch("/api/currencies"),
+          fetch("/api/expense-types"),
+        ]);
         const curJson = await curRes.json();
+        const etJson = await etRes.json();
         if (curJson.success) setCurrencies(curJson.data);
+        if (etJson.success) setExpenseTypes(etJson.data.filter((e: ExpenseType) => e.isActive));
       } catch {
         setError("Không thể tải dữ liệu tham chiếu");
       }
@@ -195,6 +209,7 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
       bankReference: form.bankReference || null,
       transactionDate: form.transactionDate,
       notes: form.notes || null,
+      expenseTypeId: form.expenseTypeId || null,
       ...(form.paymentMethod === "DEPOSIT" && form.depositId ? { depositId: form.depositId } : {}),
       ...(hasBankFee
         ? { bankFeeOriginal: form.bankFeeOriginal, bankFeeVnd: form.bankFeeVnd }
@@ -265,6 +280,16 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
               { value: "DEPOSIT", label: "Cọc" },
             ]}
             placeholder="Chọn phương thức"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>Loại chi phí</Label>
+          <Combobox
+            value={form.expenseTypeId}
+            onValueChange={(v) => setField("expenseTypeId", v)}
+            options={[{ value: "", label: "— Không chọn —" }, ...expenseTypes.map((e) => ({ value: e.id, label: e.name }))]}
+            placeholder="Chọn loại chi phí..."
           />
         </div>
 

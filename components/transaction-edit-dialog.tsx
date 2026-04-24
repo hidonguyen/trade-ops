@@ -1,5 +1,5 @@
 // Dialog for editing standalone transactions (RECEIPT/PAYMENT)
-// Locks type, paymentMethod, currency — only editable: amount, rate, reference, date, notes, fees
+// Locks type, paymentMethod, currency — only editable: amount, rate, reference, date, notes, fees, expenseTypeId
 "use client";
 
 import { useState, useEffect } from "react";
@@ -10,12 +10,19 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { DatePicker } from "@/components/ui/date-picker";
 import { NumberInput } from "@/components/ui/number-input";
+import { Combobox } from "@/components/ui/combobox";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+
+interface ExpenseType {
+  id: string;
+  name: string;
+  isActive: boolean;
+}
 
 export interface EditableTransaction {
   id: string;
@@ -30,6 +37,7 @@ export interface EditableTransaction {
   bankFeeOriginal: string | null;
   bankFeeVnd: string | null;
   currency: { id: string; code: string; symbol: string };
+  expenseType?: { id: string; name: string; isActive: boolean } | null;
 }
 
 interface TransactionEditDialogProps {
@@ -46,6 +54,7 @@ interface EditFormState {
   bankReference: string;
   transactionDate: string;
   notes: string;
+  expenseTypeId: string;
 }
 
 const TYPE_LABEL: Record<string, string> = {
@@ -56,10 +65,19 @@ const TYPE_LABEL: Record<string, string> = {
 export function TransactionEditDialog({ open, onClose, onSuccess, transaction }: TransactionEditDialogProps) {
   const [form, setForm] = useState<EditFormState>({
     amountOriginal: "", exchangeRate: "1", amountVnd: "",
-    bankReference: "", transactionDate: "", notes: "",
+    bankReference: "", transactionDate: "", notes: "", expenseTypeId: "",
   });
+  const [expenseTypes, setExpenseTypes] = useState<ExpenseType[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Load expense types once
+  useEffect(() => {
+    fetch("/api/expense-types")
+      .then((r) => r.json())
+      .then((json) => { if (json.success) setExpenseTypes(json.data.filter((e: ExpenseType) => e.isActive)); })
+      .catch(() => {});
+  }, []);
 
   // Pre-fill form when dialog opens
   useEffect(() => {
@@ -72,6 +90,7 @@ export function TransactionEditDialog({ open, onClose, onSuccess, transaction }:
       bankReference: transaction.bankReference ?? "",
       transactionDate: transaction.transactionDate.split("T")[0],
       notes: transaction.notes ?? "",
+      expenseTypeId: transaction.expenseType?.id ?? "",
     });
   }, [open, transaction]);
 
@@ -118,6 +137,7 @@ export function TransactionEditDialog({ open, onClose, onSuccess, transaction }:
       bankReference: form.bankReference || null,
       transactionDate: form.transactionDate,
       notes: form.notes || null,
+      expenseTypeId: form.expenseTypeId || null,
     };
 
     try {
@@ -213,6 +233,16 @@ export function TransactionEditDialog({ open, onClose, onSuccess, transaction }:
                 onChange={(v) => setField("transactionDate", v)}
               />
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Loại chi phí</Label>
+            <Combobox
+              value={form.expenseTypeId}
+              onValueChange={(v) => setField("expenseTypeId", v)}
+              options={[{ value: "", label: "— Không chọn —" }, ...expenseTypes.map((e) => ({ value: e.id, label: e.name }))]}
+              placeholder="Chọn loại chi phí..."
+            />
           </div>
 
           <div className="space-y-1.5">

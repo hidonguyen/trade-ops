@@ -29,6 +29,13 @@ interface Transaction {
   bankFeeVnd: string | null;
   currency: { id: string; code: string; symbol: string };
   businessUnit: { id: string; code: string; name: string };
+  expenseType?: { id: string; name: string; isActive: boolean } | null;
+}
+
+interface ExpenseTypeOption {
+  id: string;
+  name: string;
+  isActive: boolean;
 }
 
 const TYPE_OPTIONS = [
@@ -54,6 +61,15 @@ export default function TransactionsPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [expenseTypes, setExpenseTypes] = useState<ExpenseTypeOption[]>([]);
+
+  // Load expense types for filter
+  useEffect(() => {
+    fetch("/api/expense-types")
+      .then((r) => r.json())
+      .then((json) => { if (json.success) setExpenseTypes(json.data.filter((e: ExpenseTypeOption) => e.isActive)); })
+      .catch(console.error);
+  }, []);
 
   const fetchTransactions = useCallback(async () => {
     setLoading(true);
@@ -66,6 +82,7 @@ export default function TransactionsPage() {
         ...(filters.dateFrom ? { dateFrom: filters.dateFrom } : {}),
         ...(filters.dateTo ? { dateTo: filters.dateTo } : {}),
         ...(filters.bankReference ? { bankReference: filters.bankReference } : {}),
+        ...(filters.expenseTypeId ? { expenseTypeId: filters.expenseTypeId } : {}),
       });
       const res = await fetch(`/api/transactions?${params}`);
       const json = await res.json();
@@ -108,6 +125,12 @@ export default function TransactionsPage() {
     { key: "bankReference", label: "Tham chiếu", type: "search", placeholder: "Tìm mã tham chiếu..." },
     { key: "type", label: "Loại giao dịch", type: "select", options: TYPE_OPTIONS },
     { key: "paymentMethod", label: "Phương thức", type: "select", options: METHOD_OPTIONS },
+    {
+      key: "expenseTypeId",
+      label: "Loại chi phí",
+      type: "select",
+      options: expenseTypes.map((e) => ({ value: e.id, label: e.name })),
+    },
   ];
 
   const columns: Column<Transaction>[] = [
@@ -150,6 +173,11 @@ export default function TransactionsPage() {
       key: "paymentMethod",
       label: "Phương thức",
       render: (v) => v === "BANK" ? "Ngân hàng" : "Cọc",
+    },
+    {
+      key: "expenseType",
+      label: "Loại chi phí",
+      render: (_: unknown, row: Transaction) => row.expenseType?.name ?? "—",
     },
     {
       key: "bankReference",

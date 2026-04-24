@@ -12,6 +12,7 @@ import { TAG } from "@/lib/cache/keys";
 const txIncludes = {
   currency: { select: { id: true, code: true, symbol: true } },
   businessUnit: { select: { id: true, code: true, name: true } },
+  expenseType: { select: { id: true, name: true, isActive: true } },
   depositUsages: true,
 };
 
@@ -41,6 +42,7 @@ export async function GET(request: NextRequest) {
   const dateFrom = searchParams.get("dateFrom");
   const dateTo = searchParams.get("dateTo");
   const bankReference = searchParams.get("bankReference");
+  const expenseTypeId = searchParams.get("expenseTypeId");
   const { page, limit, skip, sortBy, order } = parsePagination(searchParams);
 
   // Build date range filter — include full last day
@@ -58,6 +60,7 @@ export async function GET(request: NextRequest) {
     ...(businessUnitId && { businessUnitId }),
     ...(Object.keys(dateFilter).length > 0 && { transactionDate: dateFilter }),
     ...(bankReference && { bankReference: { contains: bankReference, mode: "insensitive" as const } }),
+    ...(expenseTypeId && { expenseTypeId }),
   };
 
   try {
