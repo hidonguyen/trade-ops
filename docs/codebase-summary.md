@@ -2,7 +2,7 @@
 ## Directory Structure & File Organization
 
 **Status:** Planning Phase
-**Last Updated:** 2026-04-02
+**Last Updated:** 2026-04-24
 **Version:** 1.0
 
 ---
@@ -32,8 +32,8 @@ trade-ops/
 │   │   ├── parties/                  # Party (Customer/Supplier) CRUD
 │   │   │   └── [id]/                 # Dynamic route for single party detail
 │   │   │       └── deposits/         # Create deposit for party
-│   │   ├── deposits/                 # Deposit balance & management
-│   │   │   └── [id]/                 # Single deposit detail/update
+│   │   ├── deposits/                 # Deposit balance & management (GET/POST)
+│   │   │   └── [id]/                 # Single deposit detail (PATCH/DELETE with guards)
 │   │   ├── orders/                   # Order CRUD (Sales & Purchases)
 │   │   │   └── [id]/                 # Dynamic order detail
 │   │   │       ├── transactions/     # Linked transactions for order
@@ -213,6 +213,13 @@ trade-ops/
 - Creates DepositUsage audit record
 - Validates remaining balance
 - Throws on insufficient funds
+
+**`lib/deposit-edit-guard.ts`** (100–110 LOC)
+- `loadDepositUsageStats(tx, depositId)` – Compute used/credited amounts and usage count
+- `assertCanEditMetadata(stats)` – Reject currency/BU changes if deposit has usages
+- `assertNewAmountValid(newAmount, stats)` – Reject if new amount < used amount
+- `assertCanDelete(stats)` – Reject delete if deposit has any usages
+- Typed error codes: LOCKED_HAS_USAGES, AMOUNT_BELOW_USED, DELETE_BLOCKED_HAS_USAGES
 
 **`lib/cashflow-query.ts`** (100–120 LOC)
 - `getCashflowReport(businessUnitId, dateFrom, dateTo, currency?)` – Query builder
