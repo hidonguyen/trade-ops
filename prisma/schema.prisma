@@ -73,12 +73,13 @@ model Currency {
 }
 
 model ExpenseType {
-  id        String   @id @default(uuid(7))
-  name      String
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  orders    Order[]
+  id           String        @id @default(uuid(7))
+  name         String
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  orders       Order[]
+  transactions Transaction[]
 }
 
 model Party {
@@ -142,7 +143,9 @@ model Order {
   status         String        @default("UNPAID") // UNPAID, PARTIAL_PAID, PAID, PARTIAL_REFUNDED, REFUNDED
   amountOriginal Decimal       @db.Decimal(18, 4)
   currencyId     String
+  exchangeRate   Decimal       @default(1) @db.Decimal(18, 8)
   orderDate      DateTime
+  paymentDueDate DateTime?
   notes          String?
   paidAmount     Decimal       @default(0) @db.Decimal(18, 4)
   refundedAmount Decimal       @default(0) @db.Decimal(18, 4)
@@ -182,14 +185,18 @@ model Transaction {
   // Fee does NOT reduce paidAmount — customer debt is cleared by full amountOriginal.
   bankFeeOriginal Decimal?       @db.Decimal(18, 4)
   bankFeeVnd      Decimal?       @db.Decimal(18, 4)
+  // Expense category link for standalone PAYMENT/RECEIPT transactions (not order-linked)
+  expenseTypeId   String?
   createdBy       String
   createdAt       DateTime       @default(now())
   order           Order?         @relation(fields: [orderId], references: [id])
   businessUnit    BusinessUnit   @relation(fields: [businessUnitId], references: [id])
   currency        Currency       @relation(fields: [currencyId], references: [id])
+  expenseType     ExpenseType?   @relation(fields: [expenseTypeId], references: [id])
   depositUsages   DepositUsage[]
 
   @@index([orderId, type])
   @@index([businessUnitId, type, transactionDate])
   @@index([businessUnitId, transactionDate, paymentMethod])
+  @@index([expenseTypeId])
 }

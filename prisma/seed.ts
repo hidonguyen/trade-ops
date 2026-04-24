@@ -66,6 +66,11 @@ async function main() {
     "Vận chuyển",
     "Hải quan",
     "Khác",
+    "Mua vật tư",
+    "Chi phí tiện ích",
+    "Chi phí khác",
+    "Phí ngân hàng",
+    "Cọc",
   ];
   for (const name of expenseTypeNames) {
     const existing = await prisma.expenseType.findFirst({ where: { name } });
