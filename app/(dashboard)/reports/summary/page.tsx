@@ -7,7 +7,8 @@ import { DownloadIcon, TableIcon } from "lucide-react";
 import { useSelectedBu } from "@/components/providers/bu-provider";
 import { Button } from "@/components/ui/button";
 import { FilterBar, FilterConfig } from "@/components/shared/filter-bar";
-import { DateQuickPresets, getThisWeekRange } from "@/components/shared/date-quick-presets";
+import { DateQuickPresets } from "@/components/shared/date-quick-presets";
+import { getInitialDateRange, usePersistDateRange } from "@/components/shared/use-persisted-date-range";
 import { DataTable, Column } from "@/components/shared/data-table";
 import { CurrencyAmount } from "@/components/shared/currency-amount";
 
@@ -163,7 +164,10 @@ function exportToCsv(data: Record<string, unknown>[], columns: { key: string; la
 
 export default function ReportsSummaryPage() {
   const { selectedBuId } = useSelectedBu();
-  const [filters, setFilters] = useState<Record<string, string>>(getThisWeekRange);
+  const [filters, setFilters] = useState<Record<string, string>>(() => ({
+    ...getInitialDateRange("summary"),
+  }));
+  usePersistDateRange("summary", filters.dateFrom, filters.dateTo);
   const [activeTab, setActiveTab] = useState<TabKey>("customerReceipts");
   const [data, setData] = useState<SummaryData | null>(null);
   const [loading, setLoading] = useState(false);

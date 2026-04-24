@@ -12,7 +12,8 @@ import { CurrencyAmount } from "@/components/shared/currency-amount";
 import { FilterBar, FilterConfig } from "@/components/shared/filter-bar";
 import { ConfirmationDialog } from "@/components/shared/confirmation-dialog";
 import { TransactionEditDialog, EditableTransaction } from "@/components/transaction-edit-dialog";
-import { DateQuickPresets, getThisWeekRange } from "@/components/shared/date-quick-presets";
+import { DateQuickPresets } from "@/components/shared/date-quick-presets";
+import { getInitialDateRange, usePersistDateRange } from "@/components/shared/use-persisted-date-range";
 import { PlusIcon, PencilIcon, Trash2Icon } from "lucide-react";
 
 interface Transaction {
@@ -56,7 +57,10 @@ export default function TransactionsPage() {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(25);
   const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState<Record<string, string>>(getThisWeekRange);
+  const [filters, setFilters] = useState<Record<string, string>>(() => ({
+    ...getInitialDateRange("transactions"),
+  }));
+  usePersistDateRange("transactions", filters.dateFrom, filters.dateTo);
   const [editingTx, setEditingTx] = useState<EditableTransaction | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);

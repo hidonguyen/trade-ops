@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import { DataTable, Column } from "@/components/shared/data-table";
 import { Pagination } from "@/components/shared/pagination";
 import { FilterBar, FilterConfig } from "@/components/shared/filter-bar";
-import { DateQuickPresets, getThisWeekRange } from "@/components/shared/date-quick-presets";
+import { DateQuickPresets } from "@/components/shared/date-quick-presets";
+import { getInitialDateRange, usePersistDateRange } from "@/components/shared/use-persisted-date-range";
 import { CurrencyAmount } from "@/components/shared/currency-amount";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -58,7 +59,10 @@ const TX_TYPE_LABEL: Record<string, string> = {
 
 export default function BankFeesReportPage() {
   const { selectedBuId } = useSelectedBu();
-  const [filters, setFilters] = useState<Record<string, string>>(getThisWeekRange);
+  const [filters, setFilters] = useState<Record<string, string>>(() => ({
+    ...getInitialDateRange("bank-fees"),
+  }));
+  usePersistDateRange("bank-fees", filters.dateFrom, filters.dateTo);
   const [rows, setRows] = useState<BankFeeRow[]>([]);
   const [totals, setTotals] = useState<Totals>({ grandFeeVnd: "0", byCurrency: [] });
   const [currencies, setCurrencies] = useState<Currency[]>([]);

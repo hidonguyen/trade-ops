@@ -5,7 +5,8 @@ import { useState, useEffect, useCallback } from "react";
 import { useSelectedBu } from "@/components/providers/bu-provider";
 import { DataTable, Column } from "@/components/shared/data-table";
 import { FilterBar, FilterConfig } from "@/components/shared/filter-bar";
-import { DateQuickPresets, getThisWeekRange } from "@/components/shared/date-quick-presets";
+import { DateQuickPresets } from "@/components/shared/date-quick-presets";
+import { getInitialDateRange, usePersistDateRange } from "@/components/shared/use-persisted-date-range";
 import { CurrencyAmount } from "@/components/shared/currency-amount";
 
 interface DepositEvent {
@@ -34,7 +35,10 @@ export default function DepositReportPage() {
   const { selectedBuId } = useSelectedBu();
   const [events, setEvents] = useState<DepositEvent[]>([]);
   const [loading, setLoading] = useState(false);
-  const [filters, setFilters] = useState<Record<string, string>>(getThisWeekRange);
+  const [filters, setFilters] = useState<Record<string, string>>(() => ({
+    ...getInitialDateRange("deposits"),
+  }));
+  usePersistDateRange("deposits", filters.dateFrom, filters.dateTo);
   const [parties, setParties] = useState<Party[]>([]);
   const [currencies, setCurrencies] = useState<Currency[]>([]);
 

@@ -10,7 +10,8 @@ import { Pagination } from "@/components/shared/pagination";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { CurrencyAmount } from "@/components/shared/currency-amount";
 import { FilterBar, FilterConfig } from "@/components/shared/filter-bar";
-import { DateQuickPresets, getThisWeekRange } from "@/components/shared/date-quick-presets";
+import { DateQuickPresets } from "@/components/shared/date-quick-presets";
+import { getInitialDateRange, usePersistDateRange } from "@/components/shared/use-persisted-date-range";
 import { PlusIcon, FileSpreadsheetIcon } from "lucide-react";
 import Decimal from "decimal.js";
 
@@ -49,17 +50,17 @@ export default function OrdersPage() {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(25);
   const [loading, setLoading] = useState(true);
-  // Read initial type + partyId filters from URL search params
+  // Read initial type + partyId filters from URL search params; date range restored from localStorage.
   const [filters, setFilters] = useState<Record<string, string>>(() => {
     const type = searchParams.get("type");
     const partyId = searchParams.get("partyId");
-    const weekRange = getThisWeekRange();
     return {
-      ...weekRange,
+      ...getInitialDateRange("orders"),
       ...(type ? { type } : {}),
       ...(partyId ? { partyId } : {}),
     };
   });
+  usePersistDateRange("orders", filters.dateFrom, filters.dateTo);
 
   // Sync URL-driven filters (soft navigation from sidebar / party detail)
   const urlType = searchParams.get("type");

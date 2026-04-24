@@ -9,7 +9,8 @@ import { Pagination } from "@/components/shared/pagination";
 import { CurrencyAmount } from "@/components/shared/currency-amount";
 import { FilterBar, FilterConfig } from "@/components/shared/filter-bar";
 import { CashflowSummaryCards } from "./cashflow-summary-cards";
-import { DateQuickPresets, getThisWeekRange } from "@/components/shared/date-quick-presets";
+import { DateQuickPresets } from "@/components/shared/date-quick-presets";
+import { getInitialDateRange, usePersistDateRange } from "@/components/shared/use-persisted-date-range";
 import { DownloadIcon } from "lucide-react";
 import Decimal from "decimal.js";
 
@@ -49,7 +50,10 @@ export default function CashflowPage() {
   const [limit, setLimit] = useState(25);
   const [loading, setLoading] = useState(false);
   const [currencies, setCurrencies] = useState<Currency[]>([]);
-  const [filters, setFilters] = useState<Record<string, string>>(getThisWeekRange);
+  const [filters, setFilters] = useState<Record<string, string>>(() => ({
+    ...getInitialDateRange("cashflow"),
+  }));
+  usePersistDateRange("cashflow", filters.dateFrom, filters.dateTo);
 
   useEffect(() => {
     fetch("/api/currencies")
