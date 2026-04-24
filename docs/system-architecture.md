@@ -180,30 +180,39 @@ Deposit (1) ─────────(M) DepositUsage
 - `status: String` – Enum: UNPAID, PARTIAL_PAID, PAID, PARTIAL_REFUNDED, REFUNDED
 - `amountOriginal: Decimal @db.Decimal(18, 4)`
 - `currencyId: String` – FK to Currency
+- `exchangeRate: Decimal @db.Decimal(18, 8)` – VND exchange rate; default 1; used for client-side VND display
+- `paymentDueDate: DateTime?` – Expected payment date; nullable
+- `expenseTypeId: String?` – FK to ExpenseType (for PURCHASE orders only; null for SALE)
 - `orderDate: DateTime`
 - `notes: String` – Optional
-- `paidAmount: Decimal @db.Decimal(18, 4)` – Calculated; sum of transactions
-- `refundedAmount: Decimal @db.Decimal(18, 4)` – Calculated; sum of refunds
+- `paidAmount: Decimal @db.Decimal(18, 4)` – Calculated; sum of transactions with paymentType='PAYMENT'
+- `refundedAmount: Decimal @db.Decimal(18, 4)` – Calculated; sum of transactions with paymentType='REFUND'
 - `createdAt, updatedAt, createdBy: DateTime, String` – Audit
-- Relations: `transactions: Transaction[]`
+- Relations: `transactions: Transaction[]`, `expenseType?: ExpenseType`
+- **Derived Fields** (computed from transactions):
+  - `adjustmentTotal` = Σ(amountOriginal where paymentType='ADJUSTMENT') [can be negative]
+  - `effectiveValue` = amountOriginal + adjustmentTotal
+  - `balance` = max(effectiveValue - paidAmount + refundedAmount, 0)
 
-**Transaction (payment, receipt, or payment)**
+**Transaction (payment, receipt, or order adjustment)**
 - `id: String @id @default(uuid(7))`
 - `orderId: String` – FK (nullable; for standalone RECEIPT/PAYMENT)
 - `businessUnitId: String` – FK (used if orderId is null for cashflow query)
-- `type: String` – Enum: SALE_PAYMENT, PURCHASE_PAYMENT, RECEIPT, PAYMENT
-- `paymentMethod: String` – Enum: BANK, DEPOSIT
-- `paymentType: String` – Enum: PAYMENT, REFUND
-- `amountOriginal: Decimal @db.Decimal(18, 4)` – Amount in original currency
+- `type: String` – Enum: SALE_PAYMENT, PURCHASE_PAYMENT, RECEIPT, PAYMENT, ORDER_ADJUSTMENT
+- `paymentMethod: String` – Enum: BANK, DEPOSIT (nullable for ORDER_ADJUSTMENT)
+- `paymentType: String` – Enum: PAYMENT, REFUND, ADJUSTMENT
+- `amountOriginal: Decimal @db.Decimal(18, 4)` – Amount in original currency (can be negative for ORDER_ADJUSTMENT)
 - `currencyId: String` – FK to Currency
 - `amountVnd: Decimal @db.Decimal(18, 4)` – Amount in VND (received from client, never computed)
 - `exchangeRate: Decimal @db.Decimal(18, 8)` – Rate used by client (informational only)
 - `bankReference: String` – Bank tx ID or memo
 - `transactionDate: DateTime`
 - `notes: String`
+- `bankFeeOriginal, bankFeeVnd: Decimal?` – Bank fee borne by company (only for BANK method)
+- `expenseTypeId: String?` – FK to ExpenseType (for standalone RECEIPT/PAYMENT, or PURCHASE order expense category)
 - `createdAt, createdBy: DateTime, String`
-- Relations: `order?: Order`, `deposits: DepositUsage[]`
-- Indexes: `(orderId, type)`, `(businessUnitId, type, transactionDate)`
+- Relations: `order?: Order`, `expenseType?: ExpenseType`, `deposits: DepositUsage[]`
+- Indexes: `(orderId, type)`, `(businessUnitId, type, transactionDate)`, `(expenseTypeId)`
 
 ---
 
@@ -282,7 +291,7 @@ checkAccess(user, action, module) → boolean
 
 ### Pattern 1: Order Status Auto-Recalculation
 
-**Trigger:** After any Transaction add/edit/delete
+**Trigger:** After any Transaction add/edit/delete (including ORDER_ADJUSTMENT)
 
 **Logic:**
 ```typescript
@@ -300,12 +309,20 @@ async function recalculateOrderStatus(orderId: string) {
     .filter(t => t.paymentType === 'REFUND')
     .reduce((sum, t) => sum.plus(t.amountOriginal), new Decimal(0));
   
+  // NEW: Calculate adjustment total (can be negative)
+  const adjustmentTotal = order.transactions
+    .filter(t => t.paymentType === 'ADJUSTMENT')
+    .reduce((sum, t) => sum.plus(t.amountOriginal), new Decimal(0));
+  
+  // NEW: Effective value includes adjustments
+  const effectiveValue = order.amountOriginal.plus(adjustmentTotal);
+  
   const netPaid = paidAmount.minus(refundedAmount);
   
   let status = 'UNPAID';
-  if (netPaid.greaterThan(0) && netPaid.lessThan(order.amountOriginal)) {
+  if (netPaid.greaterThan(0) && netPaid.lessThan(effectiveValue)) {
     status = 'PARTIAL_PAID';
-  } else if (netPaid.greaterThanOrEqualTo(order.amountOriginal)) {
+  } else if (netPaid.greaterThanOrEqualTo(effectiveValue)) {
     status = 'PAID';
   }
   // Handle refunds...
@@ -316,6 +333,7 @@ async function recalculateOrderStatus(orderId: string) {
   });
 }
 ```
+**Note:** paidAmount and refundedAmount are NOT modified by adjustments; they remain sums of PAYMENT/REFUND transactions only. Adjustments modify the order's **effective value**, not the paid amount.
 
 ### Pattern 2: Atomic Deposit Deduction
 

@@ -227,6 +227,45 @@ trade-ops/
 - `getPayableAging(...)` – Supplier aging buckets
 - Each returns aggregated data (totals, counts)
 
+**`lib/order-status-calculator.ts`** (80–100 LOC)
+- `recalculateOrderStatus(orderId, txClient)` – Auto-calc order status using effective value
+- Effective value = `amountOriginal + adjustmentTotal` (where adjustments are ORDER_ADJUSTMENT tx)
+- Status logic: UNPAID/PARTIAL_PAID/PAID based on net paid vs effective
+- Uses Decimal for all arithmetic; handles negative adjustments
+
+**`lib/order-aggregates.ts`** (60–80 LOC)
+- `getOrderAggregates(order, transactions)` – Compute derived fields
+- Returns: `paidAmount`, `refundedAmount`, `adjustmentTotal`, `effectiveValue`, `balanceOriginal`
+- Used by order detail report endpoint + UI list pages
+
+**`lib/excel-report-utils.ts`** (100–150 LOC)
+- Shared styling/formatting for Excel exports
+- `applyHeaderStyle(sheet, row, columns)` – Header row styling (gray background, bold font)
+- `applySubtotalStyle(sheet, row, columns)` – Subtotal row styling (yellow background)
+- `applyGrandTotalStyle(sheet, row, columns)` – Grand total row styling (darker gray)
+- `buildReportFilename(type, dateFrom, dateTo)` – Consistent filename convention
+- `STYLES` object – Color constants (header, subtotal, grand-total)
+
+**`lib/excel-order-reports-service.ts`** (250–300 LOC)
+- `exportSalesSummary(orders, businessUnit, dateFrom, dateTo)` – Sales summary Excel
+- `exportSalesDetail(orders, businessUnit, dateFrom, dateTo)` – Sales detail Excel
+- `exportPurchaseSummary(orders, businessUnit, dateFrom, dateTo)` – Purchase summary Excel
+- `exportPurchaseDetail(orders, businessUnit, dateFrom, dateTo)` – Purchase detail Excel
+- Groups orders by customer/supplier × currency; adds subtotal rows per group, grand totals by currency
+- Includes adjustment column ("GIẢM GIÁ TRỊ ĐH") with signed amounts (displayed positive)
+
+**`lib/excel-cashflow-summary-service.ts`** (200–250 LOC)
+- `exportCashflowSummary(buSections, dateFrom, dateTo)` – Hierarchical Excel III/IV structure
+- Sections: III.a/b (customer receipts), IV.a/b (supplier payments)
+- Special rows: bank fees, deposits, with `expenseCategory` sub-grouping
+- Replaces prior DOCX export; Excel format with styled headers + totals
+
+**`lib/excel-cashflow-helpers.ts`** (80–120 LOC)
+- `groupTransactionsByCategory(transactions)` – Group standalone tx by expenseCategory
+- `filterBankFeeRows(transactions)` – Extract synthetic fee rows from parent tx
+- `filterDepositRows(deposits)` – Render deposit creation rows per party type
+- Helper functions for cashflow service organization
+
 ### Data & Validation
 
 **`lib/prisma.ts`** (10–15 LOC)
