@@ -124,9 +124,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       });
 
       // Deposit flow: deduct for PAYMENT, credit (or auto-create) for REFUND
+      // Schema ensures ADJUSTMENT never has paymentMethod=DEPOSIT, so cast is safe here
       if (txData.paymentMethod === "DEPOSIT") {
         await applyDepositOperation(tx, {
-          paymentType: txData.paymentType,
+          paymentType: txData.paymentType as "PAYMENT" | "REFUND",
           depositId: depositId ?? null,
           amountOriginal: txData.amountOriginal,
           transactionId: created.id,

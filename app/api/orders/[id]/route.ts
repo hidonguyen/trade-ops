@@ -21,11 +21,14 @@ const orderIncludes = {
 
 // Only safe fields are always editable; financial fields locked when transactions exist.
 // expenseTypeId is always editable (descriptive metadata, not financial).
+// exchangeRate and paymentDueDate are always editable (non-financial metadata).
 const updateOrderSchema = z.object({
   notes: z.string().max(1000).optional(),
   orderDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
   orderNumber: z.string().min(1).max(50).optional(),
   expenseTypeId: z.string().uuid().nullable().optional(),
+  exchangeRate: z.string().optional(),
+  paymentDueDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).nullable().optional(),
   // Below fields only allowed when no transactions exist
   amountOriginal: z.string().optional(),
   partyId: z.string().uuid().optional(),
@@ -93,7 +96,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     const hasTransactions = order.transactions.length > 0;
-    const { notes, orderDate, orderNumber, expenseTypeId, amountOriginal, partyId, currencyId } = validation.data;
+    const { notes, orderDate, orderNumber, expenseTypeId, exchangeRate, paymentDueDate, amountOriginal, partyId, currencyId } = validation.data;
 
     // Financial fields locked when transactions exist
     if (hasTransactions && (amountOriginal !== undefined || partyId !== undefined || currencyId !== undefined)) {
@@ -118,6 +121,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (orderDate !== undefined) updateData.orderDate = new Date(orderDate);
     if (orderNumber !== undefined) updateData.orderNumber = orderNumber.trim();
     if (expenseTypeId !== undefined) updateData.expenseTypeId = expenseTypeId;
+    if (exchangeRate !== undefined) updateData.exchangeRate = exchangeRate;
+    // paymentDueDate: null clears it, date string sets it
+    if (paymentDueDate !== undefined) updateData.paymentDueDate = paymentDueDate ? new Date(paymentDueDate) : null;
     if (!hasTransactions) {
       if (amountOriginal !== undefined) updateData.amountOriginal = amountOriginal;
       if (partyId !== undefined) updateData.partyId = partyId;

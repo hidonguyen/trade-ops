@@ -44,6 +44,12 @@ export const MSG = {
   bankFeeOnlyForBank: "Phí ngân hàng chỉ áp dụng cho phương thức Ngân hàng",
   bankFeeFieldsPair: "Phí (gốc) và Phí (VND) phải được điền cùng nhau",
 
+  // Adjustment transaction
+  adjustmentBankFeeNotAllowed: "Giao dịch điều chỉnh không được có phí ngân hàng",
+  adjustmentDepositNotAllowed: "Giao dịch điều chỉnh không được liên kết với cọc",
+  adjustmentPaymentTypeMismatch: "Giao dịch điều chỉnh phải có loại thanh toán là ADJUSTMENT",
+  adjustmentAmountNonZero: "Số tiền điều chỉnh không được bằng 0",
+
   // Expense type
   expenseTypeSaleForbidden: "Loại chi phí chỉ áp dụng cho đơn mua",
   expenseTypeNotApplicable: "Không áp dụng cho đơn bán",

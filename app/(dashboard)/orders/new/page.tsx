@@ -15,11 +15,13 @@ export default function NewOrderPage() {
 
   async function handleSubmit(data: OrderFormData) {
     // expenseTypeId only valid for PURCHASE; empty string fails uuid validation server-side
-    const { expenseTypeId, ...rest } = data;
+    const { expenseTypeId, paymentDueDate, ...rest } = data;
     const payload = {
       ...rest,
       orderDate: new Date(data.orderDate).toISOString(),
       ...(data.type === "PURCHASE" && expenseTypeId ? { expenseTypeId } : {}),
+      // paymentDueDate: include only if provided
+      ...(paymentDueDate ? { paymentDueDate: new Date(paymentDueDate).toISOString() } : {}),
     };
     const res = await fetch("/api/orders", {
       method: "POST",

@@ -6,11 +6,12 @@ import { useRouter, useParams } from "next/navigation";
 import { useRegisterOrderDetailType } from "@/components/providers/nav-highlight-provider";
 import { Button } from "@/components/ui/button";
 import { PaymentForm, EditingTransaction } from "@/components/payment-form";
+import { OrderAdjustmentForm } from "@/components/order-adjustment-form";
 import { OrderInfoCard } from "./order-info-card";
 import { FinancialSummaryCard } from "./financial-summary-card";
 import { OrderTransactionsTable } from "./order-transactions-table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { PlusIcon, PencilIcon } from "lucide-react";
+import { PlusIcon, PencilIcon, SlidersHorizontalIcon } from "lucide-react";
 import Decimal from "decimal.js";
 
 interface OrderReport {
@@ -21,13 +22,18 @@ interface OrderReport {
     orderNumber: string;
     orderDate: string;
     amountOriginal: string;
+    exchangeRate?: string;
+    paymentDueDate?: string | null;
     notes: string | null;
     party: { id: string; name: string; type: string };
     currency: { id: string; code: string; symbol: string };
     businessUnit: { id: string; code: string; name: string };
+    expenseType?: { id: string; name: string; isActive: boolean } | null;
   };
   summary: {
     orderAmountOriginal: string;
+    adjustmentTotalOriginal: string;
+    effectiveValueOriginal: string;
     totalPaidOriginal: string;
     totalRefundedOriginal: string;
     netPaidOriginal: string;
@@ -58,6 +64,7 @@ export default function OrderDetailPage() {
   const [report, setReport] = useState<OrderReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [paymentOpen, setPaymentOpen] = useState(false);
+  const [adjustmentOpen, setAdjustmentOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<EditingTransaction | null>(null);
 
   const fetchReport = useCallback(async () => {
@@ -76,7 +83,6 @@ export default function OrderDetailPage() {
 
   useEffect(() => { fetchReport(); }, [fetchReport]);
 
-  // Push order type to nav highlight context so sidebar can highlight Đơn bán / Đơn mua
   useRegisterOrderDetailType(
     report?.order?.type === "SALE" || report?.order?.type === "PURCHASE"
       ? report.order.type
@@ -84,11 +90,14 @@ export default function OrderDetailPage() {
   );
 
   // Compute max payment amount for overpayment hint
-  // When editing a PAYMENT tx, add back the tx's own amount (it's already subtracted from balance)
   const maxPaymentAmount = useMemo(() => {
     if (!report) return undefined;
     try {
-      let max = Decimal.max(new Decimal(report.summary.balanceOriginal), new Decimal(0));
+      // Use effectiveValueOriginal so balance accounts for adjustments
+      const effective = new Decimal(report.summary.effectiveValueOriginal ?? report.summary.orderAmountOriginal);
+      const paid = new Decimal(report.summary.totalPaidOriginal ?? "0");
+      const refunded = new Decimal(report.summary.totalRefundedOriginal ?? "0");
+      let max = Decimal.max(effective.minus(paid).plus(refunded), new Decimal(0));
       if (editingTx && editingTx.paymentType === "PAYMENT") {
         max = max.plus(new Decimal(editingTx.amountOriginal));
       }
@@ -98,20 +107,9 @@ export default function OrderDetailPage() {
     }
   }, [report, editingTx]);
 
-  function handleOpenCreate() {
-    setEditingTx(null);
-    setPaymentOpen(true);
-  }
-
-  function handleEdit(tx: EditingTransaction) {
-    setEditingTx(tx);
-    setPaymentOpen(true);
-  }
-
-  function handleClosePayment() {
-    setPaymentOpen(false);
-    setEditingTx(null);
-  }
+  function handleOpenCreate() { setEditingTx(null); setPaymentOpen(true); }
+  function handleEdit(tx: EditingTransaction) { setEditingTx(tx); setPaymentOpen(true); }
+  function handleClosePayment() { setPaymentOpen(false); setEditingTx(null); }
 
   if (loading) {
     return (
@@ -166,10 +164,16 @@ export default function OrderDetailPage() {
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-slate-800">Giao dịch thanh toán</h2>
-          <Button size="sm" onClick={handleOpenCreate}>
-            <PlusIcon className="size-4 mr-1.5" />
-            Thêm thanh toán
-          </Button>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => setAdjustmentOpen(true)}>
+              <SlidersHorizontalIcon className="size-4 mr-1.5" />
+              Thêm điều chỉnh
+            </Button>
+            <Button size="sm" onClick={handleOpenCreate}>
+              <PlusIcon className="size-4 mr-1.5" />
+              Thêm thanh toán
+            </Button>
+          </div>
         </div>
         <OrderTransactionsTable
           orderId={id}
@@ -190,6 +194,16 @@ export default function OrderDetailPage() {
         currency={order.currency}
         editingTransaction={editingTx}
         maxPaymentAmount={maxPaymentAmount}
+      />
+
+      {/* Adjustment dialog */}
+      <OrderAdjustmentForm
+        open={adjustmentOpen}
+        onClose={() => setAdjustmentOpen(false)}
+        onSuccess={fetchReport}
+        orderId={id}
+        orderType={order.type}
+        currency={order.currency}
       />
     </div>
   );

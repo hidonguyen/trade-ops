@@ -14,6 +14,8 @@ interface OrderData {
   status: string;
   orderDate: string;
   amountOriginal: string;
+  exchangeRate: string | null;
+  paymentDueDate: string | null;
   notes: string | null;
   partyId: string;
   currencyId: string;
@@ -58,6 +60,10 @@ export default function EditOrderPage() {
         orderNumber: data.orderNumber,
         // Send null to clear; undefined stays absent (skipped in PATCH)
         expenseTypeId: data.type === "PURCHASE" ? data.expenseTypeId || null : null,
+        // exchangeRate: always send (server persists it)
+        exchangeRate: data.exchangeRate || "1",
+        // paymentDueDate: null clears it
+        paymentDueDate: data.paymentDueDate ? new Date(data.paymentDueDate).toISOString() : null,
       }),
     });
     const json = await res.json();
@@ -94,6 +100,8 @@ export default function EditOrderPage() {
     orderDate: order.orderDate.split("T")[0],
     notes: order.notes ?? "",
     expenseTypeId: order.expenseTypeId ?? "",
+    exchangeRate: order.exchangeRate ? String(order.exchangeRate) : "1",
+    paymentDueDate: order.paymentDueDate ? order.paymentDueDate.split("T")[0] : "",
   };
 
   return (

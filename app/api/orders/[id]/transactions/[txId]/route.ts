@@ -11,12 +11,28 @@ import { MSG } from "@/lib/messages";
 import { invalidateTags } from "@/lib/cache/invalidate";
 import { TAG } from "@/lib/cache/keys";
 import { diffForAudit } from "@/lib/audit-diff";
-import { decimalString } from "@/lib/validation-schemas";
+import { decimalString, decimalStringOrZero } from "@/lib/validation-schemas";
+import Decimal from "decimal.js";
+
+// amountOriginal for PATCH: validated at runtime depending on existing tx.paymentType
+// Using z.string() here and deferring sign-check to the guard in $transaction block
+const _decimalAnyNonZero = z.string().refine(
+  (val) => {
+    try {
+      const d = new Decimal(val);
+      return d.isFinite() && !d.isZero();
+    } catch {
+      return false;
+    }
+  },
+  { message: "Phải là số thập phân khác 0 hợp lệ" }
+);
 
 const updateTransactionSchema = z.object({
-  amountOriginal: decimalString.optional(),
+  // Allow signed decimals for ADJUSTMENT transactions; server validates via checkOverpayment
+  amountOriginal: _decimalAnyNonZero.optional(),
   amountVnd: decimalString.optional(),
-  exchangeRate: decimalString.optional(),
+  exchangeRate: decimalStringOrZero.optional(),
   bankReference: z.string().max(100).nullable().optional(),
   transactionDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
   notes: z.string().max(1000).nullable().optional(),

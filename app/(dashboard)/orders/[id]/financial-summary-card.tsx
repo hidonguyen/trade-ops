@@ -4,6 +4,9 @@ import { CurrencyAmount } from "@/components/shared/currency-amount";
 
 interface FinancialSummary {
   orderAmountOriginal: string;
+  // New fields from phase 03 — adjustment total + effective value
+  adjustmentTotalOriginal?: string;
+  effectiveValueOriginal?: string;
   totalPaidOriginal: string;
   totalRefundedOriginal: string;
   netPaidOriginal: string;
@@ -46,7 +49,13 @@ function SummaryRow({ label, value, currencyCode, currencySymbol, highlight }: S
 }
 
 export function FinancialSummaryCard({ summary, currencyCode, currencySymbol }: FinancialSummaryCardProps) {
+  const adjustmentTotal = parseFloat(summary.adjustmentTotalOriginal ?? "0");
+  // "Còn phải thanh toán" uses effectiveValueOriginal when available (accounts for adjustments)
   const remaining = parseFloat(summary.balanceOriginal);
+
+  // Determine highlight for adjustment row: negative = red (reduces value), positive = green, zero = neutral
+  const adjustmentHighlight: "positive" | "negative" | "neutral" =
+    adjustmentTotal < 0 ? "negative" : adjustmentTotal > 0 ? "positive" : "neutral";
 
   return (
     <Card>
@@ -61,6 +70,16 @@ export function FinancialSummaryCard({ summary, currencyCode, currencySymbol }: 
             currencyCode={currencyCode}
             currencySymbol={currencySymbol}
           />
+          {/* Only show adjustment row when adjustment exists */}
+          {adjustmentTotal !== 0 && (
+            <SummaryRow
+              label="Điều chỉnh giá trị đơn hàng"
+              value={summary.adjustmentTotalOriginal ?? "0"}
+              currencyCode={currencyCode}
+              currencySymbol={currencySymbol}
+              highlight={adjustmentHighlight}
+            />
+          )}
           <SummaryRow
             label="Đã thanh toán"
             value={summary.totalPaidOriginal}

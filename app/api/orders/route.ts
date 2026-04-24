@@ -72,15 +72,36 @@ export async function GET(request: NextRequest) {
     const [data, total] = await Promise.all([
       prisma.order.findMany({
         where,
-        include: orderIncludes,
+        include: {
+          ...orderIncludes,
+          // Include transactions with paymentType=ADJUSTMENT to compute adjustmentTotal
+          transactions: {
+            where: { paymentType: "ADJUSTMENT" },
+            select: { amountOriginal: true },
+          },
+        },
         orderBy: { [sortBy]: order },
         skip,
         take: limit,
       }),
       prisma.order.count({ where }),
     ]);
+
+    // Post-map: sum adjustment transactions per order, remove raw tx array from payload
+    const enriched = data.map((o: any) => {
+      const { transactions: adjTxs, ...rest } = o;
+      let adjustmentTotal = 0;
+      if (adjTxs?.length) {
+        adjustmentTotal = adjTxs.reduce(
+          (sum: number, t: { amountOriginal: unknown }) => sum + parseFloat(String(t.amountOriginal ?? 0)),
+          0
+        );
+      }
+      return { ...rest, adjustmentTotal: adjustmentTotal.toFixed(4) };
+    });
+
     return Response.json({
-      ...apiResponse(true, data),
+      ...apiResponse(true, enriched),
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
   } catch (error) {

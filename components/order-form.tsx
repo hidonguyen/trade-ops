@@ -1,30 +1,28 @@
 // Order create/edit form — handles SALE and PURCHASE types
-// Fetches parties (filtered by type), business units, currencies on mount
+// Sub-fields extracted to order-form-fields.tsx to stay under 200 LOC
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import Decimal from "decimal.js";
 import { getDefaultBu } from "@/lib/utils";
 import { useSelectedBu } from "@/components/providers/bu-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Combobox } from "@/components/ui/combobox";
 import { DatePicker } from "@/components/ui/date-picker";
 import { NumberInput } from "@/components/ui/number-input";
+import {
+  ExchangeRateField,
+  ExpenseTypeField,
+  PaymentDueDateField,
+  NotesField,
+} from "@/components/order-form-fields";
 
-interface Party {
-  id: string;
-  name: string;
-  type: string;
-}
-
-interface Currency {
-  id: string;
-  code: string;
-  symbol: string;
-}
+interface Party { id: string; name: string; type: string; }
+interface Currency { id: string; code: string; symbol: string; }
+interface ExpenseType { id: string; name: string; isActive: boolean; }
 
 export interface OrderFormData {
   type: string;
@@ -35,15 +33,15 @@ export interface OrderFormData {
   currencyId: string;
   orderDate: string;
   notes: string;
-  // PURCHASE-only — ignored on SALE (server rejects if sent with SALE)
-  expenseTypeId: string;
+  expenseTypeId: string; // PURCHASE-only; server rejects on SALE
+  exchangeRate: string;  // exchange rate to VND; default "1" for VND orders
+  paymentDueDate: string; // optional ISO date string or ""
 }
 
 interface OrderFormProps {
   initialData?: Partial<OrderFormData> & { id?: string };
   onSubmit: (data: OrderFormData) => Promise<void>;
   mode: "create" | "edit";
-  // Disables the "Loại đơn" combobox (e.g. when creating from a type-filtered list)
   lockType?: boolean;
 }
 
@@ -57,13 +55,9 @@ const defaultForm: OrderFormData = {
   orderDate: new Date().toISOString().split("T")[0],
   notes: "",
   expenseTypeId: "",
+  exchangeRate: "1",
+  paymentDueDate: "",
 };
-
-interface ExpenseType {
-  id: string;
-  name: string;
-  isActive: boolean;
-}
 
 export function OrderForm({ initialData, onSubmit, mode, lockType }: OrderFormProps) {
   const [form, setForm] = useState<OrderFormData>(() => ({
@@ -79,14 +73,36 @@ export function OrderForm({ initialData, onSubmit, mode, lockType }: OrderFormPr
   const router = useRouter();
   const { businessUnits } = useSelectedBu();
 
-  // BU-level order number mode — controls whether user must input orderNumber or system auto-generates
   const orderNumberMode = useMemo(() => {
     const bu = businessUnits.find((b) => b.id === form.businessUnitId);
     return bu?.orderNumberMode ?? "MANUAL";
   }, [businessUnits, form.businessUnitId]);
   const isAutoNumber = orderNumberMode === "AUTO" && mode === "create";
 
-  // Load reference data
+  const selectedCurrency = useMemo(
+    () => currencies.find((c) => c.id === form.currencyId),
+    [currencies, form.currencyId]
+  );
+  const isVnd = selectedCurrency?.code === "VND";
+
+  useEffect(() => {
+    if (isVnd) setForm((prev) => ({ ...prev, exchangeRate: "1" }));
+  }, [isVnd]);
+
+  const derivedVnd = useMemo(() => {
+    try {
+      const amt = new Decimal(form.amountOriginal || "0");
+      const rate = new Decimal(form.exchangeRate || "1");
+      if (amt.isZero()) return null;
+      return amt.times(rate).toDecimalPlaces(0).toNumber().toLocaleString("vi-VN") + " ₫";
+    } catch { return null; }
+  }, [form.amountOriginal, form.exchangeRate]);
+
+  const showRateWarning =
+    !isVnd &&
+    Boolean(form.currencyId) &&
+    (!form.exchangeRate || form.exchangeRate === "1" || parseFloat(form.exchangeRate) <= 1);
+
   useEffect(() => {
     async function loadData() {
       try {
@@ -105,14 +121,12 @@ export function OrderForm({ initialData, onSubmit, mode, lockType }: OrderFormPr
     loadData();
   }, []);
 
-  // Clear expense type if user switches away from PURCHASE (server rejects it on SALE)
   useEffect(() => {
     if (form.type !== "PURCHASE" && form.expenseTypeId) {
       setForm((prev) => ({ ...prev, expenseTypeId: "" }));
     }
   }, [form.type, form.expenseTypeId]);
 
-  // Reload parties when type changes
   useEffect(() => {
     async function loadParties() {
       try {
@@ -135,10 +149,8 @@ export function OrderForm({ initialData, onSubmit, mode, lockType }: OrderFormPr
     if (!form.type) return "Loại đơn là bắt buộc";
     if (!form.partyId) return "Đối tác là bắt buộc";
     if (!form.businessUnitId) return "Vui lòng chọn đơn vị kinh doanh ở thanh tiêu đề";
-    // Order number required in MANUAL mode or when editing existing order
     if (!isAutoNumber && !form.orderNumber.trim()) return "Số đơn hàng là bắt buộc";
-    if (!form.amountOriginal || isNaN(parseFloat(form.amountOriginal)))
-      return "Số tiền không hợp lệ";
+    if (!form.amountOriginal || isNaN(parseFloat(form.amountOriginal))) return "Số tiền không hợp lệ";
     if (!form.currencyId) return "Tiền tệ là bắt buộc";
     if (!form.orderDate) return "Ngày đặt là bắt buộc";
     return null;
@@ -146,8 +158,8 @@ export function OrderForm({ initialData, onSubmit, mode, lockType }: OrderFormPr
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const validationError = validate();
-    if (validationError) { setError(validationError); return; }
+    const err = validate();
+    if (err) { setError(err); return; }
     setLoading(true);
     setError(null);
     try {
@@ -173,10 +185,7 @@ export function OrderForm({ initialData, onSubmit, mode, lockType }: OrderFormPr
           <Combobox
             value={form.type}
             onValueChange={(v) => { setField("type", v); setField("partyId", ""); }}
-            options={[
-              { value: "SALE", label: "Bán hàng" },
-              { value: "PURCHASE", label: "Mua hàng" },
-            ]}
+            options={[{ value: "SALE", label: "Bán hàng" }, { value: "PURCHASE", label: "Mua hàng" }]}
             placeholder="Chọn loại"
             disabled={mode === "edit" || lockType}
           />
@@ -193,9 +202,7 @@ export function OrderForm({ initialData, onSubmit, mode, lockType }: OrderFormPr
         </div>
 
         <div className="space-y-1.5">
-          <Label>
-            Số đơn hàng {!isAutoNumber && <span className="text-red-500">*</span>}
-          </Label>
+          <Label>Số đơn hàng {!isAutoNumber && <span className="text-red-500">*</span>}</Label>
           <Input
             value={isAutoNumber ? "" : form.orderNumber}
             onChange={(e) => setField("orderNumber", e.target.value)}
@@ -225,50 +232,38 @@ export function OrderForm({ initialData, onSubmit, mode, lockType }: OrderFormPr
           />
         </div>
 
+        <ExchangeRateField
+          exchangeRate={form.exchangeRate}
+          isVnd={isVnd}
+          showRateWarning={showRateWarning}
+          derivedVnd={derivedVnd}
+          currencyCode={selectedCurrency?.code ?? ""}
+          onChange={(v) => setField("exchangeRate", v)}
+        />
+
         <div className="space-y-1.5">
           <Label>Ngày đặt <span className="text-red-500">*</span></Label>
-          <DatePicker
-            value={form.orderDate}
-            onChange={(v) => setField("orderDate", v)}
-          />
+          <DatePicker value={form.orderDate} onChange={(v) => setField("orderDate", v)} />
         </div>
 
+        <PaymentDueDateField
+          value={form.paymentDueDate}
+          onChange={(v) => setField("paymentDueDate", v)}
+        />
+
         {form.type === "PURCHASE" && (
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label>Loại chi phí</Label>
-            <Combobox
-              value={form.expenseTypeId}
-              onValueChange={(v) => setField("expenseTypeId", v)}
-              options={[
-                { value: "", label: "— Chưa phân loại —" },
-                ...expenseTypes
-                  // Include inactive ones only if currently selected (preserve legacy links)
-                  .filter((e) => e.isActive || e.id === form.expenseTypeId)
-                  .map((e) => ({
-                    value: e.id,
-                    label: e.isActive ? e.name : `${e.name} (ngừng)`,
-                  })),
-              ]}
-              placeholder="Chọn loại chi phí (tùy chọn)"
-            />
-          </div>
+          <ExpenseTypeField
+            value={form.expenseTypeId}
+            expenseTypes={expenseTypes}
+            onChange={(v) => setField("expenseTypeId", v)}
+          />
         )}
       </div>
 
-      <div className="space-y-1.5">
-        <Label>Diễn giải</Label>
-        <Textarea
-          placeholder="Diễn giải..."
-          value={form.notes}
-          onChange={(e) => setField("notes", e.target.value)}
-          rows={3}
-        />
-      </div>
+      <NotesField value={form.notes} onChange={(v) => setField("notes", v)} />
 
       <div className="flex gap-2 justify-end">
-        <Button type="button" variant="outline" onClick={() => router.back()}>
-          Hủy
-        </Button>
+        <Button type="button" variant="outline" onClick={() => router.back()}>Hủy</Button>
         <Button type="submit" disabled={loading}>
           {loading ? "Đang lưu..." : mode === "create" ? "Tạo đơn" : "Lưu thay đổi"}
         </Button>

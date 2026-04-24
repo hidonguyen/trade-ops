@@ -36,6 +36,7 @@ interface OrderTransactionsTableProps {
 const PAYMENT_TYPE_LABEL: Record<string, string> = {
   PAYMENT: "Thanh toán",
   REFUND: "Hoàn tiền",
+  ADJUSTMENT: "Điều chỉnh giá trị đơn hàng",
 };
 
 const PAYMENT_METHOD_LABEL: Record<string, string> = {
@@ -84,30 +85,43 @@ export function OrderTransactionsTable({
     {
       key: "paymentType",
       label: "Loại",
-      render: (v) => (
-        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-          v === "PAYMENT" ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"
-        }`}>
-          {PAYMENT_TYPE_LABEL[v] ?? v}
-        </span>
-      ),
+      render: (v) => {
+        const isAdj = v === "ADJUSTMENT";
+        const colorClass = isAdj
+          ? "bg-slate-100 text-slate-700"
+          : v === "PAYMENT"
+          ? "bg-green-100 text-green-700"
+          : "bg-orange-100 text-orange-700";
+        return (
+          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${colorClass}`}>
+            {PAYMENT_TYPE_LABEL[v] ?? v}
+          </span>
+        );
+      },
     },
     {
       key: "paymentMethod",
       label: "Phương thức",
-      render: (v) => PAYMENT_METHOD_LABEL[v] ?? v,
+      // ADJUSTMENT rows skip method column — not meaningful
+      render: (v, row) => row.paymentType === "ADJUSTMENT" ? <span className="text-slate-400">—</span> : (PAYMENT_METHOD_LABEL[v] ?? v),
     },
     {
       key: "amountOriginal",
       label: "Số tiền",
       align: "right",
-      render: (v, row) => (
-        <CurrencyAmount
-          amount={v}
-          currencyCode={row.currency?.code ?? "VND"}
-          currencySymbol={row.currency?.symbol ?? "₫"}
-        />
-      ),
+      render: (v, row) => {
+        // ADJUSTMENT: CurrencyAmount already shows negative with red color; positive gets green tint
+        const isAdj = row.paymentType === "ADJUSTMENT";
+        const cls = isAdj && parseFloat(v as string) > 0 ? "text-green-700" : undefined;
+        return (
+          <CurrencyAmount
+            amount={v}
+            currencyCode={row.currency?.code ?? "VND"}
+            currencySymbol={row.currency?.symbol ?? "₫"}
+            className={cls}
+          />
+        );
+      },
     },
     {
       key: "amountVnd",
@@ -122,7 +136,7 @@ export function OrderTransactionsTable({
       label: "Phí NH",
       align: "right",
       render: (v, row) =>
-        v && parseFloat(v as string) > 0 ? (
+        row.paymentType !== "ADJUSTMENT" && v && parseFloat(v as string) > 0 ? (
           <CurrencyAmount
             amount={v as string}
             currencyCode={row.currency?.code ?? "VND"}

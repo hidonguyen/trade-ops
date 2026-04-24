@@ -11,7 +11,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { CurrencyAmount } from "@/components/shared/currency-amount";
 import { FilterBar, FilterConfig } from "@/components/shared/filter-bar";
 import { DateQuickPresets, getThisWeekRange } from "@/components/shared/date-quick-presets";
-import { PlusIcon } from "lucide-react";
+import { PlusIcon, FileSpreadsheetIcon } from "lucide-react";
 import Decimal from "decimal.js";
 
 interface Order extends Record<string, unknown> {
@@ -20,9 +20,12 @@ interface Order extends Record<string, unknown> {
   status: string;
   orderNumber: string;
   orderDate: string;
+  paymentDueDate: string | null;
   amountOriginal: string;
   paidAmount: string;
   refundedAmount: string;
+  // adjustmentTotal: signed sum of ORDER_ADJUSTMENT transactions (from list API, phase 03)
+  adjustmentTotal?: string;
   party: { id: string; name: string };
   currency: { id: string; code: string; symbol: string };
   businessUnit: { id: string; code: string; name: string };
@@ -179,6 +182,12 @@ export default function OrdersPage() {
       render: (v) => new Date(v).toLocaleDateString("vi-VN"),
     },
     {
+      key: "paymentDueDate",
+      label: "Hạn TT",
+      render: (v) =>
+        v ? new Date(v).toLocaleDateString("vi-VN") : <span className="text-slate-400">—</span>,
+    },
+    {
       key: "party",
       label: "Đối tác",
       render: (_, row) => row.party?.name ?? "—",
@@ -212,10 +221,13 @@ export default function OrdersPage() {
       label: "Còn phải TT",
       align: "right",
       render: (_, row) => {
-        // Còn phải TT = (orderAmount - refunded) - (paid - refunded) = orderAmount - paid
+        // Effective = orderAmount + adjustmentTotal (signed); balance = effective - paid
         const orderAmt = new Decimal(row.amountOriginal ?? "0");
+        const adjustment = new Decimal(row.adjustmentTotal ?? "0");
         const paid = new Decimal(row.paidAmount ?? "0");
-        const balance = Decimal.max(orderAmt.minus(paid), new Decimal(0));
+        const refunded = new Decimal(row.refundedAmount ?? "0");
+        const effective = orderAmt.plus(adjustment);
+        const balance = Decimal.max(effective.minus(paid).plus(refunded), new Decimal(0));
         return (
           <span className={balance.greaterThan(0) ? "text-red-600 font-medium" : "text-green-600"}>
             <CurrencyAmount
@@ -251,19 +263,82 @@ export default function OrdersPage() {
 
   const pageTitle = urlType === "SALE" ? "Đơn bán" : urlType === "PURCHASE" ? "Đơn mua" : "Đơn hàng";
 
+  // Build export URL for order reports using current filters
+  function buildExportUrl(
+    kind: "sales-summary" | "sales-detail" | "purchase-summary" | "purchase-detail"
+  ): string {
+    const params = new URLSearchParams();
+    if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
+    if (filters.dateTo) params.set("dateTo", filters.dateTo);
+    if (selectedBuId) params.set("businessUnitId", selectedBuId);
+    return `/api/reports/${kind}/export?${params.toString()}`;
+  }
+
+  const exportDisabled = !filters.dateFrom || !filters.dateTo;
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-slate-900">{pageTitle}</h1>
-        <Button
-          onClick={() =>
-            router.push(urlType ? `/orders/new?type=${urlType}` : "/orders/new")
-          }
-          size="sm"
-        >
-          <PlusIcon className="size-4 mr-1.5" />
-          Tạo đơn
-        </Button>
+        <div className="flex items-center gap-2">
+          {urlType === "SALE" && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={exportDisabled}
+                onClick={() => window.open(buildExportUrl("sales-summary"), "_blank")}
+                title={exportDisabled ? "Chọn khoảng ngày để xuất" : undefined}
+              >
+                <FileSpreadsheetIcon className="size-4 mr-1.5" />
+                Xuất tổng hợp Excel
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={exportDisabled}
+                onClick={() => window.open(buildExportUrl("sales-detail"), "_blank")}
+                title={exportDisabled ? "Chọn khoảng ngày để xuất" : undefined}
+              >
+                <FileSpreadsheetIcon className="size-4 mr-1.5" />
+                Xuất chi tiết Excel
+              </Button>
+            </>
+          )}
+          {urlType === "PURCHASE" && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={exportDisabled}
+                onClick={() => window.open(buildExportUrl("purchase-summary"), "_blank")}
+                title={exportDisabled ? "Chọn khoảng ngày để xuất" : undefined}
+              >
+                <FileSpreadsheetIcon className="size-4 mr-1.5" />
+                Xuất tổng hợp Excel
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={exportDisabled}
+                onClick={() => window.open(buildExportUrl("purchase-detail"), "_blank")}
+                title={exportDisabled ? "Chọn khoảng ngày để xuất" : undefined}
+              >
+                <FileSpreadsheetIcon className="size-4 mr-1.5" />
+                Xuất chi tiết Excel
+              </Button>
+            </>
+          )}
+          <Button
+            onClick={() =>
+              router.push(urlType ? `/orders/new?type=${urlType}` : "/orders/new")
+            }
+            size="sm"
+          >
+            <PlusIcon className="size-4 mr-1.5" />
+            Tạo đơn
+          </Button>
+        </div>
       </div>
 
       {filteredParty && (

@@ -25,6 +25,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         party: { select: { id: true, name: true, type: true } },
         currency: { select: { id: true, code: true, symbol: true } },
         businessUnit: { select: { id: true, code: true, name: true } },
+        expenseType: { select: { id: true, name: true, isActive: true } },
         transactions: {
           include: {
             currency: { select: { id: true, code: true, symbol: true } },
@@ -40,6 +41,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     // Compute summary using Decimal for precision
     const payments = order.transactions.filter((t: any) => t.paymentType === "PAYMENT");
     const refunds = order.transactions.filter((t: any) => t.paymentType === "REFUND");
+    const adjustments = order.transactions.filter((t: any) => t.paymentType === "ADJUSTMENT");
 
     const totalPaidOriginal = payments.reduce(
       (sum: any, t: any) => sum.plus(new Decimal(t.amountOriginal.toString())),
@@ -58,12 +60,25 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       new Decimal(0)
     );
 
+    // Signed sum of adjustments — modifies effective order value, NOT the paid side
+    const adjustmentTotalOriginal = adjustments.reduce(
+      (sum: any, t: any) => sum.plus(new Decimal(t.amountOriginal.toString())),
+      new Decimal(0)
+    );
+
     const orderAmount = new Decimal(order.amountOriginal.toString());
     const netPaidOriginal = totalPaidOriginal.minus(totalRefundedOriginal);
-    // Adjusted values: refund deducted from both order value and paid amount
-    // adjustedOrder = orderAmount - refunded, adjustedPaid = paid - refunded
-    // balance = orderAmount - paid (refund cancels on both sides)
-    const balanceOriginal = Decimal.max(orderAmount.minus(totalPaidOriginal), new Decimal(0));
+
+    // effectiveValueOriginal = orderAmount + Σ(adjustments)
+    // Adjustments change "what customer owes", not "what they paid"
+    const effectiveValueOriginal = orderAmount.plus(adjustmentTotalOriginal);
+
+    // balanceOriginal = max(effectiveValue - paid + refunded, 0)
+    // Explanation: effectiveValue is what is owed; paid reduces it; refunded adds back (customer gets money back, still owes that portion)
+    const balanceOriginal = Decimal.max(
+      effectiveValueOriginal.minus(totalPaidOriginal).plus(totalRefundedOriginal),
+      new Decimal(0)
+    );
 
     const depositPayments = order.transactions
       .filter((t: any) => t.paymentMethod === "DEPOSIT")
@@ -80,14 +95,19 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         status: order.status,
         orderNumber: order.orderNumber,
         amountOriginal: order.amountOriginal,
+        exchangeRate: order.exchangeRate,
+        paymentDueDate: order.paymentDueDate,
         orderDate: order.orderDate,
         notes: order.notes,
         party: order.party,
         currency: order.currency,
         businessUnit: order.businessUnit,
+        expenseType: order.expenseType ?? null,
       },
       summary: {
         orderAmountOriginal: orderAmount.toFixed(4),
+        adjustmentTotalOriginal: adjustmentTotalOriginal.toFixed(4),
+        effectiveValueOriginal: effectiveValueOriginal.toFixed(4),
         totalPaidOriginal: totalPaidOriginal.toFixed(4),
         totalPaidVnd: totalPaidVnd.toFixed(4),
         totalRefundedOriginal: totalRefundedOriginal.toFixed(4),

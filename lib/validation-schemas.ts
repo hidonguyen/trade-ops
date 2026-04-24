@@ -95,6 +95,8 @@ export const createDepositSchema = z.object({
 // Order
 // orderNumber may be empty (AUTO mode generates server-side); API enforces presence for MANUAL mode.
 // expenseTypeId only allowed on PURCHASE orders (reject on SALE to avoid contamination).
+// exchangeRate: exchange rate to VND (positive decimal, default "1" for VND orders)
+// paymentDueDate: optional due date for payment
 export const createOrderSchema = z
   .object({
     businessUnitId: z.string().uuid(),
@@ -106,6 +108,8 @@ export const createOrderSchema = z
     orderDate: dateField,
     notes: z.string().max(1000).optional(),
     expenseTypeId: z.string().uuid().optional().nullable(),
+    exchangeRate: decimalString.default("1"),
+    paymentDueDate: dateField.optional().nullable(),
   })
   .refine((d) => d.type !== "SALE" || !d.expenseTypeId, {
     message: MSG.expenseTypeSaleForbidden,
@@ -165,24 +169,70 @@ function refineDepositRules<
     );
 }
 
-// Order-linked transaction (payment/refund on an order)
+// Order-linked transaction (payment/refund/adjustment on an order)
+// ORDER_ADJUSTMENT type: signed amountOriginal, no bank fee, no deposit, paymentType = ADJUSTMENT
+const _orderTxBase = z.object({
+  type: z.enum(["SALE_PAYMENT", "PURCHASE_PAYMENT", "ORDER_ADJUSTMENT"]),
+  paymentMethod: z.enum(["BANK", "DEPOSIT"]),
+  paymentType: z.enum(["PAYMENT", "REFUND", "ADJUSTMENT"]),
+  // amountOriginal is validated in refinements below based on type
+  amountOriginal: z.string(),
+  currencyId: z.string().uuid(),
+  amountVnd: decimalString,
+  exchangeRate: decimalAny,
+  bankReference: z.string().max(100).nullable().optional(),
+  transactionDate: dateField,
+  notes: z.string().max(1000).nullable().optional(),
+  depositId: z.string().uuid().optional(),
+  ...bankFeeFields,
+});
+
 export const createOrderTransactionSchema = refineDepositRules(
-  refineBankFee(
-    z.object({
-      type: z.enum(["SALE_PAYMENT", "PURCHASE_PAYMENT"]),
-      paymentMethod: z.enum(["BANK", "DEPOSIT"]),
-      paymentType: z.enum(["PAYMENT", "REFUND"]),
-      amountOriginal: decimalString,
-      currencyId: z.string().uuid(),
-      amountVnd: decimalString,
-      exchangeRate: decimalAny,
-      bankReference: z.string().max(100).nullable().optional(),
-      transactionDate: dateField,
-      notes: z.string().max(1000).nullable().optional(),
-      depositId: z.string().uuid().optional(),
-      ...bankFeeFields,
-    })
-  ),
+  refineBankFee(_orderTxBase)
+    // For PAYMENT/REFUND: amountOriginal must be strictly positive decimal
+    .refine(
+      (d) => {
+        if (d.type === "ORDER_ADJUSTMENT") return true;
+        try {
+          const dec = new Decimal(d.amountOriginal);
+          return dec.isFinite() && dec.greaterThan(0);
+        } catch {
+          return false;
+        }
+      },
+      { message: "Phải là số dương hợp lệ", path: ["amountOriginal"] }
+    )
+    // For ADJUSTMENT: amountOriginal must be a valid non-zero decimal (can be negative)
+    .refine(
+      (d) => {
+        if (d.type !== "ORDER_ADJUSTMENT") return true;
+        try {
+          const dec = new Decimal(d.amountOriginal);
+          return dec.isFinite() && !dec.isZero();
+        } catch {
+          return false;
+        }
+      },
+      { message: MSG.adjustmentAmountNonZero, path: ["amountOriginal"] }
+    )
+    // ADJUSTMENT: paymentType must be ADJUSTMENT
+    .refine(
+      (d) => d.type !== "ORDER_ADJUSTMENT" || d.paymentType === "ADJUSTMENT",
+      { message: MSG.adjustmentPaymentTypeMismatch, path: ["paymentType"] }
+    )
+    // ADJUSTMENT: bank fee fields must be absent
+    .refine(
+      (d) =>
+        d.type !== "ORDER_ADJUSTMENT" ||
+        ((!d.bankFeeOriginal || d.bankFeeOriginal === "0") &&
+          (!d.bankFeeVnd || d.bankFeeVnd === "0")),
+      { message: MSG.adjustmentBankFeeNotAllowed, path: ["bankFeeOriginal"] }
+    )
+    // ADJUSTMENT: depositId must be absent
+    .refine(
+      (d) => d.type !== "ORDER_ADJUSTMENT" || !d.depositId,
+      { message: MSG.adjustmentDepositNotAllowed, path: ["depositId"] }
+    ),
   // Order-linked: partyId comes from order server-side, no need to validate
   false
 );
@@ -205,6 +255,7 @@ export const createStandaloneTransactionSchema = refineDepositRules(
       depositId: z.string().uuid().optional(),
       // partyId is required when auto-creating a deposit on REFUND + DEPOSIT
       partyId: z.string().uuid().optional(),
+      expenseTypeId: z.string().uuid().nullable().optional(),
       ...bankFeeFields,
     })
   ),

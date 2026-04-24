@@ -10,6 +10,8 @@ interface Order {
   orderNumber: string;
   orderDate: string;
   amountOriginal: string;
+  exchangeRate?: string | null;
+  paymentDueDate?: string | null;
   notes: string | null;
   party: { id: string; name: string; type: string };
   currency: { id: string; code: string; symbol: string };
@@ -21,7 +23,25 @@ interface OrderInfoCardProps {
   order: Order;
 }
 
+function formatDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return "—";
+  return new Date(dateStr).toLocaleDateString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
 export function OrderInfoCard({ order }: OrderInfoCardProps) {
+  const rate = parseFloat(order.exchangeRate ?? "1");
+  const isNonVnd = order.currency?.code !== "VND";
+  // Derived VND equivalent — only shown when currency is non-VND and rate meaningful
+  const vndEquivalent =
+    isNonVnd && rate > 0
+      ? (parseFloat(order.amountOriginal ?? "0") * rate)
+          .toLocaleString("vi-VN", { maximumFractionDigits: 0 }) + " ₫"
+      : null;
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -54,9 +74,15 @@ export function OrderInfoCard({ order }: OrderInfoCardProps) {
           </div>
           <div>
             <dt className="text-slate-500 text-xs uppercase tracking-wide">Ngày đặt</dt>
-            <dd className="font-medium mt-0.5">
-              {new Date(order.orderDate).toLocaleDateString("vi-VN")}
-            </dd>
+            <dd className="font-medium mt-0.5">{formatDate(order.orderDate)}</dd>
+          </div>
+          <div>
+            <dt className="text-slate-500 text-xs uppercase tracking-wide">Hạn thanh toán</dt>
+            <dd className="font-medium mt-0.5">{formatDate(order.paymentDueDate)}</dd>
+          </div>
+          <div>
+            <dt className="text-slate-500 text-xs uppercase tracking-wide">Đơn vị</dt>
+            <dd className="font-medium mt-0.5">{order.businessUnit?.code}</dd>
           </div>
           <div>
             <dt className="text-slate-500 text-xs uppercase tracking-wide">Số tiền</dt>
@@ -74,10 +100,20 @@ export function OrderInfoCard({ order }: OrderInfoCardProps) {
               {order.currency?.symbol} {order.currency?.code}
             </dd>
           </div>
-          <div>
-            <dt className="text-slate-500 text-xs uppercase tracking-wide">Đơn vị</dt>
-            <dd className="font-medium mt-0.5">{order.businessUnit?.code}</dd>
-          </div>
+          {isNonVnd && (
+            <div>
+              <dt className="text-slate-500 text-xs uppercase tracking-wide">Tỷ giá</dt>
+              <dd className="font-medium mt-0.5 font-mono">
+                {rate.toLocaleString("vi-VN", { maximumFractionDigits: 8 })}
+              </dd>
+            </div>
+          )}
+          {vndEquivalent && (
+            <div>
+              <dt className="text-slate-500 text-xs uppercase tracking-wide">Tương đương VND</dt>
+              <dd className="font-medium mt-0.5 font-mono text-slate-700">{vndEquivalent}</dd>
+            </div>
+          )}
           {order.type === "PURCHASE" && order.expenseType && (
             <div>
               <dt className="text-slate-500 text-xs uppercase tracking-wide">Loại chi phí</dt>
