@@ -36,6 +36,10 @@ export const MSG = {
   depositCurrencyMismatch: "Tiền tệ của cọc không khớp với tiền tệ giao dịch",
   businessUnitRequired: "Không tìm thấy đơn vị kinh doanh",
 
+  // Deposit edit/delete guards
+  depositLockedHasUsages: "Cọc đã có giao dịch liên quan; không thể thay đổi tiền tệ / đơn vị",
+  depositDeleteBlockedHasUsages: "Cọc đã được sử dụng; không thể xóa",
+
   // Deposit refund auto-create
   depositIdRequiredPayment: "Phải chọn cọc khi thanh toán bằng phương thức Cọc",
   partyIdRequiredRefund: "Cần chọn đối tác để tạo cọc mới cho giao dịch hoàn tiền",
@@ -68,6 +72,8 @@ export const MSG = {
 } as const;
 
 // Parameterized helpers — compose readable messages without string-interp at call sites.
+export const depositAmountBelowUsed = (used: string) =>
+  `Số tiền mới phải lớn hơn hoặc bằng phần đã sử dụng (${used})`;
 export const notFound = (entity: string) => `Không tìm thấy ${entity}`;
 export const fieldRequired = (field: string) => `${field} là bắt buộc`;
 export const fieldInvalid = (field: string) => `${field} không hợp lệ`;

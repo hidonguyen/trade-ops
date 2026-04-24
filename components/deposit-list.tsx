@@ -1,20 +1,18 @@
 // Deposit list with remaining balances — fetches /api/parties/[id]/deposits
+// Row actions: edit (pencil) + delete (trash, disabled when usages exist)
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { PlusIcon } from "lucide-react";
+import { PlusIcon, PencilIcon, Trash2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DataTable, Column } from "@/components/shared/data-table";
 import { CurrencyAmount } from "@/components/shared/currency-amount";
+import { ConfirmationDialog } from "@/components/shared/confirmation-dialog";
 import { DepositForm } from "@/components/deposit-form";
+import { DepositEditDialog, EnrichedDeposit } from "@/components/deposit-edit-dialog";
 
-interface Deposit {
-  id: string;
-  amountOriginal: string;
-  remainingOriginal: string;
+interface Deposit extends EnrichedDeposit {
   createdAt: string;
-  currency: { id: string; code: string; symbol: string };
-  businessUnit: { id: string; code: string; name: string };
 }
 
 interface DepositListProps {
@@ -25,6 +23,9 @@ export function DepositList({ partyId }: DepositListProps) {
   const [deposits, setDeposits] = useState<Deposit[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingDeposit, setEditingDeposit] = useState<Deposit | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Deposit | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchDeposits = useCallback(async () => {
     setLoading(true);
@@ -40,6 +41,50 @@ export function DepositList({ partyId }: DepositListProps) {
   }, [partyId]);
 
   useEffect(() => { fetchDeposits(); }, [fetchDeposits]);
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/parties/${partyId}/deposits/${deleteTarget.id}`, {
+        method: "DELETE",
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.message ?? "Lỗi xóa cọc");
+      setDeleteTarget(null);
+      fetchDeposits();
+    } catch (err) {
+      console.error("Lỗi xóa cọc:", err);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  // Action cell extracted to avoid bloating column definitions
+  function ActionCell({ row }: { row: Deposit }) {
+    return (
+      <div className="flex items-center gap-1">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="text-slate-500 hover:text-blue-600 hover:bg-blue-50"
+          onClick={(e) => { e.stopPropagation(); setEditingDeposit(row); }}
+        >
+          <PencilIcon className="size-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="text-red-500 hover:text-red-700 hover:bg-red-50 disabled:opacity-40 disabled:pointer-events-none"
+          disabled={row.usageCount > 0}
+          title={row.usageCount > 0 ? "Không thể xóa — cọc đã có giao dịch" : "Xóa cọc"}
+          onClick={(e) => { e.stopPropagation(); setDeleteTarget(row); }}
+        >
+          <Trash2Icon className="size-4" />
+        </Button>
+      </div>
+    );
+  }
 
   const columns: Column<Record<string, unknown>>[] = [
     {
@@ -75,6 +120,10 @@ export function DepositList({ partyId }: DepositListProps) {
         );
       },
     },
+    {
+      key: "actions", label: "",
+      render: (_v, row) => <ActionCell row={row as unknown as Deposit} />,
+    },
   ];
 
   return (
@@ -98,6 +147,24 @@ export function DepositList({ partyId }: DepositListProps) {
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
         onCreated={() => { setDialogOpen(false); fetchDeposits(); }}
+      />
+
+      <DepositEditDialog
+        open={!!editingDeposit}
+        deposit={editingDeposit}
+        partyId={partyId}
+        onClose={() => setEditingDeposit(null)}
+        onSuccess={() => { setEditingDeposit(null); fetchDeposits(); }}
+      />
+
+      <ConfirmationDialog
+        open={!!deleteTarget}
+        title="Xóa tiền đặt cọc"
+        description="Cọc này sẽ bị xóa vĩnh viễn. Bạn có chắc chắn?"
+        variant="danger"
+        confirmLabel={deleting ? "Đang xóa..." : "Xóa"}
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
       />
     </div>
   );

@@ -92,6 +92,13 @@ export const createDepositSchema = z.object({
   businessUnitId: z.string().uuid(),
 });
 
+// All fields optional — at least one must be present (enforced in route handler)
+export const updateDepositSchema = z.object({
+  currencyId: z.string().uuid().optional(),
+  amountOriginal: decimalString.optional(),
+  businessUnitId: z.string().uuid().optional(),
+});
+
 // Order
 // orderNumber may be empty (AUTO mode generates server-side); API enforces presence for MANUAL mode.
 // expenseTypeId only allowed on PURCHASE orders (reject on SALE to avoid contamination).
@@ -178,7 +185,8 @@ const _orderTxBase = z.object({
   // amountOriginal is validated in refinements below based on type
   amountOriginal: z.string(),
   currencyId: z.string().uuid(),
-  amountVnd: decimalString,
+  // amountVnd validated in refinements below: positive for PAYMENT/REFUND, signed non-zero for ADJUSTMENT
+  amountVnd: z.string(),
   exchangeRate: decimalAny,
   bankReference: z.string().max(100).nullable().optional(),
   transactionDate: dateField,
@@ -214,6 +222,20 @@ export const createOrderTransactionSchema = refineDepositRules(
         }
       },
       { message: MSG.adjustmentAmountNonZero, path: ["amountOriginal"] }
+    )
+    // amountVnd: positive for PAYMENT/REFUND; signed non-zero for ADJUSTMENT (sign follows amountOriginal)
+    .refine(
+      (d) => {
+        try {
+          const dec = new Decimal(d.amountVnd);
+          if (!dec.isFinite()) return false;
+          if (d.type === "ORDER_ADJUSTMENT") return !dec.isZero();
+          return dec.greaterThan(0);
+        } catch {
+          return false;
+        }
+      },
+      { message: "Phải là số dương hợp lệ", path: ["amountVnd"] }
     )
     // ADJUSTMENT: paymentType must be ADJUSTMENT
     .refine(

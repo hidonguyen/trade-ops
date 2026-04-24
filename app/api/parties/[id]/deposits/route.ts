@@ -1,6 +1,7 @@
 // Deposits list + create for a party — RBAC inherits from parent party type
 import { withAuth, checkAccess, apiResponse, parsePagination } from "@/lib/api-helpers";
 import { prisma } from "@/lib/prisma";
+import Decimal from "decimal.js";
 import { createAuditLog } from "@/lib/audit";
 import { createDepositSchema } from "@/lib/validation-schemas";
 import type { RbacAction, RbacModule } from "@/types";
@@ -56,6 +57,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
             include: {
               currency: { select: { id: true, code: true, symbol: true } },
               businessUnit: { select: { id: true, code: true, name: true } },
+              usages: { select: { amountOriginal: true } },
             },
             orderBy: { createdAt: order },
             skip,
@@ -63,7 +65,23 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
           }),
           prisma.deposit.count({ where: { partyId } }),
         ]);
-        return { data: items, total: count };
+        // Post-map: compute usedAmount/creditedAmount/usageCount, drop raw usages array
+        const mapped = items.map((d) => {
+          const usedAmount = d.usages
+            .filter((u) => Number(u.amountOriginal) > 0)
+            .reduce((s, u) => s.plus(new Decimal(String(u.amountOriginal))), new Decimal(0));
+          const creditedAmount = d.usages
+            .filter((u) => Number(u.amountOriginal) < 0)
+            .reduce((s, u) => s.plus(new Decimal(String(u.amountOriginal)).abs()), new Decimal(0));
+          const { usages: _usages, ...rest } = d;
+          return {
+            ...rest,
+            usedAmount: usedAmount.toFixed(4),
+            creditedAmount: creditedAmount.toFixed(4),
+            usageCount: d.usages.length,
+          };
+        });
+        return { data: mapped, total: count };
       }
     );
 
