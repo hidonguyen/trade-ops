@@ -43,6 +43,10 @@ interface OrderFormProps {
   onSubmit: (data: OrderFormData) => Promise<void>;
   mode: "create" | "edit";
   lockType?: boolean;
+  // Disable amount + currency edit when any transaction exists
+  lockAmountCurrency?: boolean;
+  // Disable party edit when any DEPOSIT-method transaction exists
+  lockParty?: boolean;
 }
 
 const defaultForm: OrderFormData = {
@@ -59,7 +63,7 @@ const defaultForm: OrderFormData = {
   paymentDueDate: "",
 };
 
-export function OrderForm({ initialData, onSubmit, mode, lockType }: OrderFormProps) {
+export function OrderForm({ initialData, onSubmit, mode, lockType, lockAmountCurrency, lockParty }: OrderFormProps) {
   const [form, setForm] = useState<OrderFormData>(() => ({
     ...defaultForm,
     businessUnitId: getDefaultBu(),
@@ -198,7 +202,11 @@ export function OrderForm({ initialData, onSubmit, mode, lockType }: OrderFormPr
             onValueChange={(v) => setField("partyId", v)}
             options={parties.map((p) => ({ value: p.id, label: p.name }))}
             placeholder="Chọn đối tác"
+            disabled={lockParty}
           />
+          {lockParty && (
+            <p className="text-xs text-slate-500">Đã thanh toán bằng cọc — không thể đổi đối tác</p>
+          )}
         </div>
 
         <div className="space-y-1.5">
@@ -218,7 +226,11 @@ export function OrderForm({ initialData, onSubmit, mode, lockType }: OrderFormPr
             onValueChange={(v) => setField("currencyId", v)}
             options={currencies.map((c) => ({ value: c.id, label: `${c.symbol} ${c.code}` }))}
             placeholder="Chọn tiền tệ"
+            disabled={lockAmountCurrency}
           />
+          {lockAmountCurrency && (
+            <p className="text-xs text-slate-500">Đã có giao dịch — không thể đổi tiền tệ</p>
+          )}
         </div>
 
         <div className="space-y-1.5">
@@ -229,7 +241,11 @@ export function OrderForm({ initialData, onSubmit, mode, lockType }: OrderFormPr
             decimals={4}
             min={0}
             placeholder="0.0000"
+            disabled={lockAmountCurrency}
           />
+          {lockAmountCurrency && (
+            <p className="text-xs text-slate-500">Đã có giao dịch — không thể sửa số tiền</p>
+          )}
         </div>
 
         <ExchangeRateField

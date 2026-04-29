@@ -84,7 +84,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   try {
     const order = await prisma.order.findUnique({
       where: { id },
-      include: { transactions: { select: { id: true } } },
+      include: { transactions: { select: { id: true, paymentMethod: true } } },
     });
     if (!order) {
       return Response.json(apiResponse(false, undefined, MSG.orderNotFound), { status: 404 });
@@ -95,13 +95,21 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
     }
 
-    const hasTransactions = order.transactions.length > 0;
+    const hasTx = order.transactions.length > 0;
+    const hasDepositTx = order.transactions.some((t) => t.paymentMethod === "DEPOSIT");
     const { notes, orderDate, orderNumber, expenseTypeId, exchangeRate, paymentDueDate, amountOriginal, partyId, currencyId } = validation.data;
 
-    // Financial fields locked when transactions exist
-    if (hasTransactions && (amountOriginal !== undefined || partyId !== undefined || currencyId !== undefined)) {
+    // Amount + currency locked once any transaction exists (financial integrity)
+    if (hasTx && (amountOriginal !== undefined || currencyId !== undefined)) {
       return Response.json(
         apiResponse(false, undefined, MSG.cannotModifyFinancial),
+        { status: 409 }
+      );
+    }
+    // Party locked when a deposit-method transaction exists (deposit usage tied to party)
+    if (hasDepositTx && partyId !== undefined && partyId !== order.partyId) {
+      return Response.json(
+        apiResponse(false, undefined, MSG.cannotModifyParty),
         { status: 409 }
       );
     }
@@ -124,10 +132,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (exchangeRate !== undefined) updateData.exchangeRate = exchangeRate;
     // paymentDueDate: null clears it, date string sets it
     if (paymentDueDate !== undefined) updateData.paymentDueDate = paymentDueDate ? new Date(paymentDueDate) : null;
-    if (!hasTransactions) {
+    if (!hasTx) {
       if (amountOriginal !== undefined) updateData.amountOriginal = amountOriginal;
-      if (partyId !== undefined) updateData.partyId = partyId;
       if (currencyId !== undefined) updateData.currencyId = currencyId;
+    }
+    if (!hasDepositTx && partyId !== undefined) {
+      updateData.partyId = partyId;
     }
 
     const userId = session.user.id!;
@@ -144,7 +154,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return updated;
     });
 
-    invalidateTags([TAG.reportsByBu(result.businessUnitId), TAG.order(id)]);
+    const tags = [TAG.reportsByBu(result.businessUnitId), TAG.order(id), TAG.party(result.partyId)];
+    if (order.partyId !== result.partyId) tags.push(TAG.party(order.partyId));
+    invalidateTags(tags);
     return Response.json(apiResponse(true, result));
   } catch (error) {
     const e = error as { code?: string };

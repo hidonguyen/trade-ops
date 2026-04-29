@@ -22,6 +22,7 @@ interface OrderData {
   businessUnitId: string;
   orderNumber: string;
   expenseTypeId: string | null;
+  transactions?: { id: string; paymentMethod: string }[];
 }
 
 export default function EditOrderPage() {
@@ -48,23 +49,32 @@ export default function EditOrderPage() {
   );
 
   async function handleSubmit(data: OrderFormData) {
+    const txList = order?.transactions ?? [];
+    const hasTx = txList.length > 0;
+    const hasDepositTx = txList.some((t) => t.paymentMethod === "DEPOSIT");
+
+    const body: Record<string, unknown> = {
+      notes: data.notes,
+      orderDate: new Date(data.orderDate).toISOString(),
+      orderNumber: data.orderNumber,
+      expenseTypeId: data.type === "PURCHASE" ? data.expenseTypeId || null : null,
+      exchangeRate: data.exchangeRate || "1",
+      paymentDueDate: data.paymentDueDate ? new Date(data.paymentDueDate).toISOString() : null,
+    };
+    // Only send locked fields when not locked, so server's lock guards don't 409
+    // on otherwise valid edits to free fields.
+    if (!hasTx) {
+      body.amountOriginal = data.amountOriginal;
+      body.currencyId = data.currencyId;
+    }
+    if (!hasDepositTx) {
+      body.partyId = data.partyId;
+    }
+
     const res = await fetch(`/api/orders/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        notes: data.notes,
-        orderDate: new Date(data.orderDate).toISOString(),
-        amountOriginal: data.amountOriginal,
-        partyId: data.partyId,
-        currencyId: data.currencyId,
-        orderNumber: data.orderNumber,
-        // Send null to clear; undefined stays absent (skipped in PATCH)
-        expenseTypeId: data.type === "PURCHASE" ? data.expenseTypeId || null : null,
-        // exchangeRate: always send (server persists it)
-        exchangeRate: data.exchangeRate || "1",
-        // paymentDueDate: null clears it
-        paymentDueDate: data.paymentDueDate ? new Date(data.paymentDueDate).toISOString() : null,
-      }),
+      body: JSON.stringify(body),
     });
     const json = await res.json();
     if (!json.success) throw new Error(json.message ?? "Lỗi cập nhật đơn hàng");
@@ -104,6 +114,10 @@ export default function EditOrderPage() {
     paymentDueDate: order.paymentDueDate ? order.paymentDueDate.split("T")[0] : "",
   };
 
+  const txList = order.transactions ?? [];
+  const lockAmountCurrency = txList.length > 0;
+  const lockParty = txList.some((t) => t.paymentMethod === "DEPOSIT");
+
   return (
     <div className="max-w-2xl mx-auto space-y-4">
       <div>
@@ -120,7 +134,13 @@ export default function EditOrderPage() {
           <CardTitle className="text-base">Thông tin đơn hàng</CardTitle>
         </CardHeader>
         <CardContent>
-          <OrderForm mode="edit" initialData={initialData} onSubmit={handleSubmit} />
+          <OrderForm
+            mode="edit"
+            initialData={initialData}
+            onSubmit={handleSubmit}
+            lockAmountCurrency={lockAmountCurrency}
+            lockParty={lockParty}
+          />
         </CardContent>
       </Card>
     </div>
