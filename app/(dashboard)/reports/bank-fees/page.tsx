@@ -62,9 +62,9 @@ export default function BankFeesReportPage() {
   const [filters, setFilters] = useState<Record<string, string>>(() => ({
     ...getInitialDateRange("bank-fees"),
   }));
-  useRestorePersistedDateRange("bank-fees", (range) =>
-    setFilters((prev) => ({ ...prev, ...range }))
-  );
+  const dateRestored = useRestorePersistedDateRange("bank-fees", (range) => {
+    setFilters((prev) => ({ ...prev, ...range }));
+  });
   usePersistDateRange("bank-fees", filters.dateFrom, filters.dateTo);
   const [rows, setRows] = useState<BankFeeRow[]>([]);
   const [totals, setTotals] = useState<Totals>({ grandFeeVnd: "0", byCurrency: [] });
@@ -81,9 +81,9 @@ export default function BankFeesReportPage() {
       .catch(console.error);
   }, []);
 
-  const fetchReport = useCallback(async () => {
+  const fetchReport = useCallback(async (signal?: AbortSignal) => {
+    if (!buLoaded || !selectedBuId || !dateRestored) return;
     if (!filters.dateFrom || !filters.dateTo) return;
-    if (!buLoaded || !selectedBuId) return;
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -95,7 +95,8 @@ export default function BankFeesReportPage() {
         businessUnitId: selectedBuId,
         ...(filters.currencyId ? { currencyId: filters.currencyId } : {}),
       });
-      const res = await fetch(`/api/reports/bank-fees?${params}`);
+      const res = await fetch(`/api/reports/bank-fees?${params}`, { signal });
+      if (signal?.aborted) return;
       const json = await res.json();
       if (json.success) {
         setRows(json.data.items ?? []);
@@ -103,18 +104,18 @@ export default function BankFeesReportPage() {
         setTotal(json.pagination?.total ?? 0);
       }
     } catch (err) {
+      if ((err as Error).name === "AbortError") return;
       console.error("Lỗi tải báo cáo phí ngân hàng:", err);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
-  }, [page, limit, filters, selectedBuId, buLoaded]);
+  }, [page, limit, filters, selectedBuId, buLoaded, dateRestored]);
 
-  useEffect(() => { fetchReport(); }, [fetchReport]);
-
-  function handleFilterChange(key: string, value: string) {
-    setFilters((prev) => ({ ...prev, [key]: value }));
-    setPage(1);
-  }
+  useEffect(() => {
+    const ctrl = new AbortController();
+    fetchReport(ctrl.signal);
+    return () => ctrl.abort();
+  }, [fetchReport]);
 
   function handleExportExcel() {
     const params = new URLSearchParams({
@@ -198,10 +199,13 @@ export default function BankFeesReportPage() {
         </Button>
       </div>
 
-      <FilterBar filters={filterConfigs} onFilterChange={handleFilterChange} values={filters} />
+      <FilterBar
+        filters={filterConfigs}
+        onFilterChange={(k, v) => setFilters((prev) => ({ ...prev, [k]: v }))}
+        values={filters}
+      />
       <DateQuickPresets onSelect={(from, to) => {
         setFilters((prev) => ({ ...prev, dateFrom: from, dateTo: to }));
-        setPage(1);
       }} />
 
       {/* Totals summary */}

@@ -26,13 +26,16 @@ interface OrderDebtRow extends Record<string, unknown> {
 }
 
 interface StandaloneRow extends Record<string, unknown> {
+  rowType: "transaction" | "deposit" | "bankFee";
   id: string;
-  transactionDate: string;
+  date: string;
   amountOriginal: string;
   currencyCode: string;
   currencySymbol: string;
-  paymentMethod: string;
+  paymentMethod: string | null;
   bankReference: string | null;
+  partyName: string | null;
+  label: string;
   notes: string | null;
 }
 
@@ -83,11 +86,15 @@ const ORDER_COLUMNS: Column<OrderDebtRow>[] = [
     key: "periodPayment",
     label: "TT lần này",
     align: "right",
-    render: (v, row) => (
-      <span className="text-green-700 font-medium">
-        <CurrencyAmount amount={v} currencyCode={row.currencyCode} currencySymbol={row.currencySymbol} />
-      </span>
-    ),
+    render: (v, row) => {
+      const num = parseFloat(v as string);
+      const cls = num < 0 ? "text-red-600 font-medium" : "text-green-700 font-medium";
+      return (
+        <span className={cls}>
+          <CurrencyAmount amount={v} currencyCode={row.currencyCode} currencySymbol={row.currencySymbol} />
+        </span>
+      );
+    },
   },
   {
     key: "remainingDebt",
@@ -116,9 +123,14 @@ const STANDALONE_COLUMNS: Column<StandaloneRow>[] = [
     render: (_: unknown, __: StandaloneRow, idx?: number) => (idx ?? 0) + 1,
   },
   {
-    key: "transactionDate",
+    key: "date",
     label: "Ngày",
-    render: (v) => new Date(v).toLocaleDateString("vi-VN"),
+    render: (v) => new Date(v as string).toLocaleDateString("vi-VN"),
+  },
+  {
+    key: "partyName",
+    label: "Đối tác",
+    render: (v) => (v as string | null) ?? "—",
   },
   {
     key: "amountOriginal",
@@ -133,19 +145,34 @@ const STANDALONE_COLUMNS: Column<StandaloneRow>[] = [
     label: "Tiền tệ",
   },
   {
+    key: "label",
+    label: "Loại",
+    render: (v, row) => {
+      const text = (v as string) || "—";
+      if (row.rowType === "bankFee") return <span className="text-red-600">{text}</span>;
+      if (row.rowType === "deposit") return <span className="text-blue-600">{text}</span>;
+      return text;
+    },
+  },
+  {
     key: "paymentMethod",
     label: "Phương thức",
-    render: (v) => v === "BANK" ? "Ngân hàng" : "Cọc",
+    render: (v) => {
+      if (v === null || v === undefined) return "—";
+      if (v === "BANK") return "Ngân hàng";
+      if (v === "DEPOSIT") return "Cọc";
+      return v as string;
+    },
   },
   {
     key: "bankReference",
     label: "Tham chiếu",
-    render: (v) => v ?? "—",
+    render: (v) => (v as string | null) ?? "—",
   },
   {
     key: "notes",
     label: "Ghi chú",
-    render: (v) => v ?? "—",
+    render: (v) => (v as string | null) ?? "—",
   },
 ];
 
@@ -163,45 +190,48 @@ function exportToCsv(data: Record<string, unknown>[], columns: { key: string; la
 }
 
 export default function ReportsSummaryPage() {
-  const { selectedBuId } = useSelectedBu();
+  const { selectedBuId, isLoaded: buLoaded } = useSelectedBu();
   const [filters, setFilters] = useState<Record<string, string>>(() => ({
     ...getInitialDateRange("summary"),
   }));
-  useRestorePersistedDateRange("summary", (range) =>
-    setFilters((prev) => ({ ...prev, ...range }))
-  );
+  const dateRestored = useRestorePersistedDateRange("summary", (range) => {
+    setFilters((prev) => ({ ...prev, ...range }));
+  });
   usePersistDateRange("summary", filters.dateFrom, filters.dateTo);
   const [activeTab, setActiveTab] = useState<TabKey>("customerReceipts");
   const [data, setData] = useState<SummaryData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchSummary = useCallback(async (f: Record<string, string>) => {
-    if (!selectedBuId || !f.dateFrom || !f.dateTo) return;
+  const fetchSummary = useCallback(async (signal?: AbortSignal) => {
+    if (!buLoaded || !selectedBuId || !dateRestored) return;
+    if (!filters.dateFrom || !filters.dateTo) return;
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams({
         businessUnitId: selectedBuId,
-        dateFrom: f.dateFrom,
-        dateTo: f.dateTo,
+        dateFrom: filters.dateFrom,
+        dateTo: filters.dateTo,
       });
-      const res = await fetch(`/api/reports/summary?${params}`);
+      const res = await fetch(`/api/reports/summary?${params}`, { signal });
+      if (signal?.aborted) return;
       const json = await res.json();
       if (json.success) setData(json.data);
       else setError(json.message ?? "Lỗi không xác định");
-    } catch {
+    } catch (err) {
+      if ((err as Error).name === "AbortError") return;
       setError("Lỗi kết nối máy chủ");
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
-  }, [selectedBuId]);
+  }, [buLoaded, selectedBuId, dateRestored, filters]);
 
-  useEffect(() => { fetchSummary(filters); }, [filters, fetchSummary]);
-
-  function handleFilterChange(key: string, value: string) {
-    setFilters((prev) => ({ ...prev, [key]: value }));
-  }
+  useEffect(() => {
+    const ctrl = new AbortController();
+    fetchSummary(ctrl.signal);
+    return () => ctrl.abort();
+  }, [fetchSummary]);
 
   const filterConfigs: FilterConfig[] = [
     { key: "dateFrom", label: "Từ ngày", type: "date" },
@@ -232,7 +262,11 @@ export default function ReportsSummaryPage() {
         </Button>
       </div>
 
-      <FilterBar filters={filterConfigs} onFilterChange={handleFilterChange} values={filters} />
+      <FilterBar
+        filters={filterConfigs}
+        onFilterChange={(k, v) => setFilters((prev) => ({ ...prev, [k]: v }))}
+        values={filters}
+      />
       <DateQuickPresets onSelect={(from, to) => {
         setFilters((prev) => ({ ...prev, dateFrom: from, dateTo: to }));
       }} />
@@ -261,24 +295,6 @@ export default function ReportsSummaryPage() {
 
       {/* Table + export */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-medium text-slate-700">{activeTabInfo.label}</p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              const cols = activeTabInfo.isOrder
-                ? ORDER_COLUMNS.filter((c) => c.key !== "index")
-                : STANDALONE_COLUMNS.filter((c) => c.key !== "index");
-              exportToCsv(tabData as Record<string, unknown>[], cols, activeTabInfo.label);
-            }}
-            disabled={tabData.length === 0}
-          >
-            <DownloadIcon className="size-4 mr-1.5" />
-            Xuất CSV
-          </Button>
-        </div>
-
         {activeTabInfo.isOrder ? (
           <DataTable
             columns={ORDER_COLUMNS as unknown as Column<Record<string, unknown>>[]}

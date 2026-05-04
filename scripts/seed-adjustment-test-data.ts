@@ -330,7 +330,8 @@ async function main() {
       businessUnitId: tkBU.id,
       currencyId: usdCur.id,
       amountOriginal: 20,
-      remainingOriginal: 20,
+      // Fully consumed by depositusage-001 (positive 20). Keep invariant: remaining = amount − Σpos.
+      remainingOriginal: 0,
     },
   });
 

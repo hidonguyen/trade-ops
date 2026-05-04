@@ -4,16 +4,26 @@ import { applyHeaderStyle } from "./excel-report-utils";
 
 interface CashflowTransaction {
   transactionDate: Date | string;
-  type: string;
+  // Single combined Vietnamese category: "Thu bán hàng", "Chi mua hàng",
+  // "Thu/Chi hoàn tiền", "Thu/Chi đặt cọc khách hàng", etc.
+  category?: string;
+  isMoneyIn?: boolean;
+  type?: string;
   partyName?: string | null;
+  expenseTypeName?: string | null;
+  description?: string | null;
+  orderNumber?: string | null;
   amountOriginal: string | number;
+  amountVnd?: string | number;
   currencyCode: string;
   paymentMethod: string;
   bankReference?: string | null;
-  paymentType: string;
+  paymentType?: string;
   notes?: string | null;
   bankFeeOriginal?: string | null;
   bankFeeVnd?: string | null;
+  businessUnit?: { code: string; name?: string | null };
+  createdBy?: string;
 }
 
 interface CashflowExportData {
@@ -58,16 +68,19 @@ export async function exportCashflowToExcel(data: CashflowExportData): Promise<B
   const txSheet = workbook.addWorksheet("Cashflow Transactions");
   txSheet.columns = [
     { header: "Date", key: "date", width: 15 },
-    { header: "Type", key: "type", width: 18 },
-    { header: "Party", key: "party", width: 25 },
-    { header: "Amount", key: "amount", width: 20 },
+    { header: "BU", key: "bu", width: 8 },
+    { header: "Loại", key: "category", width: 24 },
+    { header: "Đối tác", key: "party", width: 25 },
+    { header: "Diễn giải", key: "description", width: 30 },
+    { header: "Mã đơn", key: "orderNumber", width: 14 },
+    { header: "Nguyên tệ", key: "amount", width: 20 },
     { header: "Currency", key: "currency", width: 10 },
-    { header: "Method", key: "method", width: 12 },
-    { header: "Payment Type", key: "paymentType", width: 14 },
-    { header: "Bank Fee (Orig)", key: "bankFeeOriginal", width: 18 },
-    { header: "Bank Fee (VND)", key: "bankFeeVnd", width: 18 },
-    { header: "Reference", key: "reference", width: 22 },
-    { header: "Notes", key: "notes", width: 30 },
+    { header: "Phí NH", key: "bankFeeOriginal", width: 18 },
+    { header: "Quy đổi VND", key: "amountVnd", width: 20 },
+    { header: "Phí NH (VND)", key: "bankFeeVnd", width: 18 },
+    { header: "Tham chiếu", key: "reference", width: 22 },
+    { header: "Ghi chú", key: "notes", width: 30 },
+    { header: "Người tạo", key: "createdBy", width: 18 },
   ];
   applyHeaderStyle(txSheet.getRow(1));
 
@@ -76,18 +89,23 @@ export async function exportCashflowToExcel(data: CashflowExportData): Promise<B
       tx.transactionDate instanceof Date
         ? tx.transactionDate.toISOString().slice(0, 10)
         : String(tx.transactionDate).slice(0, 10);
+    // Sign by direction: money-out rows render negative for cleaner cashflow sums.
+    const sign = tx.isMoneyIn === false ? -1 : 1;
     txSheet.addRow({
       date: dateVal,
-      type: tx.type,
+      bu: tx.businessUnit?.code ?? "",
+      category: tx.category ?? tx.type ?? "",
       party: tx.partyName ?? "",
-      amount: tx.amountOriginal,
+      description: tx.description ?? "",
+      orderNumber: tx.orderNumber ?? "",
+      amount: sign * Number(tx.amountOriginal),
       currency: tx.currencyCode,
-      method: tx.paymentMethod,
-      paymentType: tx.paymentType,
       bankFeeOriginal: tx.bankFeeOriginal ?? "",
+      amountVnd: tx.amountVnd != null ? sign * Number(tx.amountVnd) : "",
       bankFeeVnd: tx.bankFeeVnd ?? "",
       reference: tx.bankReference ?? "",
       notes: tx.notes ?? "",
+      createdBy: tx.createdBy ?? "",
     });
   }
 

@@ -67,16 +67,17 @@ export async function GET(request: Request) {
           include: {
             party: { select: { name: true } },
             currency: { select: { code: true } },
-            // Include ALL payment tx (not just in-period) so we can compute priorDebt
+            // Include ALL tx (PAYMENT/REFUND/ADJUSTMENT, non-DEPOSIT) so we can compute
+            // effectiveValue + refund-aware priorDebt/remainingDebt.
             transactions: {
-              where: {
-                paymentType: "PAYMENT",
-                paymentMethod: { not: "DEPOSIT" },
-              },
+              where: { paymentMethod: { not: "DEPOSIT" } },
               select: {
                 amountOriginal: true,
                 amountVnd: true,
+                bankFeeOriginal: true,
+                bankFeeVnd: true,
                 transactionDate: true,
+                paymentType: true,
               },
             },
           },
@@ -86,33 +87,72 @@ export async function GET(request: Request) {
         function buildOrderRows(filteredOrders: typeof orders): OrderCashflowRow[] {
           return filteredOrders.map((order) => {
             const orderAmt = new Decimal(order.amountOriginal.toString());
+            const txs = order.transactions;
 
-            // Paid before period start (priorDebt basis)
-            const paidBefore = order.transactions
-              .filter((t) => t.transactionDate < fromDate)
-              .reduce((s, t) => s.plus(new Decimal(t.amountOriginal.toString())), new Decimal(0));
+            const sumOrig = (filter: (t: (typeof txs)[number]) => boolean) =>
+              txs.filter(filter).reduce(
+                (s, t) => s.plus(new Decimal(t.amountOriginal.toString())),
+                new Decimal(0)
+              );
 
-            // Paid in period (may span multiple tx; pick latest tx date for display)
-            const inPeriodTxs = order.transactions.filter(
-              (t) => t.transactionDate >= fromDate && t.transactionDate <= toDate
+            const adjTotal = sumOrig((t) => t.paymentType === "ADJUSTMENT");
+            const effectiveValue = orderAmt.plus(adjTotal);
+
+            const paymentsBefore = sumOrig(
+              (t) => t.paymentType === "PAYMENT" && t.transactionDate < fromDate
             );
-            const paidThisTime = inPeriodTxs.reduce(
+            const refundsBefore = sumOrig(
+              (t) => t.paymentType === "REFUND" && t.transactionDate < fromDate
+            );
+            const paymentsAll = sumOrig((t) => t.paymentType === "PAYMENT");
+            const refundsAll = sumOrig((t) => t.paymentType === "REFUND");
+
+            const inPeriodPayments = txs.filter(
+              (t) =>
+                t.paymentType === "PAYMENT" &&
+                t.transactionDate >= fromDate &&
+                t.transactionDate <= toDate
+            );
+            // Gross paid this period (orig + vnd). Bank fees are NOT deducted —
+            // they appear as their own row in IV.b.
+            const grossPaid = inPeriodPayments.reduce(
               (s, t) => s.plus(new Decimal(t.amountOriginal.toString())),
               new Decimal(0)
             );
-            const vndInPeriod = inPeriodTxs.reduce(
+            const grossPaidVnd = inPeriodPayments.reduce(
               (s, t) => s.plus(new Decimal(t.amountVnd.toString())),
               new Decimal(0)
             );
 
+            // Subtract in-period refunds — TT lần này = thực thu/chi − hoàn tiền
+            const inPeriodRefunds = txs.filter(
+              (t) =>
+                t.paymentType === "REFUND" &&
+                t.transactionDate >= fromDate &&
+                t.transactionDate <= toDate
+            );
+            const refundedInPeriod = inPeriodRefunds.reduce(
+              (s, t) => s.plus(new Decimal(t.amountOriginal.toString())),
+              new Decimal(0)
+            );
+            const refundedVndInPeriod = inPeriodRefunds.reduce(
+              (s, t) => s.plus(new Decimal(t.amountVnd.toString())),
+              new Decimal(0)
+            );
+            const paidThisTime = grossPaid.minus(refundedInPeriod);
+            const vndInPeriod = grossPaidVnd.minus(refundedVndInPeriod);
+
             // Use the latest in-period payment date for the "Ngày" column
-            const latestTxDate = inPeriodTxs.reduce<Date | null>((latest, t) => {
+            const latestTxDate = inPeriodPayments.reduce<Date | null>((latest, t) => {
               return latest === null || t.transactionDate > latest ? t.transactionDate : latest;
             }, null) ?? fromDate;
 
-            const debtBefore = Decimal.max(orderAmt.minus(paidBefore), new Decimal(0));
+            const debtBefore = Decimal.max(
+              effectiveValue.minus(paymentsBefore).plus(refundsBefore),
+              new Decimal(0)
+            );
             const debtRemaining = Decimal.max(
-              orderAmt.minus(paidBefore).minus(paidThisTime),
+              effectiveValue.minus(paymentsAll).plus(refundsAll),
               new Decimal(0)
             );
 
@@ -175,14 +215,16 @@ export async function GET(request: Request) {
           },
           include: {
             currency: { select: { code: true } },
+            order: { select: { orderNumber: true, party: { select: { name: true } } } },
           },
           orderBy: { transactionDate: "asc" },
         });
 
-        // ── Deposits created in period ─────────────────────────────────────────
+        // ── Deposits created in period (manual only — REFUND-sourced are duplicates) ─
         const deposits = await prisma.deposit.findMany({
           where: {
             businessUnitId: bu.id,
+            source: "MANUAL",
             createdAt: { gte: fromDate, lte: toDate },
           },
           include: {
@@ -221,10 +263,13 @@ export async function GET(request: Request) {
         // Append bank-fee sub-rows to IV.b — fee amount only (NOT amountOriginal)
         for (const t of bankFeeTxs) {
           if (!t.bankFeeOriginal) continue;
+          const partyLabel = t.order
+            ? `${t.order.party.name} ${t.order.orderNumber}`
+            : `GD #${t.id.slice(-6)}`;
           otherPaymentRows.push({
             transactionDate: t.transactionDate,
-            payerReceiver: "",  // bank fees have no party per validation decision
-            description: `Phí ngân hàng (GD #${t.id.slice(-6)})`,
+            payerReceiver: t.order?.party.name ?? "",
+            description: `Phí ngân hàng — ${partyLabel}`,
             paymentMethod: fmtPaymentMethod(t.paymentMethod),
             referenceCode: t.bankReference ?? "",
             currencyCode: t.currency.code,
@@ -256,7 +301,10 @@ export async function GET(request: Request) {
           }
         }
 
-        // Sort combined IV.b by date after appending bank-fee + deposit rows
+        // Refund tx are netted into paidThisTime via buildOrderRows; not surfaced here.
+
+        // Sort combined III.b / IV.b by date after appending deposit + bank-fee rows
+        otherReceiptRows.sort((a, b) => a.transactionDate.getTime() - b.transactionDate.getTime());
         otherPaymentRows.sort((a, b) => a.transactionDate.getTime() - b.transactionDate.getTime());
 
         return {
