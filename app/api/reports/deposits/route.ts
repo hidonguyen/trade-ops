@@ -1,20 +1,34 @@
-// Deposit tracking report — flattened timeline of deposit creation and usage events
+// Deposit tracking report — master-detail: each Deposit is a master row with
+// nested DepositUsage events (deductions/refunds). REFUND-source deposits hide
+// their seed usage (the auto-generated bookkeeping row at deposit creation).
 import { withAuth, checkAccess, apiResponse } from "@/lib/api-helpers";
 import { prisma } from "@/lib/prisma";
 import { MSG } from "@/lib/messages";
 import Decimal from "decimal.js";
+import { exportDepositTracking, buildDepositTrackingFilename } from "@/lib/excel-deposit-tracking-service";
 
-interface DepositEvent {
+interface DepositUsageDto {
   id: string;
-  date: string;
-  eventType: "DEPOSIT_CREATED" | "DEPOSIT_USED" | "DEPOSIT_REFUNDED";
+  createdAt: string;
   amountOriginal: string;
-  depositId: string;
-  remainingOriginal: string;
-  party: { id: string; name: string };
-  currency: { code: string; symbol: string };
-  businessUnit: { code: string };
+  eventType: "DEPOSIT_USED" | "DEPOSIT_REFUNDED";
   reference: string | null;
+}
+
+interface DepositMasterDto {
+  id: string;
+  createdAt: string;
+  source: string;
+  partyId: string;
+  partyName: string;
+  partyType: string;
+  buCode: string;
+  currencyCode: string;
+  currencySymbol: string;
+  amountOriginal: string;
+  remainingOriginal: string;
+  notes: string | null;
+  usages: DepositUsageDto[];
 }
 
 export async function GET(request: Request) {
@@ -23,7 +37,6 @@ export async function GET(request: Request) {
     return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
 
-  // Require access to at least one party-related module
   const canCustomer = checkAccess(session.user.roles, "GET", "CUSTOMER");
   const canSupplier = checkAccess(session.user.roles, "GET", "SUPPLIER");
   if (!canCustomer && !canSupplier) {
@@ -32,7 +45,6 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const businessUnitId = searchParams.get("businessUnitId");
-  // Enforce BU scope to prevent cross-BU data leakage
   if (!businessUnitId) {
     return Response.json(apiResponse(false, undefined, MSG.businessUnitRequired), { status: 400 });
   }
@@ -40,9 +52,11 @@ export async function GET(request: Request) {
   const dateTo = searchParams.get("dateTo");
   const partyId = searchParams.get("partyId");
   const currencyId = searchParams.get("currencyId");
+  // Default true: depleted deposits (remaining=0) usually finished and noisy
+  const hideDepleted = searchParams.get("hideDepleted") !== "false";
+  const format = searchParams.get("format") === "xlsx" ? "xlsx" : "json";
 
   try {
-    // Build deposit filter
     const depositWhere: Record<string, unknown> = { businessUnitId };
     if (partyId) depositWhere.partyId = partyId;
     if (currencyId) depositWhere.currencyId = currencyId;
@@ -50,7 +64,7 @@ export async function GET(request: Request) {
     const deposits = await prisma.deposit.findMany({
       where: depositWhere,
       include: {
-        party: { select: { id: true, name: true } },
+        party: { select: { id: true, name: true, type: true } },
         currency: { select: { code: true, symbol: true } },
         businessUnit: { select: { code: true } },
         usages: {
@@ -60,65 +74,108 @@ export async function GET(request: Request) {
           orderBy: { createdAt: "asc" },
         },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: { createdAt: "asc" },
     });
 
-    // Build date filter boundaries
     const fromDate = dateFrom ? new Date(dateFrom) : null;
-    const toDate = dateTo ? (() => { const d = new Date(dateTo); d.setHours(23, 59, 59, 999); return d; })() : null;
+    const toDate = dateTo
+      ? (() => { const d = new Date(dateTo); d.setHours(23, 59, 59, 999); return d; })()
+      : null;
 
-    function inDateRange(d: Date): boolean {
+    function inRange(d: Date): boolean {
       if (fromDate && d < fromDate) return false;
       if (toDate && d > toDate) return false;
       return true;
     }
 
-    // Flatten deposits + usages into event timeline
-    const events: DepositEvent[] = [];
+    const masters: DepositMasterDto[] = [];
 
     for (const dep of deposits) {
-      const base = {
-        depositId: dep.id,
+      if (hideDepleted && new Decimal(dep.remainingOriginal.toString()).isZero()) continue;
+
+      // Hide REFUND-seed usage: auto-generated bookkeeping row inside the same
+      // $transaction as deposit creation. Heuristic: first usage created within
+      // 5s of deposit, with linked tx of paymentType=REFUND, and amount equal
+      // to negated deposit total.
+      let visibleUsages = dep.usages;
+      if (dep.source === "REFUND" && dep.usages.length > 0) {
+        const first = dep.usages[0];
+        const dt = Math.abs(first.createdAt.getTime() - dep.createdAt.getTime());
+        const seedAmt = new Decimal(first.amountOriginal.toString());
+        const negDep = new Decimal(dep.amountOriginal.toString()).negated();
+        const isSeed =
+          dt < 5000 &&
+          first.transaction?.paymentType === "REFUND" &&
+          seedAmt.equals(negDep);
+        if (isSeed) visibleUsages = dep.usages.slice(1);
+      }
+
+      // Date filter: master OR any visible usage in-range. When master out-of-range,
+      // show only in-range usages. When master in-range, show all visible usages.
+      const masterIn = inRange(dep.createdAt);
+      const usagesInRange = visibleUsages.filter((u) => inRange(u.createdAt));
+      if (!masterIn && usagesInRange.length === 0) continue;
+      const finalUsages = masterIn ? visibleUsages : usagesInRange;
+
+      const usageDtos: DepositUsageDto[] = finalUsages.map((u) => {
+        const amt = new Decimal(u.amountOriginal.toString());
+        return {
+          id: u.id,
+          createdAt: u.createdAt.toISOString(),
+          amountOriginal: amt.abs().toFixed(4),
+          eventType: amt.isPositive() ? "DEPOSIT_USED" : "DEPOSIT_REFUNDED",
+          reference: u.transaction?.bankReference ?? u.transaction?.notes ?? null,
+        };
+      });
+
+      masters.push({
+        id: dep.id,
+        createdAt: dep.createdAt.toISOString(),
+        source: dep.source,
+        partyId: dep.party.id,
+        partyName: dep.party.name,
+        partyType: dep.party.type,
+        buCode: dep.businessUnit.code,
+        currencyCode: dep.currency.code,
+        currencySymbol: dep.currency.symbol,
+        amountOriginal: dep.amountOriginal.toString(),
         remainingOriginal: dep.remainingOriginal.toString(),
-        party: dep.party,
-        currency: dep.currency,
-        businessUnit: dep.businessUnit,
-      };
-
-      // Deposit creation event
-      if (inDateRange(dep.createdAt)) {
-        events.push({
-          ...base,
-          id: `dep-${dep.id}`,
-          date: dep.createdAt.toISOString(),
-          eventType: "DEPOSIT_CREATED",
-          amountOriginal: dep.amountOriginal.toString(),
-          reference: null,
-        });
-      }
-
-      // Usage events
-      for (const usage of dep.usages) {
-        if (!inDateRange(usage.createdAt)) continue;
-
-        const amt = new Decimal(usage.amountOriginal.toString());
-        const isDeduction = amt.isPositive();
-
-        events.push({
-          ...base,
-          id: usage.id,
-          date: usage.createdAt.toISOString(),
-          eventType: isDeduction ? "DEPOSIT_USED" : "DEPOSIT_REFUNDED",
-          amountOriginal: amt.abs().toString(),
-          reference: usage.transaction?.bankReference ?? usage.transaction?.notes ?? null,
-        });
-      }
+        notes: dep.notes,
+        usages: usageDtos,
+      });
     }
 
-    // Sort by date desc
-    events.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    if (format === "xlsx") {
+      const buf = await exportDepositTracking(
+        masters.map((m) => ({
+          createdAt: m.createdAt,
+          source: m.source,
+          partyName: m.partyName,
+          partyType: m.partyType,
+          buCode: m.buCode,
+          currencyCode: m.currencyCode,
+          amountOriginal: Number(m.amountOriginal),
+          remainingOriginal: Number(m.remainingOriginal),
+          notes: m.notes,
+          usages: m.usages.map((u) => ({
+            createdAt: u.createdAt,
+            eventType: u.eventType,
+            amountOriginal: Number(u.amountOriginal),
+            reference: u.reference,
+          })),
+        }))
+      );
+      const filename = buildDepositTrackingFilename(fromDate, toDate);
+      return new Response(new Uint8Array(buf), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "Content-Disposition": `attachment; filename="${filename}"`,
+        },
+      });
+    }
 
-    return Response.json(apiResponse(true, events));
+    return Response.json(apiResponse(true, { deposits: masters }));
   } catch (error) {
     console.error("GET /api/reports/deposits error:", error);
     return Response.json(apiResponse(false, undefined, MSG.internalError), { status: 500 });

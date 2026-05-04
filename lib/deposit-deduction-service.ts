@@ -84,6 +84,7 @@ export async function createDepositFromRefund(
     currencyId: string;
     amountOriginal: string;
     transactionId: string;
+    notes?: string | null;
   }
 ) {
   const amount = new Decimal(args.amountOriginal);
@@ -94,6 +95,8 @@ export async function createDepositFromRefund(
       currencyId: args.currencyId,
       amountOriginal: amount,
       remainingOriginal: amount,
+      source: "REFUND",
+      notes: args.notes ?? null,
     },
   });
   await tx.depositUsage.create({
@@ -150,6 +153,8 @@ export async function applyDepositOperation(
     currencyId?: string;
     // Required when depositId is null and paymentType is REFUND (auto-create path)
     partyContext?: { partyId: string; businessUnitId: string; currencyId: string };
+    // Optional notes propagated to auto-created Deposit (default empty)
+    notes?: string | null;
   }
 ) {
   const txCurrencyId = args.currencyId ?? args.partyContext?.currencyId;
@@ -170,5 +175,6 @@ export async function applyDepositOperation(
     ...args.partyContext,
     amountOriginal: args.amountOriginal,
     transactionId: args.transactionId,
+    notes: args.notes ?? null,
   });
 }
