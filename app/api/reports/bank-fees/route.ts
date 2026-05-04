@@ -8,7 +8,7 @@ import { z } from "zod";
 import { MSG } from "@/lib/messages";
 
 const querySchema = z.object({
-  businessUnitId: z.string().uuid().optional(),
+  businessUnitId: z.string().uuid(),
   dateFrom: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
   dateTo: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
   currencyId: z.string().uuid().optional(),
@@ -47,7 +47,7 @@ export async function GET(request: Request) {
     paymentMethod: "BANK",
     bankFeeVnd: { gt: 0 },
     transactionDate: { gte: fromDate, lte: toDate },
-    ...(businessUnitId && { businessUnitId }),
+    businessUnitId,
     ...(currencyId && { currencyId }),
     ...(partyId && { order: { partyId } }),
   };

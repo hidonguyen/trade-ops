@@ -10,7 +10,7 @@ import { DataTable, Column } from "@/components/shared/data-table";
 import { Pagination } from "@/components/shared/pagination";
 import { FilterBar, FilterConfig } from "@/components/shared/filter-bar";
 import { DateQuickPresets } from "@/components/shared/date-quick-presets";
-import { getInitialDateRange, usePersistDateRange } from "@/components/shared/use-persisted-date-range";
+import { getInitialDateRange, usePersistDateRange, useRestorePersistedDateRange } from "@/components/shared/use-persisted-date-range";
 import { CurrencyAmount } from "@/components/shared/currency-amount";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -58,10 +58,13 @@ const TX_TYPE_LABEL: Record<string, string> = {
 };
 
 export default function BankFeesReportPage() {
-  const { selectedBuId } = useSelectedBu();
+  const { selectedBuId, isLoaded: buLoaded } = useSelectedBu();
   const [filters, setFilters] = useState<Record<string, string>>(() => ({
     ...getInitialDateRange("bank-fees"),
   }));
+  useRestorePersistedDateRange("bank-fees", (range) =>
+    setFilters((prev) => ({ ...prev, ...range }))
+  );
   usePersistDateRange("bank-fees", filters.dateFrom, filters.dateTo);
   const [rows, setRows] = useState<BankFeeRow[]>([]);
   const [totals, setTotals] = useState<Totals>({ grandFeeVnd: "0", byCurrency: [] });
@@ -80,6 +83,7 @@ export default function BankFeesReportPage() {
 
   const fetchReport = useCallback(async () => {
     if (!filters.dateFrom || !filters.dateTo) return;
+    if (!buLoaded || !selectedBuId) return;
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -88,7 +92,7 @@ export default function BankFeesReportPage() {
         limit: String(limit),
         dateFrom: filters.dateFrom,
         dateTo: filters.dateTo,
-        ...(selectedBuId ? { businessUnitId: selectedBuId } : {}),
+        businessUnitId: selectedBuId,
         ...(filters.currencyId ? { currencyId: filters.currencyId } : {}),
       });
       const res = await fetch(`/api/reports/bank-fees?${params}`);
@@ -103,7 +107,7 @@ export default function BankFeesReportPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, limit, filters, selectedBuId]);
+  }, [page, limit, filters, selectedBuId, buLoaded]);
 
   useEffect(() => { fetchReport(); }, [fetchReport]);
 

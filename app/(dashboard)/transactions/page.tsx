@@ -13,7 +13,7 @@ import { FilterBar, FilterConfig } from "@/components/shared/filter-bar";
 import { ConfirmationDialog } from "@/components/shared/confirmation-dialog";
 import { TransactionEditDialog, EditableTransaction } from "@/components/transaction-edit-dialog";
 import { DateQuickPresets } from "@/components/shared/date-quick-presets";
-import { getInitialDateRange, usePersistDateRange } from "@/components/shared/use-persisted-date-range";
+import { getInitialDateRange, usePersistDateRange, useRestorePersistedDateRange } from "@/components/shared/use-persisted-date-range";
 import { PlusIcon, PencilIcon, Trash2Icon } from "lucide-react";
 
 interface Transaction {
@@ -51,7 +51,7 @@ const METHOD_OPTIONS = [
 
 export default function TransactionsPage() {
   const router = useRouter();
-  const { selectedBuId } = useSelectedBu();
+  const { selectedBuId, isLoaded: buLoaded } = useSelectedBu();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -60,6 +60,9 @@ export default function TransactionsPage() {
   const [filters, setFilters] = useState<Record<string, string>>(() => ({
     ...getInitialDateRange("transactions"),
   }));
+  useRestorePersistedDateRange("transactions", (range) =>
+    setFilters((prev) => ({ ...prev, ...range }))
+  );
   usePersistDateRange("transactions", filters.dateFrom, filters.dateTo);
   const [editingTx, setEditingTx] = useState<EditableTransaction | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -76,12 +79,13 @@ export default function TransactionsPage() {
   }, []);
 
   const fetchTransactions = useCallback(async () => {
+    if (!buLoaded || !selectedBuId) return;
     setLoading(true);
     try {
       const params = new URLSearchParams({
         page: String(page),
         limit: String(limit),
-        ...(selectedBuId ? { businessUnitId: selectedBuId } : {}),
+        businessUnitId: selectedBuId,
         ...(filters.type ? { type: filters.type } : {}),
         ...(filters.dateFrom ? { dateFrom: filters.dateFrom } : {}),
         ...(filters.dateTo ? { dateTo: filters.dateTo } : {}),
@@ -99,7 +103,7 @@ export default function TransactionsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, limit, filters, selectedBuId]);
+  }, [page, limit, filters, selectedBuId, buLoaded]);
 
   useEffect(() => { fetchTransactions(); }, [fetchTransactions]);
 

@@ -26,6 +26,10 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const type = searchParams.get("type") || undefined;
   const businessUnitId = searchParams.get("businessUnitId") || undefined;
+  // Enforce BU scope to prevent cross-BU data leakage
+  if (!businessUnitId) {
+    return Response.json(apiResponse(false, undefined, MSG.businessUnitRequired), { status: 400 });
+  }
   const search = searchParams.get("search") || undefined;
   const { page, limit, skip, sortBy, order } = parsePagination(searchParams);
 
@@ -42,7 +46,7 @@ export async function GET(request: Request) {
   if (type === "CUSTOMER") where.type = { in: ["CUSTOMER", "BOTH"] };
   else if (type === "SUPPLIER") where.type = { in: ["SUPPLIER", "BOTH"] };
   else if (type) where.type = type;
-  if (businessUnitId) where.businessUnitId = businessUnitId;
+  where.businessUnitId = businessUnitId;
   if (search) where.name = { contains: search, mode: "insensitive" };
 
   // Cache key includes all filter/pagination params so distinct queries get distinct entries.

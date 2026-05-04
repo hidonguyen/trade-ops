@@ -11,7 +11,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { CurrencyAmount } from "@/components/shared/currency-amount";
 import { FilterBar, FilterConfig } from "@/components/shared/filter-bar";
 import { DateQuickPresets } from "@/components/shared/date-quick-presets";
-import { getInitialDateRange, usePersistDateRange } from "@/components/shared/use-persisted-date-range";
+import { getInitialDateRange, usePersistDateRange, useRestorePersistedDateRange } from "@/components/shared/use-persisted-date-range";
 import { PlusIcon, FileSpreadsheetIcon } from "lucide-react";
 import Decimal from "decimal.js";
 
@@ -44,7 +44,7 @@ const STATUS_OPTIONS = [
 export default function OrdersPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { selectedBuId } = useSelectedBu();
+  const { selectedBuId, isLoaded: buLoaded } = useSelectedBu();
   const [orders, setOrders] = useState<Order[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -60,6 +60,9 @@ export default function OrdersPage() {
       ...(partyId ? { partyId } : {}),
     };
   });
+  useRestorePersistedDateRange("orders", (range) =>
+    setFilters((prev) => ({ ...prev, ...range }))
+  );
   usePersistDateRange("orders", filters.dateFrom, filters.dateTo);
 
   // Sync URL-driven filters (soft navigation from sidebar / party detail)
@@ -86,12 +89,15 @@ export default function OrdersPage() {
   }, [urlPartyId]);
 
   const fetchOrders = useCallback(async () => {
+    // Gate on BU provider readiness — otherwise first request omits businessUnitId
+    // and surfaces cross-BU data before the correct request arrives.
+    if (!buLoaded || !selectedBuId) return;
     setLoading(true);
     try {
       const params = new URLSearchParams({
         page: String(page),
         limit: String(limit),
-        ...(selectedBuId ? { businessUnitId: selectedBuId } : {}),
+        businessUnitId: selectedBuId,
         ...(filters.type ? { type: filters.type } : {}),
         ...(filters.partyId ? { partyId: filters.partyId } : {}),
         ...(filters.orderNumber ? { orderNumber: filters.orderNumber } : {}),
@@ -111,7 +117,7 @@ export default function OrdersPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, limit, filters, selectedBuId]);
+  }, [page, limit, filters, selectedBuId, buLoaded]);
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
@@ -133,16 +139,16 @@ export default function OrdersPage() {
     }
   }, [urlType]);
 
-  // Load parties scoped to current page type (SALE→CUSTOMER, PURCHASE→SUPPLIER)
+  // Load parties scoped to current page type (SALE→CUSTOMER, PURCHASE→SUPPLIER) + selected BU
   const [parties, setParties] = useState<Array<{ id: string; name: string }>>([]);
   useEffect(() => {
-    if (!urlType) { setParties([]); return; }
+    if (!urlType || !buLoaded || !selectedBuId) { setParties([]); return; }
     const partyType = urlType === "SALE" ? "CUSTOMER" : "SUPPLIER";
-    fetch(`/api/parties?type=${partyType}`)
+    fetch(`/api/parties?type=${partyType}&businessUnitId=${selectedBuId}`)
       .then((r) => r.json())
       .then((json) => { if (json.success) setParties(json.data); })
       .catch(console.error);
-  }, [urlType]);
+  }, [urlType, selectedBuId, buLoaded]);
 
   // Filter order: date-range → số đơn → đối tác → trạng thái → loại chi phí (PURCHASE only)
   const filterConfigs: FilterConfig[] = [

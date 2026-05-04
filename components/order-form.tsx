@@ -132,10 +132,11 @@ export function OrderForm({ initialData, onSubmit, mode, lockType, lockAmountCur
   }, [form.type, form.expenseTypeId]);
 
   useEffect(() => {
+    if (!form.businessUnitId) { setParties([]); return; }
     async function loadParties() {
       try {
         const partyType = form.type === "SALE" ? "CUSTOMER" : "SUPPLIER";
-        const res = await fetch(`/api/parties?type=${partyType}`);
+        const res = await fetch(`/api/parties?type=${partyType}&businessUnitId=${form.businessUnitId}`);
         const json = await res.json();
         if (json.success) setParties(json.data);
       } catch {
@@ -143,7 +144,7 @@ export function OrderForm({ initialData, onSubmit, mode, lockType, lockAmountCur
       }
     }
     loadParties();
-  }, [form.type]);
+  }, [form.type, form.businessUnitId]);
 
   function setField<K extends keyof OrderFormData>(key: K, value: OrderFormData[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));

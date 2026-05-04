@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { DataTable, Column } from "@/components/shared/data-table";
 import { FilterBar, FilterConfig } from "@/components/shared/filter-bar";
 import { DateQuickPresets } from "@/components/shared/date-quick-presets";
-import { getInitialDateRange, usePersistDateRange } from "@/components/shared/use-persisted-date-range";
+import { getInitialDateRange, usePersistDateRange, useRestorePersistedDateRange } from "@/components/shared/use-persisted-date-range";
 import { Pagination } from "@/components/shared/pagination";
 
 interface AuditLog extends Record<string, unknown> {
@@ -101,6 +101,9 @@ export default function AuditLogsPage() {
   const [filters, setFilters] = useState<Record<string, string>>(() => ({
     ...getInitialDateRange("audit-logs"),
   }));
+  useRestorePersistedDateRange("audit-logs", (range) =>
+    setFilters((prev) => ({ ...prev, ...range }))
+  );
   usePersistDateRange("audit-logs", filters.dateFrom, filters.dateTo);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(25);

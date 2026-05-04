@@ -10,7 +10,7 @@ import { CurrencyAmount } from "@/components/shared/currency-amount";
 import { FilterBar, FilterConfig } from "@/components/shared/filter-bar";
 import { CashflowSummaryCards } from "./cashflow-summary-cards";
 import { DateQuickPresets } from "@/components/shared/date-quick-presets";
-import { getInitialDateRange, usePersistDateRange } from "@/components/shared/use-persisted-date-range";
+import { getInitialDateRange, usePersistDateRange, useRestorePersistedDateRange } from "@/components/shared/use-persisted-date-range";
 import { DownloadIcon } from "lucide-react";
 import Decimal from "decimal.js";
 
@@ -42,7 +42,7 @@ interface CurrencySummary {
 interface Currency { id: string; code: string; symbol: string; }
 
 export default function CashflowPage() {
-  const { selectedBuId } = useSelectedBu();
+  const { selectedBuId, isLoaded: buLoaded } = useSelectedBu();
   const [transactions, setTransactions] = useState<CashflowTransaction[]>([]);
   const [summaries, setSummaries] = useState<CurrencySummary[]>([]);
   const [total, setTotal] = useState(0);
@@ -53,6 +53,9 @@ export default function CashflowPage() {
   const [filters, setFilters] = useState<Record<string, string>>(() => ({
     ...getInitialDateRange("cashflow"),
   }));
+  useRestorePersistedDateRange("cashflow", (range) =>
+    setFilters((prev) => ({ ...prev, ...range }))
+  );
   usePersistDateRange("cashflow", filters.dateFrom, filters.dateTo);
 
   useEffect(() => {
@@ -63,13 +66,14 @@ export default function CashflowPage() {
   }, []);
 
   const fetchReport = useCallback(async () => {
+    if (!buLoaded || !selectedBuId) return;
     setLoading(true);
     try {
       const params = new URLSearchParams({
         format: "json",
         page: String(page),
         limit: String(limit),
-        ...(selectedBuId ? { businessUnitId: selectedBuId } : {}),
+        businessUnitId: selectedBuId,
         ...(filters.dateFrom ? { dateFrom: filters.dateFrom } : {}),
         ...(filters.dateTo ? { dateTo: filters.dateTo } : {}),
         ...(filters.currencyId ? { currencyId: filters.currencyId } : {}),
@@ -87,7 +91,7 @@ export default function CashflowPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, limit, filters, selectedBuId]);
+  }, [page, limit, filters, selectedBuId, buLoaded]);
 
   useEffect(() => { fetchReport(); }, [fetchReport]);
 

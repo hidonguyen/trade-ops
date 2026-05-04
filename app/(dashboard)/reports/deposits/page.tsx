@@ -6,7 +6,7 @@ import { useSelectedBu } from "@/components/providers/bu-provider";
 import { DataTable, Column } from "@/components/shared/data-table";
 import { FilterBar, FilterConfig } from "@/components/shared/filter-bar";
 import { DateQuickPresets } from "@/components/shared/date-quick-presets";
-import { getInitialDateRange, usePersistDateRange } from "@/components/shared/use-persisted-date-range";
+import { getInitialDateRange, usePersistDateRange, useRestorePersistedDateRange } from "@/components/shared/use-persisted-date-range";
 import { CurrencyAmount } from "@/components/shared/currency-amount";
 
 interface DepositEvent {
@@ -32,33 +32,37 @@ const EVENT_LABELS: Record<string, { label: string; className: string }> = {
 };
 
 export default function DepositReportPage() {
-  const { selectedBuId } = useSelectedBu();
+  const { selectedBuId, isLoaded: buLoaded } = useSelectedBu();
   const [events, setEvents] = useState<DepositEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState<Record<string, string>>(() => ({
     ...getInitialDateRange("deposits"),
   }));
+  useRestorePersistedDateRange("deposits", (range) =>
+    setFilters((prev) => ({ ...prev, ...range }))
+  );
   usePersistDateRange("deposits", filters.dateFrom, filters.dateTo);
   const [parties, setParties] = useState<Party[]>([]);
   const [currencies, setCurrencies] = useState<Currency[]>([]);
 
   // Load reference data
   useEffect(() => {
-    const buParam = selectedBuId ? `?businessUnitId=${selectedBuId}&limit=200` : "?limit=200";
+    if (!buLoaded || !selectedBuId) return;
     Promise.all([
-      fetch(`/api/parties${buParam}`).then((r) => r.json()),
+      fetch(`/api/parties?businessUnitId=${selectedBuId}&limit=200`).then((r) => r.json()),
       fetch("/api/currencies").then((r) => r.json()),
     ]).then(([pJson, cJson]) => {
       if (pJson.success) setParties(pJson.data);
       if (cJson.success) setCurrencies(cJson.data);
     }).catch(console.error);
-  }, [selectedBuId]);
+  }, [selectedBuId, buLoaded]);
 
   const fetchReport = useCallback(async () => {
+    if (!buLoaded || !selectedBuId) return;
     setLoading(true);
     try {
       const params = new URLSearchParams({
-        ...(selectedBuId ? { businessUnitId: selectedBuId } : {}),
+        businessUnitId: selectedBuId,
         ...(filters.dateFrom ? { dateFrom: filters.dateFrom } : {}),
         ...(filters.dateTo ? { dateTo: filters.dateTo } : {}),
         ...(filters.partyId ? { partyId: filters.partyId } : {}),
@@ -72,7 +76,7 @@ export default function DepositReportPage() {
     } finally {
       setLoading(false);
     }
-  }, [filters, selectedBuId]);
+  }, [filters, selectedBuId, buLoaded]);
 
   useEffect(() => { fetchReport(); }, [fetchReport]);
 

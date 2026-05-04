@@ -8,7 +8,7 @@ import { useSelectedBu } from "@/components/providers/bu-provider";
 import { Button } from "@/components/ui/button";
 import { FilterBar, FilterConfig } from "@/components/shared/filter-bar";
 import { DateQuickPresets } from "@/components/shared/date-quick-presets";
-import { getInitialDateRange, usePersistDateRange } from "@/components/shared/use-persisted-date-range";
+import { getInitialDateRange, usePersistDateRange, useRestorePersistedDateRange } from "@/components/shared/use-persisted-date-range";
 import { DataTable, Column } from "@/components/shared/data-table";
 import { CurrencyAmount } from "@/components/shared/currency-amount";
 
@@ -167,6 +167,9 @@ export default function ReportsSummaryPage() {
   const [filters, setFilters] = useState<Record<string, string>>(() => ({
     ...getInitialDateRange("summary"),
   }));
+  useRestorePersistedDateRange("summary", (range) =>
+    setFilters((prev) => ({ ...prev, ...range }))
+  );
   usePersistDateRange("summary", filters.dateFrom, filters.dateTo);
   const [activeTab, setActiveTab] = useState<TabKey>("customerReceipts");
   const [data, setData] = useState<SummaryData | null>(null);

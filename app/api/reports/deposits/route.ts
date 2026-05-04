@@ -32,6 +32,10 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const businessUnitId = searchParams.get("businessUnitId");
+  // Enforce BU scope to prevent cross-BU data leakage
+  if (!businessUnitId) {
+    return Response.json(apiResponse(false, undefined, MSG.businessUnitRequired), { status: 400 });
+  }
   const dateFrom = searchParams.get("dateFrom");
   const dateTo = searchParams.get("dateTo");
   const partyId = searchParams.get("partyId");
@@ -39,8 +43,7 @@ export async function GET(request: Request) {
 
   try {
     // Build deposit filter
-    const depositWhere: Record<string, unknown> = {};
-    if (businessUnitId) depositWhere.businessUnitId = businessUnitId;
+    const depositWhere: Record<string, unknown> = { businessUnitId };
     if (partyId) depositWhere.partyId = partyId;
     if (currencyId) depositWhere.currencyId = currencyId;
 

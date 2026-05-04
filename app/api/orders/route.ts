@@ -25,6 +25,10 @@ export async function GET(request: NextRequest) {
   const type = searchParams.get("type"); // SALE | PURCHASE
   const status = searchParams.get("status");
   const businessUnitId = searchParams.get("businessUnitId");
+  // Enforce BU scope to prevent cross-BU data leakage
+  if (!businessUnitId) {
+    return Response.json(apiResponse(false, undefined, MSG.businessUnitRequired), { status: 400 });
+  }
   const partyId = searchParams.get("partyId");
   const orderNumber = searchParams.get("orderNumber");
   const expenseTypeId = searchParams.get("expenseTypeId");
@@ -61,7 +65,7 @@ export async function GET(request: NextRequest) {
   const where = {
     type: { in: allowedTypes },
     ...(status && { status }),
-    ...(businessUnitId && { businessUnitId }),
+    businessUnitId,
     ...(partyId && { partyId }),
     ...(orderNumber && { orderNumber: { contains: orderNumber, mode: "insensitive" as const } }),
     ...(expenseTypeId && { expenseTypeId }),

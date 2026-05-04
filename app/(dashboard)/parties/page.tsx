@@ -22,7 +22,7 @@ interface Party {
 export default function PartiesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { selectedBuId } = useSelectedBu();
+  const { selectedBuId, isLoaded: buLoaded } = useSelectedBu();
   const [parties, setParties] = useState<Party[]>([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
@@ -45,12 +45,13 @@ export default function PartiesPage() {
   }, [urlType]);
 
   const fetchParties = useCallback(async () => {
+    if (!buLoaded || !selectedBuId) return;
     setLoading(true);
     try {
       const params = new URLSearchParams();
       params.set("page", String(page));
       params.set("limit", String(limit));
-      if (selectedBuId) params.set("businessUnitId", selectedBuId);
+      params.set("businessUnitId", selectedBuId);
       if (filters.type) params.set("type", filters.type);
       if (filters.search) params.set("search", filters.search);
 
@@ -65,7 +66,7 @@ export default function PartiesPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, limit, filters, selectedBuId]);
+  }, [page, limit, filters, selectedBuId, buLoaded]);
 
   useEffect(() => { fetchParties(); }, [fetchParties]);
 

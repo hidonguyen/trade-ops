@@ -39,6 +39,10 @@ export async function GET(request: NextRequest) {
   }
 
   const businessUnitId = searchParams.get("businessUnitId");
+  // Enforce BU scope to prevent cross-BU data leakage
+  if (!businessUnitId) {
+    return Response.json(apiResponse(false, undefined, MSG.businessUnitRequired), { status: 400 });
+  }
   const dateFrom = searchParams.get("dateFrom");
   const dateTo = searchParams.get("dateTo");
   const bankReference = searchParams.get("bankReference");
@@ -57,7 +61,7 @@ export async function GET(request: NextRequest) {
   const where = {
     orderId: null,
     type: { in: allowedTypes },
-    ...(businessUnitId && { businessUnitId }),
+    businessUnitId,
     ...(Object.keys(dateFilter).length > 0 && { transactionDate: dateFilter }),
     ...(bankReference && { bankReference: { contains: bankReference, mode: "insensitive" as const } }),
     ...(expenseTypeId && { expenseTypeId }),
