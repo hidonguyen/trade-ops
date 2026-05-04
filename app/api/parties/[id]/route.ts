@@ -11,20 +11,13 @@ import { withCache } from "@/lib/cache/with-cache";
 import { TAG, TTL, partyDetailKey } from "@/lib/cache/keys";
 import { diffForAudit } from "@/lib/audit-diff";
 
-// Resolve required RBAC modules for a party type — BOTH requires access to at least one
-function partyModules(type: string): RbacModule[] {
-  if (type === "CUSTOMER") return ["CUSTOMER"];
-  if (type === "SUPPLIER") return ["SUPPLIER"];
-  return ["CUSTOMER", "SUPPLIER"];
+// Map party type → required RBAC module
+function partyModule(type: string): RbacModule {
+  return type === "SUPPLIER" ? "SUPPLIER" : "CUSTOMER";
 }
 
 function hasPartyAccess(roles: string[], action: RbacAction, type: string): boolean {
-  const modules = partyModules(type);
-  // BOTH: user needs access to ALL relevant modules for write; GET: any one suffices
-  if (action === "GET") {
-    return modules.some((mod) => checkAccess(roles, action, mod));
-  }
-  return modules.every((mod) => checkAccess(roles, action, mod));
+  return checkAccess(roles, action, partyModule(type));
 }
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {

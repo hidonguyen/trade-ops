@@ -122,8 +122,7 @@ export default function PartiesPage() {
         loading={loading}
         emptyMessage="Không tìm thấy đối tác nào"
         onRowClick={(row) => {
-          // Preserve origin menu (CUSTOMER/SUPPLIER) so detail page can navigate back
-          // to the correct filtered list — critical for BOTH parties that appear in both.
+          // Preserve origin menu (CUSTOMER/SUPPLIER) so detail page navigates back to the correct list
           const id = (row as unknown as Party).id;
           const from = filters.type ? `?from=${filters.type}` : "";
           router.push(`/parties/${id}${from}`);

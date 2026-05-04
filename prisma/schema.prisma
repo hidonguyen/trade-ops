@@ -21,7 +21,7 @@ model User {
 model UserRoleAssignment {
   id         String   @id @default(uuid(7))
   userId     String
-  role       String   // ADMIN, ACCOUNTANT_SALE, ACCOUNTANT_PURCHASE, ACCOUNTANT_CASHFLOW, VIEWER
+  role       String // ADMIN, ACCOUNTANT_SALE, ACCOUNTANT_PURCHASE, ACCOUNTANT_CASHFLOW, VIEWER
   assignedAt DateTime @default(now())
   assignedBy String
   user       User     @relation(fields: [userId], references: [id])
@@ -33,7 +33,7 @@ model UserRoleAssignment {
 model AuditLog {
   id        String   @id @default(uuid(7))
   userId    String
-  action    String   // CREATE, UPDATE, DELETE
+  action    String // CREATE, UPDATE, DELETE
   model     String
   recordId  String
   changes   Json?
@@ -86,7 +86,7 @@ model Party {
   id             String       @id @default(uuid(7))
   businessUnitId String
   name           String
-  type           String       // CUSTOMER, SUPPLIER, BOTH
+  type           String // CUSTOMER, SUPPLIER
   address        String?
   phone          String?
   email          String?
@@ -140,7 +140,7 @@ model Order {
   partyId        String
   // User-facing order number; uniqueness scoped to (businessUnitId, partyId)
   orderNumber    String
-  type           String        // SALE, PURCHASE
+  type           String // SALE, PURCHASE
   status         String        @default("UNPAID") // UNPAID, PARTIAL_PAID, PAID, PARTIAL_REFUNDED, REFUNDED
   amountOriginal Decimal       @db.Decimal(18, 4)
   currencyId     String
@@ -172,9 +172,9 @@ model Transaction {
   id              String         @id @default(uuid(7))
   orderId         String?
   businessUnitId  String
-  type            String         // SALE_PAYMENT, PURCHASE_PAYMENT, RECEIPT, PAYMENT
-  paymentMethod   String         // BANK, DEPOSIT
-  paymentType     String         // PAYMENT, REFUND
+  type            String // SALE_PAYMENT, PURCHASE_PAYMENT, RECEIPT, PAYMENT
+  paymentMethod   String // BANK, DEPOSIT
+  paymentType     String // PAYMENT, REFUND
   amountOriginal  Decimal        @db.Decimal(18, 4)
   currencyId      String
   amountVnd       Decimal        @db.Decimal(18, 4)

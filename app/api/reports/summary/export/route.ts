@@ -249,7 +249,7 @@ export async function GET(request: Request) {
             vndAmount: 0,  // Deposit model has no amountVnd — omit
             notes: null,
           };
-          if (dep.party.type === "CUSTOMER" || dep.party.type === "BOTH") {
+          if (dep.party.type === "CUSTOMER") {
             otherReceiptRows.push(depRow);
           } else {
             otherPaymentRows.push(depRow);

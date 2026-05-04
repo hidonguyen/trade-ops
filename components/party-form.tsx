@@ -1,4 +1,4 @@
-// Shared create/edit form for Party (Customer / Supplier / Both)
+// Shared create/edit form for Party (Customer / Supplier)
 "use client";
 
 import { useState, useEffect } from "react";
@@ -11,7 +11,7 @@ import { Combobox } from "@/components/ui/combobox";
 
 export interface PartyFormData {
   name: string;
-  type: "CUSTOMER" | "SUPPLIER" | "BOTH";
+  type: "CUSTOMER" | "SUPPLIER";
   businessUnitId: string;
   address: string;
   phone: string;
@@ -33,7 +33,6 @@ const EMPTY: PartyFormData = {
 const TYPE_OPTIONS = [
   { value: "CUSTOMER", label: "Khách hàng" },
   { value: "SUPPLIER", label: "Nhà cung cấp" },
-  { value: "BOTH", label: "Vừa KH vừa NCC" },
 ];
 
 export function PartyForm({ initialData, onSubmit, mode }: PartyFormProps) {

@@ -77,7 +77,7 @@ interface SidebarNavProps {
   pathname: string;
   searchParams: URLSearchParams;
   fallbackOrderType: "SALE" | "PURCHASE" | null;
-  fallbackPartyType: "CUSTOMER" | "SUPPLIER" | "BOTH" | null;
+  fallbackPartyType: "CUSTOMER" | "SUPPLIER" | null;
   onNavigate?: () => void;
 }
 
@@ -106,8 +106,7 @@ function SidebarNav({ userRoles, pathname, searchParams, fallbackOrderType, fall
                 const fallbackType = isOrdersSubRoute ? fallbackOrderType : isPartiesSubRoute ? fallbackPartyType : null;
                 const currentType = searchParams.get("type") ?? fallbackType;
                 const pathMatches = pathname === itemPath || pathname.startsWith(itemPath + "/");
-                // BOTH parties match both Khách hàng and Nhà cung cấp menu items
-                const typeMatches = !itemType || itemType === currentType || (isPartiesSubRoute && currentType === "BOTH");
+                const typeMatches = !itemType || itemType === currentType;
                 const isActive = pathMatches && typeMatches;
                 return (
                   <Link

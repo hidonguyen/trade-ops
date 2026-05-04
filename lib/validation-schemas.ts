@@ -77,7 +77,7 @@ export const createExpenseTypeSchema = z.object({
 // Party (customer/supplier)
 export const createPartySchema = z.object({
   name: z.string().min(1).max(200),
-  type: z.enum(["CUSTOMER", "SUPPLIER", "BOTH"]),
+  type: z.enum(["CUSTOMER", "SUPPLIER"]),
   businessUnitId: z.string().uuid(),
   address: z.string().max(500).optional(),
   phone: z.string().max(20).optional(),

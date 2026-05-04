@@ -25,7 +25,6 @@ interface Party {
 const TYPE_LABELS: Record<string, string> = {
   CUSTOMER: "Khách hàng",
   SUPPLIER: "Nhà cung cấp",
-  BOTH: "KH & NCC",
 };
 
 function InfoRow({ label, value }: { label: string; value: string | null | undefined }) {
@@ -43,7 +42,6 @@ export default function PartyDetailPage() {
   const searchParams = useSearchParams();
   const partyId = params.id;
   // Origin menu (CUSTOMER/SUPPLIER) passed by list page via ?from=... — used for back button
-  // so BOTH parties (which appear in both menus) navigate back to the correct filtered list.
   const fromType = searchParams.get("from");
 
   const [party, setParty] = useState<Party | null>(null);
@@ -66,9 +64,7 @@ export default function PartyDetailPage() {
 
   // Push party type to nav highlight context so sidebar can highlight Khách hàng / Nhà cung cấp
   useRegisterPartyDetailType(
-    party?.type === "CUSTOMER" || party?.type === "SUPPLIER" || party?.type === "BOTH"
-      ? party.type
-      : null
+    party?.type === "CUSTOMER" || party?.type === "SUPPLIER" ? party.type : null
   );
 
   async function handleDelete() {
@@ -98,13 +94,11 @@ export default function PartyDetailPage() {
             variant="ghost"
             size="icon-sm"
             onClick={() => {
-              // Prefer origin menu from ?from=; else use party.type for CUSTOMER/SUPPLIER;
-              // for BOTH without origin (direct URL), default to CUSTOMER so sidebar highlights something.
               const backType =
                 fromType === "CUSTOMER" || fromType === "SUPPLIER"
                   ? fromType
-                  : party.type === "CUSTOMER" || party.type === "SUPPLIER"
-                  ? party.type
+                  : party.type === "SUPPLIER"
+                  ? "SUPPLIER"
                   : "CUSTOMER";
               router.push(`/parties?type=${backType}`);
             }}
@@ -117,13 +111,13 @@ export default function PartyDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {(party.type === "CUSTOMER" || party.type === "BOTH") && (
+          {party.type === "CUSTOMER" && (
             <Button variant="outline" size="sm"
               onClick={() => router.push(`/orders?type=SALE&partyId=${partyId}`)}>
               <ShoppingBagIcon className="size-4 mr-1" />Xem đơn bán
             </Button>
           )}
-          {(party.type === "SUPPLIER" || party.type === "BOTH") && (
+          {party.type === "SUPPLIER" && (
             <Button variant="outline" size="sm"
               onClick={() => router.push(`/orders?type=PURCHASE&partyId=${partyId}`)}>
               <ShoppingBagIcon className="size-4 mr-1" />Xem đơn mua

@@ -148,7 +148,7 @@ Deposit (1) ─────────(M) DepositUsage
 - `id: String @id @default(uuid(7))`
 - `businessUnitId: String` – FK to BusinessUnit (scope data by unit)
 - `name: String`
-- `type: String` – Enum: CUSTOMER, SUPPLIER, BOTH
+- `type: String` – Enum: CUSTOMER, SUPPLIER
 - `address, phone, email: String` – Contact info
 - `taxId: String` – Optional tax ID
 - `isActive: Boolean @default(true)`

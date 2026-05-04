@@ -13,7 +13,7 @@ import { PartyForm, PartyFormData } from "@/components/party-form";
 interface Party {
   id: string;
   name: string;
-  type: "CUSTOMER" | "SUPPLIER" | "BOTH";
+  type: "CUSTOMER" | "SUPPLIER";
   businessUnitId: string;
   phone: string | null;
   email: string | null;
@@ -40,9 +40,7 @@ export default function EditPartyPage() {
 
   // Push party type to nav highlight context so sidebar can highlight Khách hàng / Nhà cung cấp
   useRegisterPartyDetailType(
-    party?.type === "CUSTOMER" || party?.type === "SUPPLIER" || party?.type === "BOTH"
-      ? party.type
-      : null
+    party?.type === "CUSTOMER" || party?.type === "SUPPLIER" ? party.type : null
   );
 
   async function handleSubmit(data: PartyFormData) {

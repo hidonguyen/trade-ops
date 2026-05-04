@@ -8,7 +8,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
 type OrderType = "SALE" | "PURCHASE" | null;
-type PartyType = "CUSTOMER" | "SUPPLIER" | "BOTH" | null;
+type PartyType = "CUSTOMER" | "SUPPLIER" | null;
 
 interface NavHighlightCtx {
   orderDetailType: OrderType;
@@ -55,7 +55,7 @@ export function useRegisterOrderDetailType(type: OrderType) {
 
 /**
  * Helper for party detail/edit pages: same mechanism, pushes party.type
- * (CUSTOMER/SUPPLIER/BOTH) so sidebar highlights Khách hàng / Nhà cung cấp.
+ * (CUSTOMER/SUPPLIER) so sidebar highlights Khách hàng / Nhà cung cấp.
  */
 export function useRegisterPartyDetailType(type: PartyType) {
   const { setPartyDetailType } = useNavHighlight();

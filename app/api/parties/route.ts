@@ -1,5 +1,5 @@
 // Parties list (with filters + pagination) + create
-// RBAC: CUSTOMER type → "CUSTOMER" module, SUPPLIER → "SUPPLIER", BOTH → checks both
+// RBAC: CUSTOMER type → "CUSTOMER" module, SUPPLIER → "SUPPLIER"
 import { withAuth, checkAccess, apiResponse, parsePagination } from "@/lib/api-helpers";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
@@ -10,11 +10,9 @@ import { withCache } from "@/lib/cache/with-cache";
 import { TAG, TTL } from "@/lib/cache/keys";
 import { invalidateTags } from "@/lib/cache/invalidate";
 
-// Determine which RBAC modules are required for a given party type
-function partyModules(type: string): RbacModule[] {
-  if (type === "CUSTOMER") return ["CUSTOMER"];
-  if (type === "SUPPLIER") return ["SUPPLIER"];
-  return ["CUSTOMER", "SUPPLIER"]; // BOTH requires access to at least one
+// Map party type → required RBAC module
+function partyModule(type: string): RbacModule {
+  return type === "SUPPLIER" ? "SUPPLIER" : "CUSTOMER";
 }
 
 export async function GET(request: Request) {
@@ -39,13 +37,9 @@ export async function GET(request: Request) {
     return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
 
-  // Build where clause
-  // CUSTOMER filter also includes BOTH (party is both customer & supplier); same for SUPPLIER
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const where: Record<string, any> = { isActive: true };
-  if (type === "CUSTOMER") where.type = { in: ["CUSTOMER", "BOTH"] };
-  else if (type === "SUPPLIER") where.type = { in: ["SUPPLIER", "BOTH"] };
-  else if (type) where.type = type;
+  if (type) where.type = type;
   where.businessUnitId = businessUnitId;
   if (search) where.name = { contains: search, mode: "insensitive" };
 
@@ -95,10 +89,8 @@ export async function POST(request: Request) {
     );
   }
 
-  // Check CREATE access for all required modules based on party type
-  const modules = partyModules(validation.data.type);
-  const hasAccess = modules.every((mod) => checkAccess(session.user.roles, "CREATE", mod));
-  if (!hasAccess) {
+  // Check CREATE access for the single module derived from party type
+  if (!checkAccess(session.user.roles, "CREATE", partyModule(validation.data.type))) {
     return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
 
