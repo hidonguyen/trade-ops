@@ -92,6 +92,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
                 currencyId: transaction.currencyId,
               }
             : undefined,
+          notes: (updateData.notes as string | undefined) ?? transaction.notes ?? null,
         });
       }
 

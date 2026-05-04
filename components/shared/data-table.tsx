@@ -18,7 +18,7 @@ export interface Column<T = Record<string, unknown>> {
   key: string;
   label: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  render?: (value: any, row: T) => React.ReactNode;
+  render?: (value: any, row: T, index?: number) => React.ReactNode;
   sortable?: boolean;
   align?: "left" | "center" | "right";
 }
@@ -147,7 +147,7 @@ export function DataTable<T extends Record<string, unknown>>({
                     )}
                   >
                     {col.render
-                      ? col.render(row[col.key], row)
+                      ? col.render(row[col.key], row, i)
                       : String(row[col.key] ?? "")}
                   </TableCell>
                 ))}

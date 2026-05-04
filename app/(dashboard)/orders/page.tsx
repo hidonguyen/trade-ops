@@ -60,21 +60,22 @@ export default function OrdersPage() {
       ...(partyId ? { partyId } : {}),
     };
   });
-  useRestorePersistedDateRange("orders", (range) =>
-    setFilters((prev) => ({ ...prev, ...range }))
-  );
+  const dateRestored = useRestorePersistedDateRange("orders", (range) => {
+    setFilters((prev) => ({ ...prev, ...range }));
+  });
   usePersistDateRange("orders", filters.dateFrom, filters.dateTo);
 
   // Sync URL-driven filters (soft navigation from sidebar / party detail)
   const urlType = searchParams.get("type");
   const urlPartyId = searchParams.get("partyId");
   useEffect(() => {
-    setFilters((prev) => {
+    const applyUrl = (prev: Record<string, string>) => {
       const next = { ...prev };
       if (urlType) next.type = urlType; else delete next.type;
       if (urlPartyId) next.partyId = urlPartyId; else delete next.partyId;
       return next;
-    });
+    };
+    setFilters(applyUrl);
     setPage(1);
   }, [urlType, urlPartyId]);
 
@@ -88,10 +89,10 @@ export default function OrdersPage() {
       .catch(() => setFilteredParty(null));
   }, [urlPartyId]);
 
-  const fetchOrders = useCallback(async () => {
-    // Gate on BU provider readiness — otherwise first request omits businessUnitId
-    // and surfaces cross-BU data before the correct request arrives.
-    if (!buLoaded || !selectedBuId) return;
+  const fetchOrders = useCallback(async (signal?: AbortSignal) => {
+    // Gate on BU provider readiness and date restore — otherwise first request omits
+    // businessUnitId or fires before persisted date range is applied.
+    if (!buLoaded || !selectedBuId || !dateRestored) return;
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -106,25 +107,26 @@ export default function OrdersPage() {
         ...(filters.dateFrom ? { dateFrom: filters.dateFrom } : {}),
         ...(filters.dateTo ? { dateTo: filters.dateTo } : {}),
       });
-      const res = await fetch(`/api/orders?${params}`);
+      const res = await fetch(`/api/orders?${params}`, { signal });
+      if (signal?.aborted) return;
       const json = await res.json();
       if (json.success) {
         setOrders(json.data);
         setTotal(json.pagination?.total ?? 0);
       }
     } catch (err) {
+      if ((err as Error).name === "AbortError") return;
       console.error("Lỗi tải đơn hàng:", err);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
-  }, [page, limit, filters, selectedBuId, buLoaded]);
+  }, [page, limit, filters, selectedBuId, buLoaded, dateRestored]);
 
-  useEffect(() => { fetchOrders(); }, [fetchOrders]);
-
-  function handleFilterChange(key: string, value: string) {
-    setFilters((prev) => ({ ...prev, [key]: value }));
-    setPage(1);
-  }
+  useEffect(() => {
+    const ctrl = new AbortController();
+    fetchOrders(ctrl.signal);
+    return () => ctrl.abort();
+  }, [fetchOrders]);
 
   // Load expense types for filter (only fetched; combobox shown only on PURCHASE)
   const [expenseTypes, setExpenseTypes] = useState<
@@ -292,7 +294,7 @@ export default function OrdersPage() {
 
   const pageTitle = urlType === "SALE" ? "Đơn bán" : urlType === "PURCHASE" ? "Đơn mua" : "Đơn hàng";
 
-  // Build export URL for order reports using current filters
+  // Build export URL for order reports using applied filters
   function buildExportUrl(
     kind: "sales-summary" | "sales-detail" | "purchase-summary" | "purchase-detail"
   ): string {
@@ -385,10 +387,13 @@ export default function OrdersPage() {
         </div>
       )}
 
-      <FilterBar filters={filterConfigs} onFilterChange={handleFilterChange} values={filters} />
+      <FilterBar
+        filters={filterConfigs}
+        onFilterChange={(k, v) => setFilters((prev) => ({ ...prev, [k]: v }))}
+        values={filters}
+      />
       <DateQuickPresets onSelect={(from, to) => {
         setFilters((prev) => ({ ...prev, dateFrom: from, dateTo: to }));
-        setPage(1);
       }} />
 
       <DataTable

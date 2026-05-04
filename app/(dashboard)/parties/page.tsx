@@ -28,23 +28,27 @@ export default function PartiesPage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(25);
+
   // Read initial type filter from URL search params (e.g. /parties?type=CUSTOMER)
+  const urlType = searchParams.get("type");
+
   const [filters, setFilters] = useState<Record<string, string>>(() => {
     const type = searchParams.get("type");
     return type ? { type } : ({} as Record<string, string>);
   });
+
   // Sync type filter when URL search params change (soft navigation between sidebar links)
-  const urlType = searchParams.get("type");
   useEffect(() => {
-    setFilters((prev) => {
-      if (urlType && prev.type !== urlType) return { ...prev, type: urlType };
-      if (!urlType && prev.type) { const { type: _, ...rest } = prev; return rest; }
-      return prev;
-    });
+    const applyUrl = (prev: Record<string, string>) => {
+      const next = { ...prev };
+      if (urlType) next.type = urlType; else delete next.type;
+      return next;
+    };
+    setFilters(applyUrl);
     setPage(1);
   }, [urlType]);
 
-  const fetchParties = useCallback(async () => {
+  const fetchParties = useCallback(async (signal?: AbortSignal) => {
     if (!buLoaded || !selectedBuId) return;
     setLoading(true);
     try {
@@ -55,25 +59,26 @@ export default function PartiesPage() {
       if (filters.type) params.set("type", filters.type);
       if (filters.search) params.set("search", filters.search);
 
-      const res = await fetch(`/api/parties?${params}`);
+      const res = await fetch(`/api/parties?${params}`, { signal });
+      if (signal?.aborted) return;
       const json = await res.json();
       if (json.success) {
         setParties(json.data);
         setTotal(json.pagination?.total ?? 0);
       }
-    } catch {
-      // silently fail
+    } catch (err) {
+      if ((err as Error).name === "AbortError") return;
+      // silently fail for other errors
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   }, [page, limit, filters, selectedBuId, buLoaded]);
 
-  useEffect(() => { fetchParties(); }, [fetchParties]);
-
-  function handleFilterChange(key: string, value: string) {
-    setFilters((f) => ({ ...f, [key]: value }));
-    setPage(1);
-  }
+  useEffect(() => {
+    const ctrl = new AbortController();
+    fetchParties(ctrl.signal);
+    return () => ctrl.abort();
+  }, [fetchParties]);
 
   // Type is locked via URL (sidebar menu): no type filter, no type column needed
   const filterConfigs: FilterConfig[] = [
@@ -114,7 +119,11 @@ export default function PartiesPage() {
         </Button>
       </div>
 
-      <FilterBar filters={filterConfigs} values={filters} onFilterChange={handleFilterChange} />
+      <FilterBar
+        filters={filterConfigs}
+        values={filters}
+        onFilterChange={(k, v) => setFilters((prev) => ({ ...prev, [k]: v }))}
+      />
 
       <DataTable
         columns={columns}

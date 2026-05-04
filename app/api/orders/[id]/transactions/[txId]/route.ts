@@ -114,6 +114,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
             businessUnitId: order.businessUnitId,
             currencyId: transaction.currencyId,
           },
+          notes: (updateData.notes as string | undefined) ?? transaction.notes ?? null,
         });
       }
 

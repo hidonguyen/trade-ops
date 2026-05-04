@@ -60,9 +60,9 @@ export default function TransactionsPage() {
   const [filters, setFilters] = useState<Record<string, string>>(() => ({
     ...getInitialDateRange("transactions"),
   }));
-  useRestorePersistedDateRange("transactions", (range) =>
-    setFilters((prev) => ({ ...prev, ...range }))
-  );
+  const dateRestored = useRestorePersistedDateRange("transactions", (range) => {
+    setFilters((prev) => ({ ...prev, ...range }));
+  });
   usePersistDateRange("transactions", filters.dateFrom, filters.dateTo);
   const [editingTx, setEditingTx] = useState<EditableTransaction | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -78,8 +78,8 @@ export default function TransactionsPage() {
       .catch(console.error);
   }, []);
 
-  const fetchTransactions = useCallback(async () => {
-    if (!buLoaded || !selectedBuId) return;
+  const fetchTransactions = useCallback(async (signal?: AbortSignal) => {
+    if (!buLoaded || !selectedBuId || !dateRestored) return;
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -92,25 +92,26 @@ export default function TransactionsPage() {
         ...(filters.bankReference ? { bankReference: filters.bankReference } : {}),
         ...(filters.expenseTypeId ? { expenseTypeId: filters.expenseTypeId } : {}),
       });
-      const res = await fetch(`/api/transactions?${params}`);
+      const res = await fetch(`/api/transactions?${params}`, { signal });
+      if (signal?.aborted) return;
       const json = await res.json();
       if (json.success) {
         setTransactions(json.data);
         setTotal(json.pagination?.total ?? 0);
       }
     } catch (err) {
+      if ((err as Error).name === "AbortError") return;
       console.error("Lỗi tải giao dịch:", err);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
-  }, [page, limit, filters, selectedBuId, buLoaded]);
+  }, [page, limit, filters, selectedBuId, buLoaded, dateRestored]);
 
-  useEffect(() => { fetchTransactions(); }, [fetchTransactions]);
-
-  function handleFilterChange(key: string, value: string) {
-    setFilters((prev) => ({ ...prev, [key]: value }));
-    setPage(1);
-  }
+  useEffect(() => {
+    const ctrl = new AbortController();
+    fetchTransactions(ctrl.signal);
+    return () => ctrl.abort();
+  }, [fetchTransactions]);
 
   async function handleDelete() {
     if (!deleteId) return;
@@ -240,10 +241,13 @@ export default function TransactionsPage() {
         </div>
       )}
 
-      <FilterBar filters={filterConfigs} onFilterChange={handleFilterChange} values={filters} />
+      <FilterBar
+        filters={filterConfigs}
+        onFilterChange={(k, v) => setFilters((prev) => ({ ...prev, [k]: v }))}
+        values={filters}
+      />
       <DateQuickPresets onSelect={(from, to) => {
         setFilters((prev) => ({ ...prev, dateFrom: from, dateTo: to }));
-        setPage(1);
       }} />
 
       <DataTable

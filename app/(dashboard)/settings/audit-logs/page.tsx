@@ -101,9 +101,9 @@ export default function AuditLogsPage() {
   const [filters, setFilters] = useState<Record<string, string>>(() => ({
     ...getInitialDateRange("audit-logs"),
   }));
-  useRestorePersistedDateRange("audit-logs", (range) =>
-    setFilters((prev) => ({ ...prev, ...range }))
-  );
+  const dateRestored = useRestorePersistedDateRange("audit-logs", (range) => {
+    setFilters((prev) => ({ ...prev, ...range }));
+  });
   usePersistDateRange("audit-logs", filters.dateFrom, filters.dateTo);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(25);
@@ -117,12 +117,14 @@ export default function AuditLogsPage() {
       .catch(() => {});
   }, []);
 
-  const fetchLogs = useCallback(async (f: Record<string, string>, p: number, l: number) => {
+  const fetchLogs = useCallback(async (signal?: AbortSignal) => {
+    if (!dateRestored) return;
     setLoading(true);
     try {
-      const params = new URLSearchParams({ page: String(p), limit: String(l) });
-      Object.entries(f).forEach(([k, v]) => { if (v) params.set(k, v); });
-      const res = await fetch(`/api/audit-logs?${params}`);
+      const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+      Object.entries(filters).forEach(([k, v]) => { if (v) params.set(k, v); });
+      const res = await fetch(`/api/audit-logs?${params}`, { signal });
+      if (signal?.aborted) return;
       if (res.status === 403) { setIsAdmin(false); return; }
       const json = await res.json();
       if (json.success) {
@@ -132,19 +134,19 @@ export default function AuditLogsPage() {
       } else {
         setError(json.message ?? "Lỗi tải dữ liệu");
       }
-    } catch {
+    } catch (err) {
+      if ((err as Error).name === "AbortError") return;
       setError("Lỗi kết nối máy chủ");
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
-  }, []);
+  }, [filters, page, limit, dateRestored]);
 
-  useEffect(() => { fetchLogs(filters, page, limit); }, [filters, page, limit, fetchLogs]);
-
-  function handleFilterChange(key: string, value: string) {
-    setFilters((prev) => ({ ...prev, [key]: value }));
-    setPage(1);
-  }
+  useEffect(() => {
+    const ctrl = new AbortController();
+    fetchLogs(ctrl.signal);
+    return () => ctrl.abort();
+  }, [fetchLogs]);
 
   const filterConfigs: FilterConfig[] = [
     { key: "dateFrom", label: "Từ ngày", type: "date" },
@@ -181,10 +183,13 @@ export default function AuditLogsPage() {
         </div>
       </div>
 
-      <FilterBar filters={filterConfigs} onFilterChange={handleFilterChange} values={filters} />
+      <FilterBar
+        filters={filterConfigs}
+        onFilterChange={(k, v) => setFilters((prev) => ({ ...prev, [k]: v }))}
+        values={filters}
+      />
       <DateQuickPresets onSelect={(from, to) => {
         setFilters((prev) => ({ ...prev, dateFrom: from, dateTo: to }));
-        setPage(1);
       }} />
 
       {error && (

@@ -135,6 +135,7 @@ export async function POST(request: Request) {
                 currencyId: txData.currencyId,
               }
             : undefined,
+          notes: txData.notes ?? null,
         });
       }
 

@@ -136,6 +136,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             businessUnitId: order.businessUnitId,
             currencyId: txData.currencyId,
           },
+          notes: txData.notes ?? null,
         });
       }
 

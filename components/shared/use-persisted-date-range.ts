@@ -1,7 +1,7 @@
 // Hook + initializer helpers for persisting per-page date-range filter to localStorage.
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getThisWeekRange } from "@/components/shared/date-quick-presets";
 import {
   readPersistedDateRange,
@@ -20,20 +20,25 @@ export function getInitialDateRange(_pageKey: string): DateRange {
 
 /**
  * After mount, read persisted range from localStorage and apply via callback.
- * Runs once. No-op if nothing persisted or if persisted value matches default.
+ * Returns `true` once the effect has run (whether or not a persisted value
+ * existed). Pages gate their initial fetch on this flag to avoid a double-fetch
+ * when localStorage restores a different date range after mount.
  */
 export function useRestorePersistedDateRange(
   pageKey: string,
   applyRange: (range: DateRange) => void,
-): void {
+): boolean {
+  const [restored, setRestored] = useState(false);
   const appliedRef = useRef(false);
   useEffect(() => {
     if (appliedRef.current) return;
     appliedRef.current = true;
     const persisted = readPersistedDateRange(pageKey);
     if (persisted) applyRange(persisted);
+    setRestored(true); // signal: ready to fetch
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageKey]);
+  return restored;
 }
 
 /**
