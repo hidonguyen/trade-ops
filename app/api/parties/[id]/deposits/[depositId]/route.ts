@@ -80,10 +80,10 @@ export async function PATCH(
       );
     }
 
-    const { currencyId, amountOriginal: newAmountStr, businessUnitId } = validation.data;
+    const { currencyId, amountOriginal: newAmountStr, businessUnitId, notes } = validation.data;
 
     // Require at least one field
-    if (currencyId === undefined && newAmountStr === undefined && businessUnitId === undefined) {
+    if (currencyId === undefined && newAmountStr === undefined && businessUnitId === undefined && notes === undefined) {
       return Response.json(
         apiResponse(false, undefined, "Không có trường nào để cập nhật"),
         { status: 400 }
@@ -131,6 +131,7 @@ export async function PATCH(
       }
       if (currencyId !== undefined) updateData.currencyId = currencyId;
       if (businessUnitId !== undefined) updateData.businessUnitId = businessUnitId;
+      if (notes !== undefined) updateData.notes = notes?.trim() || null;
 
       const updated = await (tx as any).deposit.update({
         where: { id: depositId },
@@ -146,11 +147,13 @@ export async function PATCH(
       if (newAmountStr !== undefined) incomingSnapshot.amountOriginal = newAmountStr;
       if (currencyId !== undefined) incomingSnapshot.currencyId = currencyId;
       if (businessUnitId !== undefined) incomingSnapshot.businessUnitId = businessUnitId;
+      if (notes !== undefined) incomingSnapshot.notes = notes?.trim() || null;
 
       const existingSnapshot: Record<string, unknown> = {
         amountOriginal: existing.amountOriginal.toString(),
         currencyId: existing.currencyId,
         businessUnitId: existing.businessUnitId,
+        notes: existing.notes,
       };
 
       await createAuditLog(

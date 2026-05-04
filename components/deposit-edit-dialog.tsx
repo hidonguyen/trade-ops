@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Combobox } from "@/components/ui/combobox";
 import { NumberInput } from "@/components/ui/number-input";
+import { Textarea } from "@/components/ui/textarea";
 
 // Format amount for hint display (e.g. "1,000.0000 USD")
 function fmtAmt(amount: string, code: string) {
@@ -26,6 +27,7 @@ export interface EnrichedDeposit {
   usedAmount: string;
   creditedAmount: string;
   usageCount: number;
+  notes: string | null;
   currency: Currency;
   businessUnit: BusinessUnit;
 }
@@ -50,6 +52,7 @@ export function DepositEditDialog({
   const [amountOriginal, setAmountOriginal] = useState("");
   const [currencyId, setCurrencyId] = useState("");
   const [businessUnitId, setBusinessUnitId] = useState("");
+  const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [amountError, setAmountError] = useState<string | null>(null);
@@ -60,6 +63,7 @@ export function DepositEditDialog({
     setAmountOriginal(deposit.amountOriginal);
     setCurrencyId(deposit.currency.id);
     setBusinessUnitId(deposit.businessUnit.id);
+    setNotes(deposit.notes ?? "");
     setError(null);
     setAmountError(null);
   }, [open, deposit]);
@@ -108,6 +112,9 @@ export function DepositEditDialog({
     if (amountOriginal !== deposit.amountOriginal) body.amountOriginal = String(newAmount);
     if (currencyId !== deposit.currency.id) body.currencyId = currencyId;
     if (businessUnitId !== deposit.businessUnit.id) body.businessUnitId = businessUnitId;
+    const trimmedNotes = notes.trim();
+    const currentNotes = deposit.notes ?? "";
+    if (trimmedNotes !== currentNotes) body.notes = trimmedNotes;
 
     if (Object.keys(body).length === 0) {
       handleClose();
@@ -209,6 +216,18 @@ export function DepositEditDialog({
             {locked && (
               <p className="text-xs text-slate-500">Không thể thay đổi — cọc đã có giao dịch</p>
             )}
+          </div>
+
+          {/* Notes — always editable */}
+          <div className="space-y-1.5">
+            <Label>Ghi chú</Label>
+            <Textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Ghi chú thêm (tuỳ chọn)"
+              rows={3}
+              maxLength={2000}
+            />
           </div>
         </div>
 

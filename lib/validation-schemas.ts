@@ -90,6 +90,7 @@ export const createDepositSchema = z.object({
   currencyId: z.string().uuid(),
   amountOriginal: decimalString,
   businessUnitId: z.string().uuid(),
+  notes: z.string().max(2000).optional().nullable(),
 });
 
 // All fields optional — at least one must be present (enforced in route handler)
@@ -97,6 +98,7 @@ export const updateDepositSchema = z.object({
   currencyId: z.string().uuid().optional(),
   amountOriginal: decimalString.optional(),
   businessUnitId: z.string().uuid().optional(),
+  notes: z.string().max(2000).optional().nullable(),
 });
 
 // Order

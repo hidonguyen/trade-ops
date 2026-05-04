@@ -121,6 +121,18 @@ export function DepositList({ partyId }: DepositListProps) {
       },
     },
     {
+      key: "notes", label: "Ghi chú",
+      render: (v) => {
+        const text = (v as string | null) ?? "";
+        if (!text) return <span className="text-slate-300">—</span>;
+        return (
+          <span className="text-sm text-slate-600 line-clamp-2 whitespace-pre-wrap break-words" title={text}>
+            {text}
+          </span>
+        );
+      },
+    },
+    {
       key: "actions", label: "",
       render: (_v, row) => <ActionCell row={row as unknown as Deposit} />,
     },

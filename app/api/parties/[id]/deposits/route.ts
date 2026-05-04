@@ -143,6 +143,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           amountOriginal: validation.data.amountOriginal,
           // Set remainingOriginal = amountOriginal on creation
           remainingOriginal: validation.data.amountOriginal,
+          notes: validation.data.notes?.trim() || null,
         },
         include: {
           currency: { select: { id: true, code: true, symbol: true } },

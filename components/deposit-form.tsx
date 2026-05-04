@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Combobox } from "@/components/ui/combobox";
 import { NumberInput } from "@/components/ui/number-input";
+import { Textarea } from "@/components/ui/textarea";
 
 interface Currency { id: string; code: string; symbol: string; }
 
@@ -23,6 +24,7 @@ export function DepositForm({ partyId, open, onClose, onCreated }: DepositFormPr
   const [currencyId, setCurrencyId] = useState("");
   const [businessUnitId, setBusinessUnitId] = useState(getDefaultBu);
   const [amountOriginal, setAmountOriginal] = useState("");
+  const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,6 +40,7 @@ export function DepositForm({ partyId, open, onClose, onCreated }: DepositFormPr
     setCurrencyId("");
     setBusinessUnitId(getDefaultBu());
     setAmountOriginal("");
+    setNotes("");
     setError(null);
   }
 
@@ -66,7 +69,7 @@ export function DepositForm({ partyId, open, onClose, onCreated }: DepositFormPr
       const res = await fetch(`/api/parties/${partyId}/deposits`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currencyId, businessUnitId, amountOriginal: String(amount) }),
+        body: JSON.stringify({ currencyId, businessUnitId, amountOriginal: String(amount), notes: notes.trim() || null }),
       });
       const json = await res.json();
       if (!json.success) { setError(json.message ?? "Lỗi không xác định"); return; }
@@ -106,6 +109,17 @@ export function DepositForm({ partyId, open, onClose, onCreated }: DepositFormPr
               decimals={2}
               min={0}
               placeholder="0.00"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Ghi chú</Label>
+            <Textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Ghi chú thêm (tuỳ chọn)"
+              rows={3}
+              maxLength={2000}
             />
           </div>
         </div>

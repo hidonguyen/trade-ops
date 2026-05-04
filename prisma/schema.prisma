@@ -109,6 +109,7 @@ model Deposit {
   currencyId        String
   amountOriginal    Decimal        @db.Decimal(18, 4)
   remainingOriginal Decimal        @db.Decimal(18, 4)
+  notes             String?        @db.Text
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
   party             Party          @relation(fields: [partyId], references: [id])
