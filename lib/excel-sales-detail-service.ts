@@ -28,7 +28,7 @@ const SALE_DETAIL_HEADERS = [
   "NGÀY ĐƠN HÀNG",      // col 4
   "TIỀN TỆ",            // col 5
   "GIÁ TRỊ ĐH",         // col 6
-  "GIẢM GIÁ TRỊ ĐH",    // col 7
+  "ĐIỀU CHỈNH GIÁ TRỊ ĐH", // col 7 (tăng: dương, giảm: âm)
   "HẠN TT",             // col 8
   "NGÀY TT",            // col 9
   "THANH TOÁN LẦN NÀY", // col 10
@@ -45,7 +45,7 @@ const PURCHASE_DETAIL_HEADERS = [
   "NGÀY ĐƠN HÀNG",      // col 4
   "TIỀN TỆ",            // col 5
   "GIÁ TRỊ ĐH",         // col 6
-  "GIẢM GIÁ TRỊ ĐH",    // col 7
+  "ĐIỀU CHỈNH GIÁ TRỊ ĐH", // col 7 (tăng: dương, giảm: âm)
   "HẠN TT",             // col 8
   "NGÀY TT",            // col 9
   "THANH TOÁN LẦN NÀY", // col 10
@@ -91,16 +91,17 @@ async function buildDetailWorkbook(
 
   applyHeaderStyle(sheet.addRow(headers));
   sheet.columns = colWidths.map((width, i) => ({ width, key: String(i + 1) }));
-  // Number cols 6 (giá trị), 7 (giảm), 10 (TT/hoàn), 11 (còn lại) — col 10 may carry negatives (refunds)
-  for (const c of [6, 7, 11]) applyNumberFormat(sheet.getColumn(c));
+  // Number cols 6 (giá trị), 7 (điều chỉnh — có thể âm), 10 (TT/hoàn — có thể âm), 11 (còn lại)
+  for (const c of [6, 11]) applyNumberFormat(sheet.getColumn(c));
+  applyNumberFormat(sheet.getColumn(7), "#,##0;[Red]-#,##0");
   applyNumberFormat(sheet.getColumn(10), "#,##0;[Red]-#,##0");
 
-  const grandTotals = new Map<string, { value: Decimal; discount: Decimal; netPaid: Decimal; balance: Decimal }>();
+  const grandTotals = new Map<string, { value: Decimal; adjustment: Decimal; netPaid: Decimal; balance: Decimal }>();
 
   for (const o of data) {
     const value = new Decimal(o.amountOriginal);
-    // Flip adjustmentTotal sign: reductions appear as positive in col 7
-    const discount = new Decimal(o.adjustmentTotal).negated();
+    // Điều chỉnh giá trị đơn: tăng = dương, giảm = âm (giữ nguyên dấu gốc)
+    const adjustment = new Decimal(o.adjustmentTotal);
     const balance = new Decimal(o.balanceOriginal);
     const dueDate = o.paymentDueDate ? formatDateDdMmYyyy(o.paymentDueDate) : "";
     const expenseTypeName = isPurchase ? ((o as PurchaseOrderForExport).expenseTypeName ?? "") : "";
@@ -125,7 +126,7 @@ async function buildDetailWorkbook(
     const totalRow: (string | number)[] = [
       o.businessUnitCode, o.partyName, `${o.orderNumber}-Total`,
       formatDateDdMmYyyy(o.orderDate), o.currencyCode,
-      value.toNumber(), discount.toNumber(),
+      value.toNumber(), adjustment.toNumber(),
       dueDate,
       "",  // col 9 blank on total row
       new Decimal(o.netPaidAmount).toNumber(),
@@ -138,9 +139,9 @@ async function buildDetailWorkbook(
 
     addBlankRow(sheet);
 
-    const g = grandTotals.get(o.currencyCode) ?? { value: new Decimal(0), discount: new Decimal(0), netPaid: new Decimal(0), balance: new Decimal(0) };
+    const g = grandTotals.get(o.currencyCode) ?? { value: new Decimal(0), adjustment: new Decimal(0), netPaid: new Decimal(0), balance: new Decimal(0) };
     grandTotals.set(o.currencyCode, {
-      value: g.value.plus(value), discount: g.discount.plus(discount),
+      value: g.value.plus(value), adjustment: g.adjustment.plus(adjustment),
       netPaid: g.netPaid.plus(new Decimal(o.netPaidAmount)), balance: g.balance.plus(balance),
     });
   }
@@ -150,7 +151,7 @@ async function buildDetailWorkbook(
     const g = grandTotals.get(currency)!;
     const grandRow: (string | number)[] = [
       "", "", "", "", `Grand-${currency}`,
-      g.value.toNumber(), g.discount.toNumber(),
+      g.value.toNumber(), g.adjustment.toNumber(),
       "", "",
       g.netPaid.toNumber(), g.balance.toNumber(), "",
     ];

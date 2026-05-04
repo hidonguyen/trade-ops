@@ -48,7 +48,7 @@ const SALE_SUMMARY_CONFIG: SummaryConfig = {
     "HẠN THANH TOÁN",   // col 5
     "TIỀN TỆ",          // col 6
     "GIÁ TRỊ ĐH",       // col 7
-    "GIẢM GIÁ TRỊ ĐH",  // col 8
+    "ĐIỀU CHỈNH GIÁ TRỊ ĐH", // col 8 (tăng: dương, giảm: âm)
     "ĐÃ THANH TOÁN",    // col 9
     "CÒN PHẢI TT",      // col 10
     "TRẠNG THÁI",       // col 11
@@ -69,7 +69,7 @@ const PURCHASE_SUMMARY_CONFIG: SummaryConfig = {
     "HẠN THANH TOÁN",   // col 5
     "TIỀN TỆ",          // col 6
     "GIÁ TRỊ ĐH",       // col 7
-    "GIẢM GIÁ TRỊ ĐH",  // col 8
+    "ĐIỀU CHỈNH GIÁ TRỊ ĐH", // col 8 (tăng: dương, giảm: âm)
     "ĐÃ THANH TOÁN",    // col 9
     "CÒN PHẢI TT",      // col 10
     "TRẠNG THÁI",       // col 11
@@ -102,9 +102,9 @@ async function buildSummaryWorkbook(
   applyHeaderStyle(headerRow);
 
   sheet.columns = config.colWidths.map((width, i) => ({ width, key: String(i + 1) }));
-  // Cols 7 (giá trị), 8 (giảm), 10 (còn lại) — col 9 may carry negative net paid
+  // Col 8 (điều chỉnh) and col 9 (net paid) may be negative — show negatives in red
   applyNumberFormat(sheet.getColumn(7));
-  applyNumberFormat(sheet.getColumn(8));
+  applyNumberFormat(sheet.getColumn(8), "#,##0;[Red]-#,##0");
   applyNumberFormat(sheet.getColumn(9), "#,##0;[Red]-#,##0");
   applyNumberFormat(sheet.getColumn(10));
 
@@ -117,7 +117,7 @@ async function buildSummaryWorkbook(
     return a.orderDate.getTime() - b.orderDate.getTime();
   });
 
-  const grandTotals = new Map<string, { value: Decimal; discount: Decimal; netPaid: Decimal; balance: Decimal }>();
+  const grandTotals = new Map<string, { value: Decimal; adjustment: Decimal; netPaid: Decimal; balance: Decimal }>();
 
   let groupStart = 0;
   while (groupStart < sorted.length) {
@@ -129,18 +129,19 @@ async function buildSummaryWorkbook(
       sorted[groupEnd].currencyCode === currencyCode
     ) groupEnd++;
 
-    let subValue = new Decimal(0), subDiscount = new Decimal(0);
+    let subValue = new Decimal(0), subAdjustment = new Decimal(0);
     let subNetPaid = new Decimal(0), subBalance = new Decimal(0);
 
     for (let i = groupStart; i < groupEnd; i++) {
       const o = sorted[i];
-      const discount = new Decimal(o.adjustmentTotal).negated();
+      // Điều chỉnh: tăng giá trị đơn = dương, giảm = âm (giữ nguyên dấu của adjustmentTotal)
+      const adjustment = new Decimal(o.adjustmentTotal);
       const value = new Decimal(o.amountOriginal);
       const netPaid = new Decimal(o.netPaidAmount);
       const balance = new Decimal(o.balanceOriginal);
 
       subValue = subValue.plus(value);
-      subDiscount = subDiscount.plus(discount);
+      subAdjustment = subAdjustment.plus(adjustment);
       subNetPaid = subNetPaid.plus(netPaid);
       subBalance = subBalance.plus(balance);
 
@@ -149,7 +150,7 @@ async function buildSummaryWorkbook(
         formatDateDdMmYyyy(o.orderDate),
         o.paymentDueDate ? formatDateDdMmYyyy(o.paymentDueDate) : "",
         o.currencyCode,
-        value.toNumber(), discount.toNumber(), netPaid.toNumber(), balance.toNumber(),
+        value.toNumber(), adjustment.toNumber(), netPaid.toNumber(), balance.toNumber(),
         getStatusLabel(o.status),
       ];
       if (config.type === "PURCHASE") {
@@ -161,15 +162,15 @@ async function buildSummaryWorkbook(
     // Subtotal row — LOẠI CHI PHÍ blank
     const subRow: (string | number)[] = [
       "", `${partyName}-${currencyCode}`, "", "", "", "",
-      subValue.toNumber(), subDiscount.toNumber(), subNetPaid.toNumber(), subBalance.toNumber(), "",
+      subValue.toNumber(), subAdjustment.toNumber(), subNetPaid.toNumber(), subBalance.toNumber(), "",
     ];
     if (config.type === "PURCHASE") subRow.push("");
     applySubtotalStyle(sheet.addRow(subRow));
     addBlankRow(sheet);
 
-    const g = grandTotals.get(currencyCode) ?? { value: new Decimal(0), discount: new Decimal(0), netPaid: new Decimal(0), balance: new Decimal(0) };
+    const g = grandTotals.get(currencyCode) ?? { value: new Decimal(0), adjustment: new Decimal(0), netPaid: new Decimal(0), balance: new Decimal(0) };
     grandTotals.set(currencyCode, {
-      value: g.value.plus(subValue), discount: g.discount.plus(subDiscount),
+      value: g.value.plus(subValue), adjustment: g.adjustment.plus(subAdjustment),
       netPaid: g.netPaid.plus(subNetPaid), balance: g.balance.plus(subBalance),
     });
     groupStart = groupEnd;
@@ -180,7 +181,7 @@ async function buildSummaryWorkbook(
     const g = grandTotals.get(currency)!;
     const grandRow: (string | number)[] = [
       "", "", "", "", "", `Grand-${currency}`,
-      g.value.toNumber(), g.discount.toNumber(), g.netPaid.toNumber(), g.balance.toNumber(), "",
+      g.value.toNumber(), g.adjustment.toNumber(), g.netPaid.toNumber(), g.balance.toNumber(), "",
     ];
     if (config.type === "PURCHASE") grandRow.push("");
     applyGrandTotalStyle(sheet.addRow(grandRow));
