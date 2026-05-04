@@ -3,9 +3,11 @@
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 
-export interface SalePaymentForExport {
+export interface SaleTransactionForExport {
   transactionDate: Date;
+  // Signed: positive for PAYMENT, negative for REFUND — column sums equal net paid
   amountOriginal: number;
+  paymentType: "PAYMENT" | "REFUND";
   notes?: string | null;
 }
 
@@ -18,12 +20,14 @@ export interface SaleOrderForExport {
   currencyCode: string;
   amountOriginal: number;
   adjustmentTotal: number;
-  paidAmount: number;
+  // Net paid = sum of PAYMENT − sum of REFUND (matches list-page formula)
+  netPaidAmount: number;
   balanceOriginal: number;
   effectiveValue: number;
   status: string;
   notes?: string | null;
-  payments: SalePaymentForExport[];
+  // PAYMENT + REFUND rows interleaved by date; REFUND amounts negated
+  transactions: SaleTransactionForExport[];
 }
 
 /** Extended interface for PURCHASE orders — adds expense type */
@@ -56,6 +60,6 @@ export function formatExpenseType(name: string, isActive: boolean): string {
 export interface GrandTotalAccum {
   value: import("decimal.js").Decimal;
   discount: import("decimal.js").Decimal;
-  paid: import("decimal.js").Decimal;
+  netPaid: import("decimal.js").Decimal;
   balance: import("decimal.js").Decimal;
 }

@@ -91,9 +91,11 @@ async function buildDetailWorkbook(
 
   applyHeaderStyle(sheet.addRow(headers));
   sheet.columns = colWidths.map((width, i) => ({ width, key: String(i + 1) }));
-  for (const c of [6, 7, 10, 11]) applyNumberFormat(sheet.getColumn(c));
+  // Number cols 6 (giá trị), 7 (giảm), 10 (TT/hoàn), 11 (còn lại) — col 10 may carry negatives (refunds)
+  for (const c of [6, 7, 11]) applyNumberFormat(sheet.getColumn(c));
+  applyNumberFormat(sheet.getColumn(10), "#,##0;[Red]-#,##0");
 
-  const grandTotals = new Map<string, { value: Decimal; discount: Decimal; paid: Decimal; balance: Decimal }>();
+  const grandTotals = new Map<string, { value: Decimal; discount: Decimal; netPaid: Decimal; balance: Decimal }>();
 
   for (const o of data) {
     const value = new Decimal(o.amountOriginal);
@@ -103,30 +105,30 @@ async function buildDetailWorkbook(
     const dueDate = o.paymentDueDate ? formatDateDdMmYyyy(o.paymentDueDate) : "";
     const expenseTypeName = isPurchase ? ((o as PurchaseOrderForExport).expenseTypeName ?? "") : "";
 
-    // Payment rows — value/discount/balance/status/expenseType blank
-    for (const pmt of o.payments) {
-      const paymentRow: (string | number)[] = [
+    // Transaction rows — PAYMENT and REFUND interleaved; REFUND amount negative
+    for (const tx of o.transactions) {
+      const txRow: (string | number)[] = [
         o.businessUnitCode, o.partyName, o.orderNumber,
         formatDateDdMmYyyy(o.orderDate), o.currencyCode,
-        "", "",  // col 6-7 blank
+        "", "",  // col 6-7 blank on tx rows
         dueDate,
-        formatDateDdMmYyyy(pmt.transactionDate),
-        pmt.amountOriginal,
-        "", "",  // col 11-12 blank
+        formatDateDdMmYyyy(tx.transactionDate),
+        tx.amountOriginal,    // signed: + payment, − refund
+        "", "",
       ];
-      if (isPurchase) paymentRow.push(""); // col 13 LOẠI CHI PHÍ blank on payment rows
-      paymentRow.push("");                 // GHI CHÚ (col 13 SALE / col 14 PURCHASE) blank
-      sheet.addRow(paymentRow);
+      if (isPurchase) txRow.push(""); // col 13 LOẠI CHI PHÍ blank on tx rows
+      txRow.push(tx.notes ?? "");     // GHI CHÚ
+      sheet.addRow(txRow);
     }
 
-    // Total row — payment date (col 9) blank; LOẠI CHI PHÍ shown on this row
+    // Total row — col 10 = net paid (gross paid − refund); LOẠI CHI PHÍ shown here
     const totalRow: (string | number)[] = [
       o.businessUnitCode, o.partyName, `${o.orderNumber}-Total`,
       formatDateDdMmYyyy(o.orderDate), o.currencyCode,
       value.toNumber(), discount.toNumber(),
       dueDate,
       "",  // col 9 blank on total row
-      new Decimal(o.paidAmount).toNumber(),
+      new Decimal(o.netPaidAmount).toNumber(),
       balance.toNumber(),
       getStatusLabel(o.status),
     ];
@@ -136,10 +138,10 @@ async function buildDetailWorkbook(
 
     addBlankRow(sheet);
 
-    const g = grandTotals.get(o.currencyCode) ?? { value: new Decimal(0), discount: new Decimal(0), paid: new Decimal(0), balance: new Decimal(0) };
+    const g = grandTotals.get(o.currencyCode) ?? { value: new Decimal(0), discount: new Decimal(0), netPaid: new Decimal(0), balance: new Decimal(0) };
     grandTotals.set(o.currencyCode, {
       value: g.value.plus(value), discount: g.discount.plus(discount),
-      paid: g.paid.plus(new Decimal(o.paidAmount)), balance: g.balance.plus(balance),
+      netPaid: g.netPaid.plus(new Decimal(o.netPaidAmount)), balance: g.balance.plus(balance),
     });
   }
 
@@ -150,7 +152,7 @@ async function buildDetailWorkbook(
       "", "", "", "", `Grand-${currency}`,
       g.value.toNumber(), g.discount.toNumber(),
       "", "",
-      g.paid.toNumber(), g.balance.toNumber(), "",
+      g.netPaid.toNumber(), g.balance.toNumber(), "",
     ];
     if (isPurchase) grandRow.push(""); // col 13 blank
     grandRow.push("");                 // GHI CHÚ blank

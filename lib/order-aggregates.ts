@@ -12,8 +12,9 @@ interface RawTransaction {
 export interface OrderAggregates {
   adjustmentTotal: number; // signed sum of ADJUSTMENT transactions
   effectiveValue: number;  // amountOriginal + adjustmentTotal
-  paidAmount: number;      // sum of PAYMENT transactions
-  refundedAmount: number;  // sum of REFUND transactions
+  paidAmount: number;      // sum of PAYMENT transactions (gross)
+  refundedAmount: number;  // sum of REFUND transactions (gross)
+  netPaidAmount: number;   // paidAmount - refundedAmount
   balanceOriginal: number; // max(effectiveValue - paidAmount + refundedAmount, 0)
 }
 
@@ -43,6 +44,7 @@ export function computeOrderAggregates(
 
   const orderAmt = new Decimal(amountOriginal.toString());
   const effectiveValue = orderAmt.plus(adjustmentTotal);
+  const netPaidAmount = paidAmount.minus(refundedAmount);
   const balanceOriginal = Decimal.max(
     effectiveValue.minus(paidAmount).plus(refundedAmount),
     new Decimal(0)
@@ -53,22 +55,28 @@ export function computeOrderAggregates(
     effectiveValue: effectiveValue.toNumber(),
     paidAmount: paidAmount.toNumber(),
     refundedAmount: refundedAmount.toNumber(),
+    netPaidAmount: netPaidAmount.toNumber(),
     balanceOriginal: balanceOriginal.toNumber(),
   };
 }
 
 /**
- * Extract PAYMENT transactions sorted ascending by date, mapped to export shape.
+ * Extract PAYMENT + REFUND transactions sorted by date.
+ * REFUND amounts returned as negative so column sums equal net paid (paid − refund).
  */
-export function extractPayments(
+export function extractPaymentsAndRefunds(
   transactions: RawTransaction[]
-): Array<{ transactionDate: Date; amountOriginal: number; notes?: string | null }> {
+): Array<{ transactionDate: Date; amountOriginal: number; paymentType: "PAYMENT" | "REFUND"; notes?: string | null }> {
   return transactions
-    .filter((tx) => tx.paymentType === "PAYMENT")
+    .filter((tx) => tx.paymentType === "PAYMENT" || tx.paymentType === "REFUND")
     .sort((a, b) => a.transactionDate.getTime() - b.transactionDate.getTime())
-    .map((tx) => ({
-      transactionDate: tx.transactionDate,
-      amountOriginal: new Decimal(tx.amountOriginal.toString()).toNumber(),
-      notes: tx.notes ?? null,
-    }));
+    .map((tx) => {
+      const amt = new Decimal(tx.amountOriginal.toString()).toNumber();
+      return {
+        transactionDate: tx.transactionDate,
+        amountOriginal: tx.paymentType === "REFUND" ? -amt : amt,
+        paymentType: tx.paymentType as "PAYMENT" | "REFUND",
+        notes: tx.notes ?? null,
+      };
+    });
 }

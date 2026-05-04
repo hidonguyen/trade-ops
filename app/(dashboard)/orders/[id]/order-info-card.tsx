@@ -1,4 +1,5 @@
 // Order info card sub-component — displays party, type, date, currency, status
+import Decimal from "decimal.js";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { CurrencyAmount } from "@/components/shared/currency-amount";
@@ -21,6 +22,8 @@ interface Order {
 
 interface OrderInfoCardProps {
   order: Order;
+  // Signed sum of ORDER_ADJUSTMENT transactions; absent/0 means no adjustment
+  adjustmentTotal?: string;
 }
 
 function formatDate(dateStr: string | null | undefined): string {
@@ -32,10 +35,14 @@ function formatDate(dateStr: string | null | undefined): string {
   });
 }
 
-export function OrderInfoCard({ order }: OrderInfoCardProps) {
+export function OrderInfoCard({ order, adjustmentTotal }: OrderInfoCardProps) {
   const rate = parseFloat(order.exchangeRate ?? "1");
   const isNonVnd = order.currency?.code !== "VND";
-  // Derived VND equivalent — only shown when currency is non-VND and rate meaningful
+
+  const adjAmount = new Decimal(adjustmentTotal ?? "0");
+  const hasAdjustment = !adjAmount.isZero();
+
+  // VND equivalent reflects the original order amount (adjustment shown as a separate field)
   const vndEquivalent =
     isNonVnd && rate > 0
       ? (parseFloat(order.amountOriginal ?? "0") * rate)
@@ -85,7 +92,7 @@ export function OrderInfoCard({ order }: OrderInfoCardProps) {
             <dd className="font-medium mt-0.5">{order.businessUnit?.code}</dd>
           </div>
           <div>
-            <dt className="text-slate-500 text-xs uppercase tracking-wide">Số tiền</dt>
+            <dt className="text-slate-500 text-xs uppercase tracking-wide">Giá trị đơn hàng</dt>
             <dd className="font-medium mt-0.5">
               <CurrencyAmount
                 amount={order.amountOriginal}
@@ -94,6 +101,19 @@ export function OrderInfoCard({ order }: OrderInfoCardProps) {
               />
             </dd>
           </div>
+          {hasAdjustment && (
+            <div>
+              <dt className="text-slate-500 text-xs uppercase tracking-wide">Điều chỉnh</dt>
+              <dd className={`font-medium mt-0.5 ${adjAmount.isPositive() ? "text-green-700" : ""}`}>
+                {adjAmount.isPositive() ? "+" : ""}
+                <CurrencyAmount
+                  amount={adjAmount.toFixed(4)}
+                  currencyCode={order.currency?.code}
+                  currencySymbol={order.currency?.symbol}
+                />
+              </dd>
+            </div>
+          )}
           <div>
             <dt className="text-slate-500 text-xs uppercase tracking-wide">Tiền tệ</dt>
             <dd className="font-medium mt-0.5">

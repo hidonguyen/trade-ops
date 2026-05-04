@@ -10,7 +10,7 @@ import {
   formatExpenseType,
 } from "@/lib/excel-order-reports-service";
 import { buildReportFilename } from "@/lib/excel-report-utils";
-import { computeOrderAggregates, extractPayments } from "@/lib/order-aggregates";
+import { computeOrderAggregates, extractPaymentsAndRefunds } from "@/lib/order-aggregates";
 
 const querySchema = z.object({
   dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "dateFrom must be YYYY-MM-DD"),
@@ -90,12 +90,12 @@ export async function GET(request: Request) {
         currencyCode: o.currency.code,
         amountOriginal: parseFloat(o.amountOriginal.toString()),
         adjustmentTotal: agg.adjustmentTotal,
-        paidAmount: agg.paidAmount,
+        netPaidAmount: agg.netPaidAmount,
         balanceOriginal: agg.balanceOriginal,
         effectiveValue: agg.effectiveValue,
         status: o.status,
         notes: o.notes ?? null,
-        payments: extractPayments(o.transactions),
+        transactions: extractPaymentsAndRefunds(o.transactions),
         expenseTypeName: o.expenseType
           ? formatExpenseType(o.expenseType.name, o.expenseType.isActive)
           : "",

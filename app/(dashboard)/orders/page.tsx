@@ -195,27 +195,49 @@ export default function OrdersPage() {
     },
     {
       key: "amountOriginal",
+      // Display effective value = base + adjustment; tooltip shows breakdown when adjusted
       label: "Giá trị đơn hàng",
       align: "right",
-      render: (v, row) => (
-        <CurrencyAmount
-          amount={v}
-          currencyCode={row.currency?.code ?? "VND"}
-          currencySymbol={row.currency?.symbol ?? "₫"}
-        />
-      ),
+      render: (_, row) => {
+        const base = new Decimal(row.amountOriginal ?? "0");
+        const adj = new Decimal(row.adjustmentTotal ?? "0");
+        const eff = base.plus(adj);
+        const tooltip = !adj.isZero()
+          ? `Gốc: ${base.toNumber().toLocaleString("vi-VN")} | Điều chỉnh: ${adj.gte(0) ? "+" : ""}${adj.toNumber().toLocaleString("vi-VN")}`
+          : undefined;
+        return (
+          <span title={tooltip}>
+            <CurrencyAmount
+              amount={eff.toFixed(4)}
+              currencyCode={row.currency?.code ?? "VND"}
+              currencySymbol={row.currency?.symbol ?? "₫"}
+            />
+          </span>
+        );
+      },
     },
     {
       key: "paidAmount",
+      // Display net paid = paid - refunded; tooltip shows breakdown when refunded
       label: "Đã thanh toán",
       align: "right",
-      render: (v, row) => (
-        <CurrencyAmount
-          amount={v}
-          currencyCode={row.currency?.code ?? "VND"}
-          currencySymbol={row.currency?.symbol ?? "₫"}
-        />
-      ),
+      render: (_, row) => {
+        const paid = new Decimal(row.paidAmount ?? "0");
+        const refunded = new Decimal(row.refundedAmount ?? "0");
+        const net = paid.minus(refunded);
+        const tooltip = !refunded.isZero()
+          ? `Đã TT: ${paid.toNumber().toLocaleString("vi-VN")} − Hoàn: ${refunded.toNumber().toLocaleString("vi-VN")}`
+          : undefined;
+        return (
+          <span title={tooltip}>
+            <CurrencyAmount
+              amount={net.toFixed(4)}
+              currencyCode={row.currency?.code ?? "VND"}
+              currencySymbol={row.currency?.symbol ?? "₫"}
+            />
+          </span>
+        );
+      },
     },
     {
       key: "balance",

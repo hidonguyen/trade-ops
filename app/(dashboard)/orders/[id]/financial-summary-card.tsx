@@ -13,6 +13,9 @@ interface FinancialSummary {
   balanceOriginal: string;
   bankPaymentsOriginal: string;
   depositPaymentsOriginal: string;
+  // Refund breakdown by method — symmetric to payment breakdown
+  bankRefundsOriginal?: string;
+  depositRefundsOriginal?: string;
   transactionCount: number;
 }
 
@@ -30,7 +33,7 @@ interface SummaryRowProps {
   highlight?: "positive" | "negative" | "neutral";
 }
 
-function SummaryRow({ label, value, currencyCode, currencySymbol, highlight }: SummaryRowProps) {
+function SummaryRow({ label, value, currencyCode, currencySymbol, highlight, indented }: SummaryRowProps & { indented?: boolean }) {
   const highlightClass =
     highlight === "positive"
       ? "text-green-700 font-semibold"
@@ -40,7 +43,7 @@ function SummaryRow({ label, value, currencyCode, currencySymbol, highlight }: S
 
   return (
     <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-      <span className="text-sm text-slate-600">{label}</span>
+      <span className={`text-sm ${indented ? "pl-6 text-slate-500 before:content-['·_'] before:text-slate-400" : "text-slate-600"}`}>{label}</span>
       <span className={highlightClass}>
         <CurrencyAmount amount={value} currencyCode={currencyCode} currencySymbol={currencySymbol} />
       </span>
@@ -50,10 +53,9 @@ function SummaryRow({ label, value, currencyCode, currencySymbol, highlight }: S
 
 export function FinancialSummaryCard({ summary, currencyCode, currencySymbol }: FinancialSummaryCardProps) {
   const adjustmentTotal = parseFloat(summary.adjustmentTotalOriginal ?? "0");
-  // "Còn phải thanh toán" uses effectiveValueOriginal when available (accounts for adjustments)
+  const totalRefunded = parseFloat(summary.totalRefundedOriginal);
   const remaining = parseFloat(summary.balanceOriginal);
 
-  // Determine highlight for adjustment row: negative = red (reduces value), positive = green, zero = neutral
   const adjustmentHighlight: "positive" | "negative" | "neutral" =
     adjustmentTotal < 0 ? "negative" : adjustmentTotal > 0 ? "positive" : "neutral";
 
@@ -64,22 +66,25 @@ export function FinancialSummaryCard({ summary, currencyCode, currencySymbol }: 
       </CardHeader>
       <CardContent>
         <div className="space-y-0">
+          {/* Order value: gross original; adjustment shown as a separate breakdown row */}
           <SummaryRow
             label="Giá trị đơn hàng"
             value={summary.orderAmountOriginal}
             currencyCode={currencyCode}
             currencySymbol={currencySymbol}
           />
-          {/* Only show adjustment row when adjustment exists */}
           {adjustmentTotal !== 0 && (
             <SummaryRow
-              label="Điều chỉnh giá trị đơn hàng"
+              label="Điều chỉnh"
               value={summary.adjustmentTotalOriginal ?? "0"}
               currencyCode={currencyCode}
               currencySymbol={currencySymbol}
               highlight={adjustmentHighlight}
+              indented
             />
           )}
+
+          {/* Payment side: gross total + breakdown by method */}
           <SummaryRow
             label="Đã thanh toán"
             value={summary.totalPaidOriginal}
@@ -88,24 +93,47 @@ export function FinancialSummaryCard({ summary, currencyCode, currencySymbol }: 
             highlight="positive"
           />
           <SummaryRow
-            label="Đã hoàn tiền"
-            value={summary.totalRefundedOriginal}
-            currencyCode={currencyCode}
-            currencySymbol={currencySymbol}
-            highlight={parseFloat(summary.totalRefundedOriginal) > 0 ? "negative" : "neutral"}
-          />
-          <SummaryRow
-            label="Thanh toán qua ngân hàng"
+            label="Qua ngân hàng"
             value={summary.bankPaymentsOriginal}
             currencyCode={currencyCode}
             currencySymbol={currencySymbol}
+            indented
           />
           <SummaryRow
-            label="Thanh toán qua cọc"
+            label="Qua cọc"
             value={summary.depositPaymentsOriginal}
             currencyCode={currencyCode}
             currencySymbol={currencySymbol}
+            indented
           />
+
+          {/* Refund side: gross total + breakdown by method (only when any refund exists) */}
+          {totalRefunded > 0 && (
+            <>
+              <SummaryRow
+                label="Đã hoàn tiền"
+                value={summary.totalRefundedOriginal}
+                currencyCode={currencyCode}
+                currencySymbol={currencySymbol}
+                highlight="negative"
+              />
+              <SummaryRow
+                label="Qua ngân hàng"
+                value={summary.bankRefundsOriginal ?? "0"}
+                currencyCode={currencyCode}
+                currencySymbol={currencySymbol}
+                indented
+              />
+              <SummaryRow
+                label="Qua cọc"
+                value={summary.depositRefundsOriginal ?? "0"}
+                currencyCode={currencyCode}
+                currencySymbol={currencySymbol}
+                indented
+              />
+            </>
+          )}
+
           <SummaryRow
             label="Còn phải thanh toán"
             value={summary.balanceOriginal}
