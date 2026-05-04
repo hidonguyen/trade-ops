@@ -2,7 +2,6 @@
 import ExcelJS from "exceljs";
 import {
   applyHeaderStyle,
-  applySubtotalStyle,
   formatDateDdMmYyyy,
 } from "./excel-report-utils";
 
@@ -103,25 +102,6 @@ function addColHeaderRow(sheet: ExcelJS.Worksheet, cols: string[]): void {
   row.commit();
 }
 
-/** TỔNG CỘNG row with summed amount columns */
-function addSubtotalRow(
-  sheet: ExcelJS.Worksheet,
-  amountCols: number[],
-  totalsByCol: Record<number, number>
-): void {
-  const values: (string | number)[] = new Array(NUM_COLS).fill("");
-  values[0] = "TỔNG CỘNG";
-  for (const col of amountCols) {
-    values[col - 1] = totalsByCol[col] ?? 0;
-  }
-  const row = sheet.addRow(values);
-  applySubtotalStyle(row);
-  // Apply number format to amount cells
-  for (const col of amountCols) {
-    row.getCell(col).numFmt = "#,##0";
-  }
-  row.commit();
-}
 
 // ─── Section renderers ────────────────────────────────────────────────────────
 
@@ -135,8 +115,6 @@ export function renderSectionA(
 
   addSubsectionHeading(sheet, label);
   addColHeaderRow(sheet, SECTION_A_COLS);
-
-  const totals: Record<number, number> = { 6: 0, 7: 0, 8: 0, 9: 0 };
 
   rows.forEach((r, i) => {
     const rowData: (string | number | Date)[] = [
@@ -157,14 +135,7 @@ export function renderSectionA(
       exRow.getCell(col).numFmt = "#,##0";
     }
     exRow.commit();
-
-    totals[6] += r.debtBefore;
-    totals[7] += r.paidThisTime;
-    totals[8] += r.debtRemaining;
-    totals[9] += r.vndAmount;
   });
-
-  addSubtotalRow(sheet, A_AMOUNT_COLS, totals);
 }
 
 /** Render section b (standalone rows: III.b or IV.b) — flat list, no sub-grouping */
@@ -177,8 +148,6 @@ export function renderSectionB(
 
   addSubsectionHeading(sheet, label);
   addColHeaderRow(sheet, SECTION_B_COLS);
-
-  const totals: Record<number, number> = { 8: 0, 9: 0 };
 
   rows.forEach((r, i) => {
     const rowData: (string | number | Date)[] = [
@@ -198,10 +167,5 @@ export function renderSectionB(
       exRow.getCell(col).numFmt = "#,##0";
     }
     exRow.commit();
-
-    totals[8] += r.originalAmount;
-    totals[9] += r.vndAmount;
   });
-
-  addSubtotalRow(sheet, B_AMOUNT_COLS, totals);
 }
