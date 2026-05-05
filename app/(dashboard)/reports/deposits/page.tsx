@@ -10,6 +10,7 @@ import { DateQuickPresets } from "@/components/shared/date-quick-presets";
 import { getInitialDateRange, usePersistDateRange, useRestorePersistedDateRange } from "@/components/shared/use-persisted-date-range";
 import { CurrencyAmount } from "@/components/shared/currency-amount";
 import { DownloadIcon } from "lucide-react";
+import { OrderLinkCell } from "@/components/reports/order-link-cell";
 
 interface DepositUsage {
   id: string;
@@ -17,6 +18,7 @@ interface DepositUsage {
   amountOriginal: string;
   eventType: "DEPOSIT_USED" | "DEPOSIT_REFUNDED";
   reference: string | null;
+  orderId: string | null;
 }
 
 interface DepositMaster {
@@ -177,6 +179,7 @@ export default function DepositReportPage() {
               <th className="px-3 py-2">Tiền tệ</th>
               <th className="px-3 py-2">Đơn vị</th>
               <th className="px-3 py-2">Ghi chú</th>
+              <th className="px-3 py-2 w-10"></th>
             </tr>
           </thead>
           <tbody>
@@ -214,6 +217,7 @@ export default function DepositReportPage() {
                     <td className="px-3 py-2">{d.currencyCode}</td>
                     <td className="px-3 py-2">{d.buCode}</td>
                     <td className="px-3 py-2">{d.notes ?? "—"}</td>
+                    <td className="px-3 py-2"></td>
                   </tr>
                   {d.usages.map((u) => {
                     const signedAmt = u.eventType === "DEPOSIT_USED"
@@ -237,6 +241,9 @@ export default function DepositReportPage() {
                       <td className="px-3 py-1.5">{d.currencyCode}</td>
                       <td className="px-3 py-1.5"></td>
                       <td className="px-3 py-1.5">{u.reference ?? "—"}</td>
+                      <td className="px-3 py-1.5 text-center">
+                        <OrderLinkCell orderId={u.orderId} />
+                      </td>
                     </tr>
                     );
                   })}

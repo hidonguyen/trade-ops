@@ -56,6 +56,7 @@ interface CashflowRow {
   businessUnit: { id: string; code: string; name: string };
   bankReference: string | null;
   partyName: string | null;
+  orderId: string | null;
   orderNumber: string | null;
   expenseTypeName: string | null;
   notes: string | null;
@@ -105,7 +106,7 @@ export async function GET(request: Request) {
         include: {
           currency: { select: { id: true, code: true, symbol: true } },
           businessUnit: { select: { id: true, code: true, name: true } },
-          order: { select: { orderNumber: true, notes: true, party: { select: { name: true } } } },
+          order: { select: { id: true, orderNumber: true, notes: true, party: { select: { name: true } } } },
           expenseType: { select: { name: true } },
         },
         orderBy: { transactionDate: "asc" },
@@ -148,6 +149,7 @@ export async function GET(request: Request) {
         businessUnit: tx.businessUnit,
         bankReference: tx.bankReference,
         partyName: tx.order?.party?.name ?? null,
+        orderId: tx.order?.id ?? null,
         orderNumber: tx.order?.orderNumber ?? null,
         expenseTypeName: tx.expenseType?.name ?? null,
         notes: tx.notes,
@@ -176,6 +178,7 @@ export async function GET(request: Request) {
         businessUnit: d.businessUnit,
         bankReference: null,
         partyName: d.party.name,
+        orderId: null,
         orderNumber: null,
         expenseTypeName: null,
         notes: d.notes,

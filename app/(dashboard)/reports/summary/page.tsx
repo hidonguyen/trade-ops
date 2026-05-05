@@ -11,6 +11,7 @@ import { DateQuickPresets } from "@/components/shared/date-quick-presets";
 import { getInitialDateRange, usePersistDateRange, useRestorePersistedDateRange } from "@/components/shared/use-persisted-date-range";
 import { DataTable, Column } from "@/components/shared/data-table";
 import { CurrencyAmount } from "@/components/shared/currency-amount";
+import { OrderLinkCell } from "@/components/reports/order-link-cell";
 
 interface OrderDebtRow extends Record<string, unknown> {
   orderId: string;
@@ -26,7 +27,7 @@ interface OrderDebtRow extends Record<string, unknown> {
 }
 
 interface StandaloneRow extends Record<string, unknown> {
-  rowType: "transaction" | "deposit" | "bankFee";
+  rowType: "transaction" | "deposit" | "bankFee" | "refund";
   id: string;
   date: string;
   amountOriginal: string;
@@ -37,6 +38,7 @@ interface StandaloneRow extends Record<string, unknown> {
   partyName: string | null;
   label: string;
   notes: string | null;
+  orderId: string | null;
 }
 
 interface SummaryData {
@@ -114,6 +116,12 @@ const ORDER_COLUMNS: Column<OrderDebtRow>[] = [
     label: "Ghi chú",
     render: (v) => v ?? "—",
   },
+  {
+    key: "orderId",
+    label: "",
+    align: "center",
+    render: (v) => <OrderLinkCell orderId={v as string | null} />,
+  },
 ];
 
 const STANDALONE_COLUMNS: Column<StandaloneRow>[] = [
@@ -151,6 +159,7 @@ const STANDALONE_COLUMNS: Column<StandaloneRow>[] = [
       const text = (v as string) || "—";
       if (row.rowType === "bankFee") return <span className="text-red-600">{text}</span>;
       if (row.rowType === "deposit") return <span className="text-blue-600">{text}</span>;
+      if (row.rowType === "refund") return <span className="text-orange-600">{text}</span>;
       return text;
     },
   },
@@ -173,6 +182,12 @@ const STANDALONE_COLUMNS: Column<StandaloneRow>[] = [
     key: "notes",
     label: "Ghi chú",
     render: (v) => (v as string | null) ?? "—",
+  },
+  {
+    key: "orderId",
+    label: "",
+    align: "center",
+    render: (v) => <OrderLinkCell orderId={v as string | null} />,
   },
 ];
 

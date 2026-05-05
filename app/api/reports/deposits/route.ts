@@ -13,6 +13,7 @@ interface DepositUsageDto {
   amountOriginal: string;
   eventType: "DEPOSIT_USED" | "DEPOSIT_REFUNDED";
   reference: string | null;
+  orderId: string | null;
 }
 
 interface DepositMasterDto {
@@ -69,7 +70,7 @@ export async function GET(request: Request) {
         businessUnit: { select: { code: true } },
         usages: {
           include: {
-            transaction: { select: { bankReference: true, notes: true, paymentType: true } },
+            transaction: { select: { bankReference: true, notes: true, paymentType: true, orderId: true } },
           },
           orderBy: { createdAt: "asc" },
         },
@@ -125,6 +126,7 @@ export async function GET(request: Request) {
           amountOriginal: amt.abs().toFixed(4),
           eventType: amt.isPositive() ? "DEPOSIT_USED" : "DEPOSIT_REFUNDED",
           reference: u.transaction?.bankReference ?? u.transaction?.notes ?? null,
+          orderId: u.transaction?.orderId ?? null,
         };
       });
 

@@ -12,6 +12,7 @@ import { CashflowSummaryCards } from "./cashflow-summary-cards";
 import { DateQuickPresets } from "@/components/shared/date-quick-presets";
 import { getInitialDateRange, usePersistDateRange, useRestorePersistedDateRange } from "@/components/shared/use-persisted-date-range";
 import { DownloadIcon } from "lucide-react";
+import { OrderLinkCell } from "@/components/reports/order-link-cell";
 import Decimal from "decimal.js";
 
 interface CashflowTransaction {
@@ -34,6 +35,7 @@ interface CashflowTransaction {
   partyName: string | null;
   expenseTypeName: string | null;
   description: string | null;
+  orderId: string | null;
   orderNumber: string | null;
   createdBy: string;
 }
@@ -279,6 +281,12 @@ export default function CashflowPage() {
         ) : (
           <span className="text-slate-400">—</span>
         ),
+    },
+    {
+      key: "orderId",
+      label: "",
+      align: "center",
+      render: (v) => <OrderLinkCell orderId={v as string | null} />,
     },
   ];
 
