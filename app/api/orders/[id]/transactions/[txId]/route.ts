@@ -71,7 +71,9 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (!order) return Response.json(apiResponse(false, undefined, MSG.orderNotFound), { status: 404 });
     if (!transaction) return Response.json(apiResponse(false, undefined, MSG.transactionNotFound), { status: 404 });
 
-    const module = order.type === "SALE" ? "SALE" : "PURCHASE";
+    // Tx-level RBAC: cash direction (RECEIPT/PAYMENT) drives the module, not order.type.
+    // ACCOUNTANT_SALE has DENY on PAYMENT regardless of which order it links to.
+    const module = transaction.type === "RECEIPT" ? "RECEIPT" : "PAYMENT";
     if (!checkAccess(session.user.roles, "UPDATE", module)) {
       return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
     }
@@ -160,14 +162,14 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
       }),
       prisma.transaction.findUnique({
         where: { id: txId, orderId },
-        select: { id: true, depositUsages: { select: { depositId: true } } },
+        select: { id: true, type: true, depositUsages: { select: { depositId: true } } },
       }),
     ]);
 
     if (!order) return Response.json(apiResponse(false, undefined, MSG.orderNotFound), { status: 404 });
     if (!transaction) return Response.json(apiResponse(false, undefined, MSG.transactionNotFound), { status: 404 });
 
-    const module = order.type === "SALE" ? "SALE" : "PURCHASE";
+    const module = transaction.type === "RECEIPT" ? "RECEIPT" : "PAYMENT";
     if (!checkAccess(session.user.roles, "DELETE", module)) {
       return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
     }

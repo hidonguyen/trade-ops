@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { BuProvider } from "@/components/providers/bu-provider";
 import { NavHighlightProvider } from "@/components/providers/nav-highlight-provider";
+import { RolesProvider } from "@/components/providers/roles-provider";
 
 export default async function DashboardLayout({
   children,
@@ -21,6 +22,7 @@ export default async function DashboardLayout({
   const userName: string = session.user.name ?? session.user.email ?? "Người dùng";
 
   return (
+    <RolesProvider roles={userRoles}>
     <BuProvider>
       <NavHighlightProvider>
         <div className="min-h-screen flex">
@@ -38,5 +40,6 @@ export default async function DashboardLayout({
         </div>
       </NavHighlightProvider>
     </BuProvider>
+    </RolesProvider>
   );
 }

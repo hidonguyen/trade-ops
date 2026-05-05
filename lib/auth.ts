@@ -5,6 +5,7 @@ import bcrypt from "bcrypt";
 import { prisma } from "@/lib/prisma";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  trustHost: true,
   providers: [
     Credentials({
       credentials: {
@@ -43,6 +44,24 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.id = user.id!;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         token.roles = (user as any).roles;
+        token.rolesFetchedAt = Date.now();
+        return token;
+      }
+      // Re-fetch roles every 5 minutes so admin role changes propagate without forced re-login
+      const STALE_MS = 5 * 60 * 1000;
+      const fetchedAt = (token.rolesFetchedAt as number | undefined) ?? 0;
+      if (token.id && Date.now() - fetchedAt > STALE_MS) {
+        const fresh = await prisma.user.findUnique({
+          where: { id: token.id as string, isActive: true },
+          include: { roles: true },
+        });
+        if (!fresh) {
+          token.roles = [];
+        } else {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          token.roles = fresh.roles.map((r: any) => r.role);
+        }
+        token.rolesFetchedAt = Date.now();
       }
       return token;
     },

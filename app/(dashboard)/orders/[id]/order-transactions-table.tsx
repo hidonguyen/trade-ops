@@ -8,6 +8,7 @@ import { ConfirmationDialog } from "@/components/shared/confirmation-dialog";
 import { CurrencyAmount } from "@/components/shared/currency-amount";
 import { Button } from "@/components/ui/button";
 import { Trash2Icon, PencilIcon } from "lucide-react";
+import { useCan } from "@/components/providers/roles-provider";
 
 interface Transaction {
   id: string;
@@ -26,11 +27,23 @@ interface Transaction {
 
 interface OrderTransactionsTableProps {
   orderId: string;
+  orderType?: "SALE" | "PURCHASE" | string;
   transactions: Transaction[];
   onDeleted: () => void;
   onEdit?: (transaction: Transaction) => void;
   canDelete?: boolean;
   canEdit?: boolean;
+}
+
+// Map a tx (paymentType) on an order to the RBAC module that gates write actions on it.
+// SALE order: PAYMENT-type tx = money in (RECEIPT module); REFUND = money out (PAYMENT module).
+// PURCHASE order: opposite. ADJUSTMENT follows the order's own module.
+function moduleForTx(orderType: string | undefined, paymentType: string): "RECEIPT" | "PAYMENT" | "SALE" | "PURCHASE" {
+  if (paymentType === "ADJUSTMENT") return orderType === "PURCHASE" ? "PURCHASE" : "SALE";
+  const isSale = orderType !== "PURCHASE";
+  if (paymentType === "REFUND") return isSale ? "PAYMENT" : "RECEIPT";
+  // default: PAYMENT regular
+  return isSale ? "RECEIPT" : "PAYMENT";
 }
 
 const PAYMENT_TYPE_LABEL: Record<string, string> = {
@@ -46,6 +59,7 @@ const PAYMENT_METHOD_LABEL: Record<string, string> = {
 
 export function OrderTransactionsTable({
   orderId,
+  orderType,
   transactions,
   onDeleted,
   onEdit,
@@ -54,6 +68,23 @@ export function OrderTransactionsTable({
 }: OrderTransactionsTableProps) {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Compute role-based capabilities for both money directions and both order types.
+  // Per-row gating combines these with `moduleForTx(orderType, paymentType)`.
+  const caps = {
+    UPDATE: {
+      RECEIPT: useCan("UPDATE", "RECEIPT"),
+      PAYMENT: useCan("UPDATE", "PAYMENT"),
+      SALE: useCan("UPDATE", "SALE"),
+      PURCHASE: useCan("UPDATE", "PURCHASE"),
+    },
+    DELETE: {
+      RECEIPT: useCan("DELETE", "RECEIPT"),
+      PAYMENT: useCan("DELETE", "PAYMENT"),
+      SALE: useCan("DELETE", "SALE"),
+      PURCHASE: useCan("DELETE", "PURCHASE"),
+    },
+  } as const;
 
   async function handleDelete() {
     if (!deleteId) return;
@@ -155,9 +186,13 @@ export function OrderTransactionsTable({
       ? [{
           key: "actions",
           label: "",
-          render: (_: unknown, row: Transaction) => (
+          render: (_: unknown, row: Transaction) => {
+            const mod = moduleForTx(orderType, row.paymentType);
+            const rowCanEdit = canEdit && caps.UPDATE[mod];
+            const rowCanDelete = canDelete && caps.DELETE[mod];
+            return (
             <div className="flex items-center gap-1">
-              {canEdit && onEdit && (
+              {rowCanEdit && onEdit && (
                 <Button
                   variant="ghost"
                   size="icon-sm"
@@ -167,7 +202,7 @@ export function OrderTransactionsTable({
                   <PencilIcon className="size-4" />
                 </Button>
               )}
-              {canDelete && (
+              {rowCanDelete && (
                 <Button
                   variant="ghost"
                   size="icon-sm"
@@ -178,7 +213,8 @@ export function OrderTransactionsTable({
                 </Button>
               )}
             </div>
-          ),
+            );
+          },
         } as Column<Transaction>]
       : []),
   ];

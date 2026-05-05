@@ -15,6 +15,7 @@ import { TransactionEditDialog, EditableTransaction } from "@/components/transac
 import { DateQuickPresets } from "@/components/shared/date-quick-presets";
 import { getInitialDateRange, usePersistDateRange, useRestorePersistedDateRange } from "@/components/shared/use-persisted-date-range";
 import { PlusIcon, PencilIcon, Trash2Icon } from "lucide-react";
+import { useCan } from "@/components/providers/roles-provider";
 
 interface Transaction {
   id: string;
@@ -52,6 +53,13 @@ const METHOD_OPTIONS = [
 export default function TransactionsPage() {
   const router = useRouter();
   const { selectedBuId, isLoaded: buLoaded } = useSelectedBu();
+  const canEditReceipt = useCan("UPDATE", "RECEIPT");
+  const canEditPayment = useCan("UPDATE", "PAYMENT");
+  const canDeleteReceipt = useCan("DELETE", "RECEIPT");
+  const canDeletePayment = useCan("DELETE", "PAYMENT");
+  const canCreateReceipt = useCan("CREATE", "RECEIPT");
+  const canCreatePayment = useCan("CREATE", "PAYMENT");
+  const canCreateAny = canCreateReceipt || canCreatePayment;
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -201,26 +209,35 @@ export default function TransactionsPage() {
     {
       key: "actions",
       label: "",
-      render: (_: unknown, row: Transaction) => (
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="text-slate-500 hover:text-blue-600 hover:bg-blue-50"
-            onClick={(e) => { e.stopPropagation(); setEditingTx(row as EditableTransaction); }}
-          >
-            <PencilIcon className="size-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="text-red-500 hover:text-red-700 hover:bg-red-50"
-            onClick={(e) => { e.stopPropagation(); setDeleteId(row.id); }}
-          >
-            <Trash2Icon className="size-4" />
-          </Button>
-        </div>
-      ),
+      render: (_: unknown, row: Transaction) => {
+        const canEdit = row.type === "RECEIPT" ? canEditReceipt : canEditPayment;
+        const canDelete = row.type === "RECEIPT" ? canDeleteReceipt : canDeletePayment;
+        if (!canEdit && !canDelete) return null;
+        return (
+          <div className="flex items-center gap-1">
+            {canEdit && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="text-slate-500 hover:text-blue-600 hover:bg-blue-50"
+                onClick={(e) => { e.stopPropagation(); setEditingTx(row as EditableTransaction); }}
+              >
+                <PencilIcon className="size-4" />
+              </Button>
+            )}
+            {canDelete && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                onClick={(e) => { e.stopPropagation(); setDeleteId(row.id); }}
+              >
+                <Trash2Icon className="size-4" />
+              </Button>
+            )}
+          </div>
+        );
+      },
     },
   ];
 
@@ -228,10 +245,12 @@ export default function TransactionsPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-slate-900">Giao dịch</h1>
-        <Button onClick={() => router.push("/transactions/new")} size="sm">
-          <PlusIcon className="size-4 mr-1.5" />
-          Thêm giao dịch
-        </Button>
+        {canCreateAny && (
+          <Button onClick={() => router.push("/transactions/new")} size="sm">
+            <PlusIcon className="size-4 mr-1.5" />
+            Thêm giao dịch
+          </Button>
+        )}
       </div>
 
       {error && (

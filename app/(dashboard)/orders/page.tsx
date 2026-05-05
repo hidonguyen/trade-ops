@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useCan } from "@/components/providers/roles-provider";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSelectedBu } from "@/components/providers/bu-provider";
 import { Button } from "@/components/ui/button";
@@ -45,6 +46,8 @@ export default function OrdersPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { selectedBuId, isLoaded: buLoaded } = useSelectedBu();
+  const orderModuleEarly = searchParams.get("type") === "PURCHASE" ? "PURCHASE" : "SALE";
+  const canCreate = useCan("CREATE", orderModuleEarly);
   const [orders, setOrders] = useState<Order[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -360,15 +363,17 @@ export default function OrdersPage() {
               </Button>
             </>
           )}
-          <Button
-            onClick={() =>
-              router.push(urlType ? `/orders/new?type=${urlType}` : "/orders/new")
-            }
-            size="sm"
-          >
-            <PlusIcon className="size-4 mr-1.5" />
-            Tạo đơn
-          </Button>
+          {canCreate && (
+            <Button
+              onClick={() =>
+                router.push(urlType ? `/orders/new?type=${urlType}` : "/orders/new")
+              }
+              size="sm"
+            >
+              <PlusIcon className="size-4 mr-1.5" />
+              Tạo đơn
+            </Button>
+          )}
         </div>
       </div>
 

@@ -13,6 +13,7 @@ import { OrderTransactionsTable } from "./order-transactions-table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PlusIcon, PencilIcon, SlidersHorizontalIcon } from "lucide-react";
 import Decimal from "decimal.js";
+import { useCan } from "@/components/providers/roles-provider";
 
 interface OrderReport {
   order: {
@@ -67,6 +68,16 @@ export default function OrderDetailPage() {
   const [adjustmentOpen, setAdjustmentOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<EditingTransaction | null>(null);
   const [editingAdj, setEditingAdj] = useState<EditingAdjustment | null>(null);
+
+  // RBAC capabilities — computed for both order types; pick by report.order.type below
+  const canEditSale = useCan("UPDATE", "SALE");
+  const canEditPurchase = useCan("UPDATE", "PURCHASE");
+  const canCreateReceipt = useCan("CREATE", "RECEIPT");
+  const canCreatePayment = useCan("CREATE", "PAYMENT");
+  const canEditReceipt = useCan("UPDATE", "RECEIPT");
+  const canEditPayment = useCan("UPDATE", "PAYMENT");
+  const canDeleteReceipt = useCan("DELETE", "RECEIPT");
+  const canDeletePayment = useCan("DELETE", "PAYMENT");
 
   const fetchReport = useCallback(async () => {
     setLoading(true);
@@ -144,6 +155,13 @@ export default function OrderDetailPage() {
 
   const { order, summary, transactions } = report;
 
+  // Resolve role caps based on order type. SALE: payment in = RECEIPT, refund = PAYMENT.
+  // PURCHASE: payment out = PAYMENT, refund = RECEIPT.
+  const canEditOrder = order.type === "SALE" ? canEditSale : canEditPurchase;
+  const canCreatePaymentTx = order.type === "SALE" ? canCreateReceipt : canCreatePayment;
+  // Refund creates the opposite cash direction, so map via the matrix accordingly.
+  // (UI only exposes "Thêm thanh toán" — refund is created via a different flow if any.)
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -159,14 +177,16 @@ export default function OrderDetailPage() {
             Chi tiết đơn — {order.party?.name}
           </h1>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => router.push(`/orders/${id}/edit`)}
-        >
-          <PencilIcon className="size-4 mr-1.5" />
-          Chỉnh sửa
-        </Button>
+        {canEditOrder && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push(`/orders/${id}/edit`)}
+          >
+            <PencilIcon className="size-4 mr-1.5" />
+            Chỉnh sửa
+          </Button>
+        )}
       </div>
 
       {/* Info + Summary */}
@@ -184,18 +204,23 @@ export default function OrderDetailPage() {
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-slate-800">Giao dịch thanh toán</h2>
           <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={handleOpenAdjustment}>
-              <SlidersHorizontalIcon className="size-4 mr-1.5" />
-              Thêm điều chỉnh
-            </Button>
-            <Button size="sm" onClick={handleOpenCreate}>
-              <PlusIcon className="size-4 mr-1.5" />
-              Thêm thanh toán
-            </Button>
+            {canEditOrder && (
+              <Button size="sm" variant="outline" onClick={handleOpenAdjustment}>
+                <SlidersHorizontalIcon className="size-4 mr-1.5" />
+                Thêm điều chỉnh
+              </Button>
+            )}
+            {canCreatePaymentTx && (
+              <Button size="sm" onClick={handleOpenCreate}>
+                <PlusIcon className="size-4 mr-1.5" />
+                Thêm thanh toán
+              </Button>
+            )}
           </div>
         </div>
         <OrderTransactionsTable
           orderId={id}
+          orderType={order.type}
           transactions={transactions}
           onDeleted={fetchReport}
           onEdit={handleEdit}

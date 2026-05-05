@@ -100,6 +100,7 @@ export function OrderDetailModal({ orderId, onClose }: Props) {
               <h2 className="text-base font-semibold text-slate-800">Giao dịch thanh toán</h2>
               <OrderTransactionsTable
                 orderId={data.order.id}
+                orderType={data.order.type}
                 transactions={data.transactions}
                 onDeleted={() => {}}
                 canDelete={false}

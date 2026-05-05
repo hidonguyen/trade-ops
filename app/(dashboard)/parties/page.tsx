@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PlusIcon } from "lucide-react";
+import { useCan } from "@/components/providers/roles-provider";
 import { useSelectedBu } from "@/components/providers/bu-provider";
 import { Button } from "@/components/ui/button";
 import { DataTable, Column } from "@/components/shared/data-table";
@@ -31,6 +32,8 @@ export default function PartiesPage() {
 
   // Read initial type filter from URL search params (e.g. /parties?type=CUSTOMER)
   const urlType = searchParams.get("type");
+  const partyModule = urlType === "SUPPLIER" ? "SUPPLIER" : "CUSTOMER";
+  const canCreateParty = useCan("CREATE", partyModule);
 
   const [filters, setFilters] = useState<Record<string, string>>(() => {
     const type = searchParams.get("type");
@@ -114,9 +117,11 @@ export default function PartiesPage() {
           <h1 className="text-xl font-bold text-slate-900">{pageTitle}</h1>
           <p className="text-sm text-slate-500">{pageSubtitle}</p>
         </div>
-        <Button size="sm" onClick={() => router.push("/parties/new")}>
-          <PlusIcon className="size-4 mr-1" />Thêm đối tác
-        </Button>
+        {canCreateParty && (
+          <Button size="sm" onClick={() => router.push("/parties/new")}>
+            <PlusIcon className="size-4 mr-1" />Thêm đối tác
+          </Button>
+        )}
       </div>
 
       <FilterBar
