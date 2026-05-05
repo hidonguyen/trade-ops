@@ -1,18 +1,22 @@
-// Compact icon button: opens /orders/[id] in a new tab. Renders dash when no orderId.
+"use client";
+
 import { ExternalLinkIcon } from "lucide-react";
+import { useOrderDetailModal } from "./order-detail-modal-provider";
 
 export function OrderLinkCell({ orderId }: { orderId: string | null | undefined }) {
+  const modal = useOrderDetailModal();
   if (!orderId) return <span className="text-gray-300">—</span>;
   return (
-    <a
-      href={`/orders/${orderId}`}
-      target="_blank"
-      rel="noopener noreferrer"
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        modal.open(orderId);
+      }}
       className="inline-flex items-center text-blue-600 hover:text-blue-800"
-      onClick={(e) => e.stopPropagation()}
-      title="Mở đơn hàng (tab mới)"
+      title="Xem chi tiết đơn hàng"
     >
       <ExternalLinkIcon className="w-4 h-4" />
-    </a>
+    </button>
   );
 }
