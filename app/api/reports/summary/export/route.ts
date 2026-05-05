@@ -78,6 +78,8 @@ export async function GET(request: Request) {
                 bankFeeVnd: true,
                 transactionDate: true,
                 paymentType: true,
+                paymentMethod: true,
+                bankReference: true,
               },
             },
           },
@@ -301,7 +303,27 @@ export async function GET(request: Request) {
           }
         }
 
-        // Refund tx are netted into paidThisTime via buildOrderRows; not surfaced here.
+        // Order-linked REFUND tx (non-DEPOSIT) surface as rows in addition to being
+        // netted into paidThisTime. SALE refund → IV.b (Chi khác); PURCHASE refund → III.b (Thu khác).
+        for (const order of orders) {
+          for (const t of order.transactions) {
+            if (t.paymentType !== "REFUND") continue;
+            if (t.transactionDate < fromDate || t.transactionDate > toDate) continue;
+            const refundRow: OtherCashflowRow = {
+              transactionDate: t.transactionDate,
+              payerReceiver: order.party.name,
+              description: `Hoàn tiền — ${order.party.name} ${order.orderNumber}`,
+              paymentMethod: fmtPaymentMethod(t.paymentMethod),
+              referenceCode: t.bankReference ?? "",
+              currencyCode: order.currency.code,
+              originalAmount: new Decimal(t.amountOriginal.toString()).toDecimalPlaces(0).toNumber(),
+              vndAmount: new Decimal(t.amountVnd.toString()).toDecimalPlaces(0).toNumber(),
+              notes: null,
+            };
+            if (order.type === "SALE") otherPaymentRows.push(refundRow);
+            else if (order.type === "PURCHASE") otherReceiptRows.push(refundRow);
+          }
+        }
 
         // Sort combined III.b / IV.b by date after appending deposit + bank-fee rows
         otherReceiptRows.sort((a, b) => a.transactionDate.getTime() - b.transactionDate.getTime());

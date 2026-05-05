@@ -13,7 +13,7 @@ const querySchema = z.object({
 });
 
 type StandaloneRow = {
-  rowType: "transaction" | "deposit" | "bankFee";
+  rowType: "transaction" | "deposit" | "bankFee" | "refund";
   id: string;
   date: string;
   amountOriginal: string;
@@ -24,6 +24,7 @@ type StandaloneRow = {
   partyName: string | null;
   label: string;
   notes: string | null;
+  orderId: string | null;
 };
 
 export async function GET(request: Request) {
@@ -66,11 +67,13 @@ export async function GET(request: Request) {
         currency: { select: { code: true, symbol: true } },
         transactions: {
           select: {
+            id: true,
             amountOriginal: true,
             bankFeeOriginal: true,
             transactionDate: true,
             paymentType: true,
             paymentMethod: true,
+            bankReference: true,
           },
         },
       },
@@ -196,7 +199,7 @@ export async function GET(request: Request) {
         include: {
           currency: { select: { code: true, symbol: true } },
           order: {
-            select: { orderNumber: true, party: { select: { name: true } } },
+            select: { id: true, orderNumber: true, party: { select: { name: true } } },
           },
         },
         orderBy: { transactionDate: "asc" },
@@ -216,6 +219,7 @@ export async function GET(request: Request) {
         partyName: null,
         label: t.expenseType?.name ?? "",
         notes: t.notes,
+        orderId: null,
       }));
     }
 
@@ -234,6 +238,7 @@ export async function GET(request: Request) {
         partyName: d.party.name,
         label: d.party.type === "SUPPLIER" ? "Đặt cọc nhà cung cấp" : "Đặt cọc khách hàng",
         notes: d.notes,
+        orderId: null,
       };
       if (d.party.type === "SUPPLIER") supplierDepositRows.push(row);
       else customerDepositRows.push(row);
@@ -256,17 +261,50 @@ export async function GET(request: Request) {
           ? `Phí ngân hàng — ${t.order.party.name} ${t.order.orderNumber}`
           : "Phí ngân hàng",
         notes: null,
+        orderId: t.order?.id ?? null,
       }));
 
-    // Refund tx are netted into periodPayment via buildDebtRows; not surfaced here
-    // to keep cashflow lines from double-counting refunds.
-    const otherReceipts = [...buildStandaloneRows(receipts), ...customerDepositRows].sort(
-      (a, b) => a.date.localeCompare(b.date)
-    );
+    // Order-linked REFUND tx (non-DEPOSIT) surface as rows in Chi/Thu khác in addition
+    // to being netted into periodPayment. SALE refund → otherPayments (we paid customer back),
+    // PURCHASE refund → otherReceipts (supplier paid us back).
+    function buildRefundRows(orders: typeof ordersWithTxs): StandaloneRow[] {
+      const rows: StandaloneRow[] = [];
+      for (const o of orders) {
+        for (const t of o.transactions) {
+          if (t.paymentType !== "REFUND") continue;
+          if (t.paymentMethod === "DEPOSIT") continue;
+          if (t.transactionDate < fromDate || t.transactionDate > toDate) continue;
+          rows.push({
+            rowType: "refund",
+            id: t.id,
+            date: t.transactionDate.toISOString(),
+            amountOriginal: t.amountOriginal.toString(),
+            currencyCode: o.currency.code,
+            currencySymbol: o.currency.symbol,
+            paymentMethod: t.paymentMethod,
+            bankReference: t.bankReference,
+            partyName: o.party.name,
+            label: `Hoàn tiền — ${o.party.name} ${o.orderNumber}`,
+            notes: null,
+            orderId: o.id,
+          });
+        }
+      }
+      return rows;
+    }
+    const saleRefundRows = buildRefundRows(saleOrders);
+    const purchaseRefundRows = buildRefundRows(purchaseOrders);
+
+    const otherReceipts = [
+      ...buildStandaloneRows(receipts),
+      ...customerDepositRows,
+      ...purchaseRefundRows,
+    ].sort((a, b) => a.date.localeCompare(b.date));
     const otherPayments = [
       ...buildStandaloneRows(payments),
       ...supplierDepositRows,
       ...feeRows,
+      ...saleRefundRows,
     ].sort((a, b) => a.date.localeCompare(b.date));
 
     return Response.json(
