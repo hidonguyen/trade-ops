@@ -34,7 +34,7 @@ case "${1:-help}" in
       --agree-tos --no-eff-email
     # Switch to SSL nginx config
     cp nginx/conf.d/app.conf.ssl nginx/conf.d/app.conf
-    sed -i "s/trangkhanh.dev.hido.me/$DOMAIN/g" nginx/conf.d/app.conf
+    sed -i "s/$DOMAIN/g" nginx/conf.d/app.conf
     $COMPOSE exec nginx nginx -s reload
     echo "=== SSL enabled at https://$DOMAIN ==="
     ;;
