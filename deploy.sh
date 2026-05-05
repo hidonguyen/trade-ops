@@ -62,16 +62,38 @@ case "${1:-help}" in
     $COMPOSE down
     ;;
 
+  backup)
+    echo "=== Running on-demand database backup ==="
+    "$(dirname "$0")/scripts/backup-db.sh" "${2:-daily}"
+    ;;
+
+  restore)
+    FILE="${2:-}"
+    if [ -z "$FILE" ] || [ ! -f "$FILE" ]; then
+      echo "Usage: ./deploy.sh restore <path-to-dump-file>"
+      echo "Available backups:"
+      ls -lh /var/backups/tradeops/daily/ /var/backups/tradeops/weekly/ 2>/dev/null || echo "  (no backups found)"
+      exit 1
+    fi
+    read -r -p "Restoring $FILE will OVERWRITE the current database. Type YES to continue: " CONFIRM
+    [ "$CONFIRM" = "YES" ] || { echo "Cancelled."; exit 1; }
+    source .env.production
+    pg_restore --clean --if-exists --no-owner --no-acl --dbname "$DATABASE_URL" "$FILE"
+    echo "=== Restore complete ==="
+    ;;
+
   *)
     echo "Usage: ./deploy.sh [command]"
     echo ""
     echo "Commands:"
-    echo "  init    Create .env.production from template"
-    echo "  start   Build and start all services + run migrations"
-    echo "  ssl     Obtain Let's Encrypt SSL certificate"
-    echo "  update  Pull latest code, rebuild app, run migrations"
-    echo "  seed    Seed the database"
-    echo "  logs    View logs (default: app, or specify service)"
-    echo "  stop    Stop all services"
+    echo "  init             Create .env.production from template"
+    echo "  start            Build and start all services + run migrations"
+    echo "  ssl              Obtain Let's Encrypt SSL certificate"
+    echo "  update           Pull latest code, rebuild app, run migrations"
+    echo "  seed             Seed the database"
+    echo "  logs             View logs (default: app, or specify service)"
+    echo "  stop             Stop all services"
+    echo "  backup [tier]    Run pg_dump backup now (tier: daily|weekly, default daily)"
+    echo "  restore <file>   Restore database from a .dump file (DESTRUCTIVE)"
     ;;
 esac

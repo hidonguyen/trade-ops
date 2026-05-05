@@ -690,6 +690,64 @@ git push
 
 ---
 
+## Database Backups
+
+Automated `pg_dump` backups via host crontab. No external services or new containers.
+
+### Setup (one-time, on production host)
+
+```bash
+# Install Postgres client matching server major version (>= 16 for AWS RDS Postgres 16)
+sudo apt install -y postgresql-client
+
+# Install backup cron entries (idempotent, safe to re-run)
+./scripts/install-backup-cron.sh
+```
+
+The installer:
+- Creates `/var/backups/tradeops/{daily,weekly}/`
+- Creates `/var/log/tradeops-backup.log`
+- Adds two crontab entries (skipped if already present)
+
+### Schedule + retention
+
+| Tier | Cron | Retention |
+|------|------|-----------|
+| daily | `0 2 * * *` (02:00 UTC) | 7 days |
+| weekly | `0 3 * * 0` (Sunday 03:00 UTC) | 28 days |
+
+Files: `/var/backups/tradeops/{daily,weekly}/tradeops-{tier}-YYYYMMDD-HHMMSS.dump`
+Format: `pg_dump --format=custom` (compressed; restore via `pg_restore`).
+
+### On-demand backup
+
+```bash
+./deploy.sh backup           # daily tier
+./deploy.sh backup weekly    # weekly tier
+```
+
+### Restore (DESTRUCTIVE)
+
+```bash
+# List available backups
+ls -lh /var/backups/tradeops/daily/
+
+# Restore — prompts for "YES" confirmation
+./deploy.sh restore /var/backups/tradeops/daily/tradeops-daily-20260505-020000.dump
+```
+
+`pg_restore --clean --if-exists` drops & recreates objects. App should be stopped during restore (`./deploy.sh stop`) to avoid mid-flight writes.
+
+### Verifying
+
+```bash
+tail -f /var/log/tradeops-backup.log
+crontab -l | grep backup-db
+ls -lh /var/backups/tradeops/daily/
+```
+
+---
+
 ## Related Documentation
 
 - `/docs/project-overview-pdr.md` – Project requirements
