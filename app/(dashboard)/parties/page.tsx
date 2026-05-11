@@ -118,7 +118,7 @@ export default function PartiesPage() {
           <p className="text-sm text-slate-500">{pageSubtitle}</p>
         </div>
         {canCreateParty && (
-          <Button size="sm" onClick={() => router.push("/parties/new")}>
+          <Button size="sm" onClick={() => router.push(`/parties/new?type=${partyModule}`)}>
             <PlusIcon className="size-4 mr-1" />Thêm đối tác
           </Button>
         )}

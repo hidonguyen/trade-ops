@@ -44,10 +44,12 @@ export function PartyForm({ initialData, onSubmit, mode }: PartyFormProps) {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<keyof PartyFormData, string>>>({});
 
-  // Sync initialData when it becomes available (edit mode)
+  // Sync initialData when it becomes available (edit mode only).
+  // In create mode, initialData is just a one-shot default — re-syncing would
+  // clobber user-edited fields on every parent re-render.
   useEffect(() => {
-    if (initialData) setForm((f) => ({ ...f, ...initialData }));
-  }, [initialData]);
+    if (mode === "edit" && initialData) setForm((f) => ({ ...f, ...initialData }));
+  }, [initialData, mode]);
 
   function set<K extends keyof PartyFormData>(key: K, value: PartyFormData[K]) {
     setForm((f) => ({ ...f, [key]: value }));
