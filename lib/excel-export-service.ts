@@ -1,6 +1,7 @@
 // Excel export helpers using ExcelJS — cashflow, orders, and transactions
 import ExcelJS from "exceljs";
 import { applyHeaderStyle } from "./excel-report-utils";
+import { getPaymentMethodLabel } from "./payment-method-labels";
 
 interface CashflowTransaction {
   transactionDate: Date | string;
@@ -206,7 +207,7 @@ export async function exportTransactionsToExcel(transactions: TransactionRow[]):
       party: tx.partyName ?? "",
       amount: tx.amountOriginal,
       currency: tx.currencyCode,
-      method: tx.paymentMethod,
+      method: getPaymentMethodLabel(tx.paymentMethod),
       paymentType: tx.paymentType,
       reference: tx.bankReference ?? "",
       notes: tx.notes ?? "",

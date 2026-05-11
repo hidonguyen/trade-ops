@@ -182,7 +182,7 @@ function refineDepositRules<
 // ORDER_ADJUSTMENT type: signed amountOriginal, no bank fee, no deposit, paymentType = ADJUSTMENT
 const _orderTxBase = z.object({
   type: z.enum(["SALE_PAYMENT", "PURCHASE_PAYMENT", "ORDER_ADJUSTMENT"]),
-  paymentMethod: z.enum(["BANK", "DEPOSIT"]),
+  paymentMethod: z.enum(["BANK", "DEPOSIT", "CASH"]),
   paymentType: z.enum(["PAYMENT", "REFUND", "ADJUSTMENT"]),
   // amountOriginal is validated in refinements below based on type
   amountOriginal: z.string(),
@@ -267,7 +267,7 @@ export const createStandaloneTransactionSchema = refineDepositRules(
     z.object({
       type: z.enum(["RECEIPT", "PAYMENT"]),
       businessUnitId: z.string().uuid(),
-      paymentMethod: z.enum(["BANK", "DEPOSIT"]),
+      paymentMethod: z.enum(["BANK", "DEPOSIT", "CASH"]),
       paymentType: z.enum(["PAYMENT", "REFUND"]),
       amountOriginal: decimalString,
       currencyId: z.string().uuid(),

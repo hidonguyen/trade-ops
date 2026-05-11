@@ -34,6 +34,7 @@ export type TransactionType = (typeof TransactionType)[keyof typeof TransactionT
 export const PaymentMethod = {
   BANK: "BANK",
   DEPOSIT: "DEPOSIT",
+  CASH: "CASH",
 } as const;
 export type PaymentMethod = (typeof PaymentMethod)[keyof typeof PaymentMethod];
 

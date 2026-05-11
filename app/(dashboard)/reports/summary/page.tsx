@@ -12,6 +12,7 @@ import { getInitialDateRange, usePersistDateRange, useRestorePersistedDateRange 
 import { DataTable, Column } from "@/components/shared/data-table";
 import { CurrencyAmount } from "@/components/shared/currency-amount";
 import { OrderLinkCell } from "@/components/reports/order-link-cell";
+import { getPaymentMethodLabel } from "@/lib/payment-method-labels";
 
 interface OrderDebtRow extends Record<string, unknown> {
   orderId: string;
@@ -168,9 +169,7 @@ const STANDALONE_COLUMNS: Column<StandaloneRow>[] = [
     label: "Phương thức",
     render: (v) => {
       if (v === null || v === undefined) return "—";
-      if (v === "BANK") return "Ngân hàng";
-      if (v === "DEPOSIT") return "Cọc";
-      return v as string;
+      return getPaymentMethodLabel(v as string);
     },
   },
   {

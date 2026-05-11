@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { DatePicker } from "@/components/ui/date-picker";
 import { NumberInput } from "@/components/ui/number-input";
 import { Combobox } from "@/components/ui/combobox";
+import { getPaymentMethodLabel } from "@/lib/payment-method-labels";
 import {
   Dialog,
   DialogContent,
@@ -196,7 +197,7 @@ export function TransactionEditDialog({ open, onClose, onSuccess, transaction }:
             </div>
             <div className="space-y-1.5">
               <Label>Phương thức</Label>
-              <Input value={transaction.paymentMethod === "BANK" ? "Ngân hàng" : "Cọc"} readOnly className="bg-slate-50" />
+              <Input value={getPaymentMethodLabel(transaction.paymentMethod)} readOnly className="bg-slate-50" />
             </div>
           </div>
 

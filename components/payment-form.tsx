@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Combobox } from "@/components/ui/combobox";
 import { DatePicker } from "@/components/ui/date-picker";
 import { NumberInput } from "@/components/ui/number-input";
+import { PAYMENT_METHOD_OPTIONS } from "@/lib/payment-method-labels";
 import {
   Dialog,
   DialogContent,
@@ -329,10 +330,7 @@ export function PaymentForm({
               <Combobox
                 value={form.paymentMethod}
                 onValueChange={(v) => { setField("paymentMethod", v); setField("depositId", ""); }}
-                options={[
-                  { value: "BANK", label: "Ngân hàng" },
-                  { value: "DEPOSIT", label: "Cọc" },
-                ]}
+                options={PAYMENT_METHOD_OPTIONS}
                 placeholder="Chọn phương thức"
                 disabled={isEditing}
               />

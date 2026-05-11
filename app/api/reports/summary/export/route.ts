@@ -11,6 +11,7 @@ import {
   type OrderCashflowRow,
   type OtherCashflowRow,
 } from "@/lib/excel-cashflow-summary-service";
+import { getPaymentMethodLabel } from "@/lib/payment-method-labels";
 
 const querySchema = z.object({
   dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -19,9 +20,7 @@ const querySchema = z.object({
 
 // Translate raw paymentMethod code to Vietnamese display label
 function fmtPaymentMethod(method: string): string {
-  if (method === "BANK") return "Ngân hàng";
-  if (method === "DEPOSIT") return "Cọc";
-  return method;
+  return getPaymentMethodLabel(method);
 }
 
 export async function GET(request: Request) {
