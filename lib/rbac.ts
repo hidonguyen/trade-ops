@@ -16,6 +16,8 @@ export const permissionMatrix: Record<string, Record<string, RbacPermission>> = 
   },
   ACCOUNTANT_CASHFLOW: {
     SALE: "GET", PURCHASE: "GET", CUSTOMER: "GET", SUPPLIER: "GET",
+    // Full access to standalone cashflow RECEIPT/PAYMENT (the /transactions module).
+    // Order-linked payments are gated by SALE/PURCHASE = GET above → blocked.
     RECEIPT: "FULL", PAYMENT: "FULL", CASHFLOW: "FULL", DASHBOARD: "FULL", ADMIN: "DENY",
   },
   VIEWER: {

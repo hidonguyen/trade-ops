@@ -71,9 +71,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (!order) return Response.json(apiResponse(false, undefined, MSG.orderNotFound), { status: 404 });
     if (!transaction) return Response.json(apiResponse(false, undefined, MSG.transactionNotFound), { status: 404 });
 
-    // Tx-level RBAC: cash direction (RECEIPT/PAYMENT) drives the module, not order.type.
-    // ACCOUNTANT_SALE has DENY on PAYMENT regardless of which order it links to.
-    const module = transaction.type === "RECEIPT" ? "RECEIPT" : "PAYMENT";
+    // Order-linked tx writes are gated by the parent order module (SALE/PURCHASE)
+    // so role scope matches what user sees in the orders list. ACCOUNTANT_CASHFLOW
+    // (SALE/PURCHASE = GET) is read-only on order-linked txs.
+    const module = order.type === "SALE" ? "SALE" : "PURCHASE";
     if (!checkAccess(session.user.roles, "UPDATE", module)) {
       return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
     }
@@ -169,7 +170,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
     if (!order) return Response.json(apiResponse(false, undefined, MSG.orderNotFound), { status: 404 });
     if (!transaction) return Response.json(apiResponse(false, undefined, MSG.transactionNotFound), { status: 404 });
 
-    const module = transaction.type === "RECEIPT" ? "RECEIPT" : "PAYMENT";
+    const module = order.type === "SALE" ? "SALE" : "PURCHASE";
     if (!checkAccess(session.user.roles, "DELETE", module)) {
       return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
     }

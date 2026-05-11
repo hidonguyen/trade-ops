@@ -69,15 +69,13 @@ export default function OrderDetailPage() {
   const [editingTx, setEditingTx] = useState<EditingTransaction | null>(null);
   const [editingAdj, setEditingAdj] = useState<EditingAdjustment | null>(null);
 
-  // RBAC capabilities — computed for both order types; pick by report.order.type below
+  // RBAC capabilities — order-linked tx writes are gated by parent order module
+  // (SALE/PURCHASE), matching the API. RECEIPT/PAYMENT module gates only the
+  // standalone /transactions screen.
   const canEditSale = useCan("UPDATE", "SALE");
   const canEditPurchase = useCan("UPDATE", "PURCHASE");
-  const canCreateReceipt = useCan("CREATE", "RECEIPT");
-  const canCreatePayment = useCan("CREATE", "PAYMENT");
-  const canEditReceipt = useCan("UPDATE", "RECEIPT");
-  const canEditPayment = useCan("UPDATE", "PAYMENT");
-  const canDeleteReceipt = useCan("DELETE", "RECEIPT");
-  const canDeletePayment = useCan("DELETE", "PAYMENT");
+  const canCreateSale = useCan("CREATE", "SALE");
+  const canCreatePurchase = useCan("CREATE", "PURCHASE");
 
   const fetchReport = useCallback(async () => {
     setLoading(true);
@@ -158,7 +156,7 @@ export default function OrderDetailPage() {
   // Resolve role caps based on order type. SALE: payment in = RECEIPT, refund = PAYMENT.
   // PURCHASE: payment out = PAYMENT, refund = RECEIPT.
   const canEditOrder = order.type === "SALE" ? canEditSale : canEditPurchase;
-  const canCreatePaymentTx = order.type === "SALE" ? canCreateReceipt : canCreatePayment;
+  const canCreatePaymentTx = order.type === "SALE" ? canCreateSale : canCreatePurchase;
   // Refund creates the opposite cash direction, so map via the matrix accordingly.
   // (UI only exposes "Thêm thanh toán" — refund is created via a different flow if any.)
 
