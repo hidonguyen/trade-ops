@@ -79,11 +79,20 @@ export function DatePicker({
               defaultMonth={selected}
               locale={vi}
               showOutsideDays
+              // Year+month selectable directly via dropdowns in the caption row.
+              // Range: 10 years back to 5 years ahead — wide enough for typical bookkeeping data.
+              captionLayout="dropdown"
+              startMonth={new Date(new Date().getFullYear() - 20, 0)}
+              endMonth={new Date(new Date().getFullYear() + 5, 11)}
               classNames={{
                 months: "flex gap-4",
                 month: "flex flex-col gap-2",
                 month_caption: "flex items-center justify-center h-8 relative",
-                caption_label: "text-sm font-medium",
+                // Hidden when captionLayout="dropdown" — dropdowns replace the static label
+                caption_label: "sr-only",
+                dropdowns: "flex items-center gap-1.5",
+                dropdown_root: "relative inline-flex items-center",
+                dropdown: "appearance-none rounded-md border border-input bg-transparent px-2 py-1 pr-6 text-sm hover:bg-accent cursor-pointer",
                 nav: "flex items-center gap-1",
                 button_previous: "absolute left-0 inline-flex items-center justify-center size-7 rounded-md hover:bg-accent hover:text-accent-foreground",
                 button_next: "absolute right-0 inline-flex items-center justify-center size-7 rounded-md hover:bg-accent hover:text-accent-foreground",
