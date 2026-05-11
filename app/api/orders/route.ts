@@ -1,6 +1,6 @@
 // Orders list + create — SALE orders use SALE module, PURCHASE orders use PURCHASE module
 import { NextRequest } from "next/server";
-import { withAuth, checkAccess, apiResponse, parsePagination } from "@/lib/api-helpers";
+import { withAuth, checkAccess, apiResponse, parsePagination, parseCsvParam } from "@/lib/api-helpers";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
 import { createOrderSchema } from "@/lib/validation-schemas";
@@ -23,15 +23,15 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = request.nextUrl;
   const type = searchParams.get("type"); // SALE | PURCHASE
-  const status = searchParams.get("status");
+  const statuses = parseCsvParam(searchParams, "status");
   const businessUnitId = searchParams.get("businessUnitId");
   // Enforce BU scope to prevent cross-BU data leakage
   if (!businessUnitId) {
     return Response.json(apiResponse(false, undefined, MSG.businessUnitRequired), { status: 400 });
   }
-  const partyId = searchParams.get("partyId");
+  const partyIds = parseCsvParam(searchParams, "partyId");
   const orderNumber = searchParams.get("orderNumber");
-  const expenseTypeId = searchParams.get("expenseTypeId");
+  const expenseTypeIds = parseCsvParam(searchParams, "expenseTypeId");
   const dateFrom = searchParams.get("dateFrom");
   const dateTo = searchParams.get("dateTo");
 
@@ -52,6 +52,12 @@ export async function GET(request: NextRequest) {
 
   const userId = session.user.id!;
   const { page, limit, skip, sortBy, order } = parsePagination(searchParams);
+  // Default sort for orders list: orderDate DESC, orderNumber ASC (user-confirmed tie-break).
+  // Only applies when caller did not pass explicit sortBy.
+  const explicitSort = searchParams.get("sortBy");
+  const orderBy = explicitSort
+    ? { [sortBy]: order }
+    : [{ orderDate: "desc" as const }, { orderNumber: "asc" as const }];
 
   // Build orderDate range filter — validate ISO format before constructing Date
   const isValidDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(new Date(s).getTime());
@@ -64,11 +70,11 @@ export async function GET(request: NextRequest) {
 
   const where = {
     type: { in: allowedTypes },
-    ...(status && { status }),
+    ...(statuses.length > 0 && { status: { in: statuses } }),
     businessUnitId,
-    ...(partyId && { partyId }),
+    ...(partyIds.length > 0 && { partyId: { in: partyIds } }),
     ...(orderNumber && { orderNumber: { contains: orderNumber, mode: "insensitive" as const } }),
-    ...(expenseTypeId && { expenseTypeId }),
+    ...(expenseTypeIds.length > 0 && { expenseTypeId: { in: expenseTypeIds } }),
     ...(orderDateFilter && { orderDate: orderDateFilter }),
   };
 
@@ -84,7 +90,7 @@ export async function GET(request: NextRequest) {
             select: { amountOriginal: true },
           },
         },
-        orderBy: { [sortBy]: order },
+        orderBy,
         skip,
         take: limit,
       }),
