@@ -16,6 +16,7 @@ import { DateQuickPresets } from "@/components/shared/date-quick-presets";
 import { getInitialDateRange, usePersistDateRange, useRestorePersistedDateRange } from "@/components/shared/use-persisted-date-range";
 import { PlusIcon, PencilIcon, Trash2Icon } from "lucide-react";
 import { useCan } from "@/components/providers/roles-provider";
+import { getPaymentMethodLabel, PAYMENT_METHOD_OPTIONS } from "@/lib/payment-method-labels";
 
 interface Transaction {
   id: string;
@@ -43,11 +44,6 @@ interface ExpenseTypeOption {
 const TYPE_OPTIONS = [
   { value: "RECEIPT", label: "Thu tiền" },
   { value: "PAYMENT", label: "Chi tiền" },
-];
-
-const METHOD_OPTIONS = [
-  { value: "BANK", label: "Ngân hàng" },
-  { value: "DEPOSIT", label: "Cọc" },
 ];
 
 export default function TransactionsPage() {
@@ -99,6 +95,7 @@ export default function TransactionsPage() {
         ...(filters.dateTo ? { dateTo: filters.dateTo } : {}),
         ...(filters.bankReference ? { bankReference: filters.bankReference } : {}),
         ...(filters.expenseTypeId ? { expenseTypeId: filters.expenseTypeId } : {}),
+        ...(filters.paymentMethod ? { paymentMethod: filters.paymentMethod } : {}),
       });
       const res = await fetch(`/api/transactions?${params}`, { signal });
       if (signal?.aborted) return;
@@ -141,7 +138,7 @@ export default function TransactionsPage() {
     { key: "date", label: "Thời gian", type: "date-range" },
     { key: "bankReference", label: "Tham chiếu", type: "search", placeholder: "Tìm mã tham chiếu..." },
     { key: "type", label: "Loại giao dịch", type: "select", options: TYPE_OPTIONS },
-    { key: "paymentMethod", label: "Phương thức", type: "select", options: METHOD_OPTIONS },
+    { key: "paymentMethod", label: "Phương thức", type: "select", options: PAYMENT_METHOD_OPTIONS},
     {
       key: "expenseTypeId",
       label: "Loại chi phí",
@@ -189,7 +186,7 @@ export default function TransactionsPage() {
     {
       key: "paymentMethod",
       label: "Phương thức",
-      render: (v) => v === "BANK" ? "Ngân hàng" : "Cọc",
+      render: (v) => getPaymentMethodLabel(v as string),
     },
     {
       key: "expenseType",

@@ -9,6 +9,7 @@ import { CurrencyAmount } from "@/components/shared/currency-amount";
 import { Button } from "@/components/ui/button";
 import { Trash2Icon, PencilIcon } from "lucide-react";
 import { useCan } from "@/components/providers/roles-provider";
+import { getPaymentMethodLabel } from "@/lib/payment-method-labels";
 
 interface Transaction {
   id: string;
@@ -36,25 +37,17 @@ interface OrderTransactionsTableProps {
 }
 
 // Map a tx (paymentType) on an order to the RBAC module that gates write actions on it.
-// SALE order: PAYMENT-type tx = money in (RECEIPT module); REFUND = money out (PAYMENT module).
-// PURCHASE order: opposite. ADJUSTMENT follows the order's own module.
-function moduleForTx(orderType: string | undefined, paymentType: string): "RECEIPT" | "PAYMENT" | "SALE" | "PURCHASE" {
-  if (paymentType === "ADJUSTMENT") return orderType === "PURCHASE" ? "PURCHASE" : "SALE";
-  const isSale = orderType !== "PURCHASE";
-  if (paymentType === "REFUND") return isSale ? "PAYMENT" : "RECEIPT";
-  // default: PAYMENT regular
-  return isSale ? "RECEIPT" : "PAYMENT";
+// Order-linked tx writes are gated by parent order module (SALE/PURCHASE),
+// matching the API. Cash-direction (RECEIPT/PAYMENT) only gates the standalone
+// /transactions screen — not txs that belong to an order.
+function moduleForTx(orderType: string | undefined): "SALE" | "PURCHASE" {
+  return orderType === "PURCHASE" ? "PURCHASE" : "SALE";
 }
 
 const PAYMENT_TYPE_LABEL: Record<string, string> = {
   PAYMENT: "Thanh toán",
   REFUND: "Hoàn tiền",
   ADJUSTMENT: "Điều chỉnh giá trị đơn hàng",
-};
-
-const PAYMENT_METHOD_LABEL: Record<string, string> = {
-  BANK: "Ngân hàng",
-  DEPOSIT: "Cọc",
 };
 
 export function OrderTransactionsTable({
@@ -73,14 +66,10 @@ export function OrderTransactionsTable({
   // Per-row gating combines these with `moduleForTx(orderType, paymentType)`.
   const caps = {
     UPDATE: {
-      RECEIPT: useCan("UPDATE", "RECEIPT"),
-      PAYMENT: useCan("UPDATE", "PAYMENT"),
       SALE: useCan("UPDATE", "SALE"),
       PURCHASE: useCan("UPDATE", "PURCHASE"),
     },
     DELETE: {
-      RECEIPT: useCan("DELETE", "RECEIPT"),
-      PAYMENT: useCan("DELETE", "PAYMENT"),
       SALE: useCan("DELETE", "SALE"),
       PURCHASE: useCan("DELETE", "PURCHASE"),
     },
@@ -134,7 +123,7 @@ export function OrderTransactionsTable({
       key: "paymentMethod",
       label: "Phương thức",
       // ADJUSTMENT rows skip method column — not meaningful
-      render: (v, row) => row.paymentType === "ADJUSTMENT" ? <span className="text-slate-400">—</span> : (PAYMENT_METHOD_LABEL[v] ?? v),
+      render: (v, row) => row.paymentType === "ADJUSTMENT" ? <span className="text-slate-400">—</span> : getPaymentMethodLabel(v as string),
     },
     {
       key: "amountOriginal",
@@ -187,7 +176,7 @@ export function OrderTransactionsTable({
           key: "actions",
           label: "",
           render: (_: unknown, row: Transaction) => {
-            const mod = moduleForTx(orderType, row.paymentType);
+            const mod = moduleForTx(orderType);
             const rowCanEdit = canEdit && caps.UPDATE[mod];
             const rowCanDelete = canDelete && caps.DELETE[mod];
             return (

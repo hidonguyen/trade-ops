@@ -1,17 +1,17 @@
 // Cashflow report — unified rows (Transaction + manual Deposit creations),
 // grouped by currency, optional Excel export
-import { withAuth, checkAccess, apiResponse } from "@/lib/api-helpers";
+import { withAuth, checkAccess, apiResponse, parseCsvParam } from "@/lib/api-helpers";
 import { prisma } from "@/lib/prisma";
 import { exportCashflowToExcel } from "@/lib/excel-export-service";
 import Decimal from "decimal.js";
 import { z } from "zod";
 import { MSG } from "@/lib/messages";
 
+// currencyId excluded from Zod — parsed separately as CSV to support multi-select
 const querySchema = z.object({
   businessUnitId: z.string().uuid(),
   dateFrom: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
   dateTo: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
-  currencyId: z.string().uuid().optional(),
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(500).default(25),
   format: z.enum(["json", "xlsx"]).default("json"),
@@ -84,14 +84,16 @@ export async function GET(request: Request) {
     );
   }
 
-  const { businessUnitId, dateFrom, dateTo, currencyId, page, limit, format } = parsed.data;
+  const { businessUnitId, dateFrom, dateTo, page, limit, format } = parsed.data;
+  // currencyId supports multi-select CSV (e.g. "id1,id2"); single value still works
+  const currencyIds = parseCsvParam(searchParams, "currencyId");
+  const currencyFilter = currencyIds.length > 0 ? { currencyId: { in: currencyIds } } : {};
+
   const fromDate = new Date(dateFrom);
   const toDate = new Date(dateTo);
   toDate.setHours(23, 59, 59, 999);
 
   try {
-    const currencyFilter = currencyId ? { currencyId } : {};
-
     // Fetch tx (exclude ADJUSTMENT and DEPOSIT-method — neither is real cashflow).
     // Then fetch manual Deposit creations as pseudo-rows ("Thu/Chi đặt cọc").
     const [transactions, deposits] = await Promise.all([

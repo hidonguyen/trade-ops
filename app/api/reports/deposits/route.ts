@@ -1,7 +1,7 @@
 // Deposit tracking report — master-detail: each Deposit is a master row with
 // nested DepositUsage events (deductions/refunds). REFUND-source deposits hide
 // their seed usage (the auto-generated bookkeeping row at deposit creation).
-import { withAuth, checkAccess, apiResponse } from "@/lib/api-helpers";
+import { withAuth, checkAccess, apiResponse, parseCsvParam } from "@/lib/api-helpers";
 import { prisma } from "@/lib/prisma";
 import { MSG } from "@/lib/messages";
 import Decimal from "decimal.js";
@@ -51,16 +51,17 @@ export async function GET(request: Request) {
   }
   const dateFrom = searchParams.get("dateFrom");
   const dateTo = searchParams.get("dateTo");
-  const partyId = searchParams.get("partyId");
-  const currencyId = searchParams.get("currencyId");
+  // partyId and currencyId support multi-select CSV; single value still works
+  const partyIds = parseCsvParam(searchParams, "partyId");
+  const currencyIds = parseCsvParam(searchParams, "currencyId");
   // Default true: depleted deposits (remaining=0) usually finished and noisy
   const hideDepleted = searchParams.get("hideDepleted") !== "false";
   const format = searchParams.get("format") === "xlsx" ? "xlsx" : "json";
 
   try {
     const depositWhere: Record<string, unknown> = { businessUnitId };
-    if (partyId) depositWhere.partyId = partyId;
-    if (currencyId) depositWhere.currencyId = currencyId;
+    if (partyIds.length > 0) depositWhere.partyId = { in: partyIds };
+    if (currencyIds.length > 0) depositWhere.currencyId = { in: currencyIds };
 
     const deposits = await prisma.deposit.findMany({
       where: depositWhere,

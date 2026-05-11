@@ -89,6 +89,10 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       .filter((t: any) => t.paymentMethod === "BANK" && t.paymentType === "PAYMENT")
       .reduce((sum: any, t: any) => sum.plus(new Decimal(t.amountOriginal.toString())), new Decimal(0));
 
+    const cashPayments = order.transactions
+      .filter((t: any) => t.paymentMethod === "CASH" && t.paymentType === "PAYMENT")
+      .reduce((sum: any, t: any) => sum.plus(new Decimal(t.amountOriginal.toString())), new Decimal(0));
+
     // Refund breakdown by method (REFUND-type only) — symmetric to payment breakdown
     const depositRefunds = order.transactions
       .filter((t: any) => t.paymentMethod === "DEPOSIT" && t.paymentType === "REFUND")
@@ -96,6 +100,10 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
     const bankRefunds = order.transactions
       .filter((t: any) => t.paymentMethod === "BANK" && t.paymentType === "REFUND")
+      .reduce((sum: any, t: any) => sum.plus(new Decimal(t.amountOriginal.toString())), new Decimal(0));
+
+    const cashRefunds = order.transactions
+      .filter((t: any) => t.paymentMethod === "CASH" && t.paymentType === "REFUND")
       .reduce((sum: any, t: any) => sum.plus(new Decimal(t.amountOriginal.toString())), new Decimal(0));
 
     return {
@@ -126,8 +134,10 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         balanceOriginal: balanceOriginal.toFixed(4),
         bankPaymentsOriginal: bankPayments.toFixed(4),
         depositPaymentsOriginal: depositPayments.toFixed(4),
+        cashPaymentsOriginal: cashPayments.toFixed(4),
         bankRefundsOriginal: bankRefunds.toFixed(4),
         depositRefundsOriginal: depositRefunds.toFixed(4),
+        cashRefundsOriginal: cashRefunds.toFixed(4),
         transactionCount: order.transactions.length,
       },
       transactions: order.transactions,

@@ -24,6 +24,15 @@ export async function withAuth() {
   return session;
 }
 
+// Parse a comma-separated query param into a trimmed, non-empty string array.
+// Supports both single-value (?key=abc → ["abc"]) and multi-value (?key=abc,def → ["abc","def"]).
+// Empty or missing param returns []. Values are IDs or uppercase enums — no comma escaping needed.
+export function parseCsvParam(sp: URLSearchParams, key: string): string[] {
+  const raw = sp.get(key);
+  if (!raw) return [];
+  return raw.split(",").map((s) => s.trim()).filter(Boolean);
+}
+
 // Parse and validate pagination query params with safe defaults
 export function parsePagination(searchParams: URLSearchParams) {
   const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));

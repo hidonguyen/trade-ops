@@ -1,18 +1,17 @@
 // Bank fee report — transactions with company-borne bank fees.
 // Supports JSON + Excel export, filters by period/BU/currency/party.
-import { withAuth, checkAccess, apiResponse, parsePagination } from "@/lib/api-helpers";
+import { withAuth, checkAccess, apiResponse, parsePagination, parseCsvParam } from "@/lib/api-helpers";
 import { prisma } from "@/lib/prisma";
 import { exportBankFeesToExcel } from "@/lib/excel-export-service";
 import Decimal from "decimal.js";
 import { z } from "zod";
 import { MSG } from "@/lib/messages";
 
+// currencyId and partyId excluded from Zod — parsed separately as CSV for multi-select support
 const querySchema = z.object({
   businessUnitId: z.string().uuid(),
   dateFrom: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
   dateTo: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
-  currencyId: z.string().uuid().optional(),
-  partyId: z.string().uuid().optional(),
   format: z.enum(["json", "xlsx"]).default("json"),
 });
 
@@ -35,7 +34,11 @@ export async function GET(request: Request) {
     );
   }
 
-  const { businessUnitId, dateFrom, dateTo, currencyId, partyId, format } = parsed.data;
+  const { businessUnitId, dateFrom, dateTo, format } = parsed.data;
+  // currencyId and partyId support multi-select CSV; single value still works
+  const currencyIds = parseCsvParam(searchParams, "currencyId");
+  const partyIds = parseCsvParam(searchParams, "partyId");
+
   const fromDate = new Date(dateFrom);
   const toDate = new Date(dateTo);
   toDate.setHours(23, 59, 59, 999);
@@ -48,8 +51,8 @@ export async function GET(request: Request) {
     bankFeeVnd: { gt: 0 },
     transactionDate: { gte: fromDate, lte: toDate },
     businessUnitId,
-    ...(currencyId && { currencyId }),
-    ...(partyId && { order: { partyId } }),
+    ...(currencyIds.length > 0 && { currencyId: { in: currencyIds } }),
+    ...(partyIds.length > 0 && { order: { partyId: { in: partyIds } } }),
   };
 
   try {
@@ -85,11 +88,11 @@ export async function GET(request: Request) {
     ]);
 
     // Resolve currency metadata for aggregates
-    const currencyIds = aggregates.map((a) => a.currencyId);
+    const aggregateCurrencyIds = aggregates.map((a) => a.currencyId);
     const currencies =
-      currencyIds.length > 0
+      aggregateCurrencyIds.length > 0
         ? await prisma.currency.findMany({
-            where: { id: { in: currencyIds } },
+            where: { id: { in: aggregateCurrencyIds } },
             select: { id: true, code: true, symbol: true },
           })
         : [];

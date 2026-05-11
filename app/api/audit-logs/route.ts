@@ -1,13 +1,11 @@
 // Audit log list with filters — ADMIN only, read-only
-import { withAuth, checkAccess, apiResponse, parsePagination } from "@/lib/api-helpers";
+import { withAuth, checkAccess, apiResponse, parsePagination, parseCsvParam } from "@/lib/api-helpers";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { MSG } from "@/lib/messages";
 
+// userId, model, action excluded from Zod — parsed separately as CSV for multi-select support
 const querySchema = z.object({
-  userId: z.string().uuid().optional(),
-  model: z.string().min(1).optional(),
-  action: z.enum(["CREATE", "UPDATE", "DELETE"]).optional(),
   dateFrom: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
   dateTo: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
 });
@@ -32,7 +30,15 @@ export async function GET(request: Request) {
     );
   }
 
-  const { userId, model, action, dateFrom, dateTo } = parsed.data;
+  const { dateFrom, dateTo } = parsed.data;
+  // userId, model, action support multi-select CSV; single value still works
+  const userIds = parseCsvParam(searchParams, "userId");
+  const models = parseCsvParam(searchParams, "model");
+  // action is a Prisma enum — filter to allowed values so an invalid token
+  // doesn't silently return zero rows (it would type-check but Prisma would reject).
+  const ALLOWED_ACTIONS = ["CREATE", "UPDATE", "DELETE"] as const;
+  const actions = parseCsvParam(searchParams, "action")
+    .filter((a): a is typeof ALLOWED_ACTIONS[number] => (ALLOWED_ACTIONS as readonly string[]).includes(a));
 
   // Build timestamp range filter
   const timestampFilter: { gte?: Date; lte?: Date } = {};
@@ -44,9 +50,9 @@ export async function GET(request: Request) {
   }
 
   const where = {
-    ...(userId && { userId }),
-    ...(model && { model }),
-    ...(action && { action }),
+    ...(userIds.length > 0 && { userId: { in: userIds } }),
+    ...(models.length > 0 && { model: { in: models } }),
+    ...(actions.length > 0 && { action: { in: actions } }),
     ...(Object.keys(timestampFilter).length > 0 && { timestamp: timestampFilter }),
   };
 

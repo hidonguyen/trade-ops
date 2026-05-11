@@ -1,9 +1,10 @@
-// Filter controls: selects, search input (debounced), date range — each with a visible label.
+// Filter controls: multi-select comboboxes, search input (debounced), date range — each with a visible label.
+// All `type: "select"` filters render as MultiCombobox; values are stored as CSV strings.
 "use client";
 
 import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
-import { Combobox } from "@/components/ui/combobox";
+import { MultiCombobox } from "@/components/ui/multi-combobox";
 import { DatePicker } from "@/components/ui/date-picker";
 import { SearchIcon } from "lucide-react";
 
@@ -121,16 +122,15 @@ export function FilterBar({ filters, onFilterChange, values = {} }: FilterBarPro
           );
         }
 
-        // select → combobox with "Tất cả" option
+        // select → multi-select combobox; values stored as CSV string
+        const csvValue = values[filter.key] ?? "";
+        const selectedArr = csvValue ? csvValue.split(",").map((s) => s.trim()).filter(Boolean) : [];
         return (
           <FilterField key={filter.key} label={filter.label}>
-            <Combobox
-              value={values[filter.key] ?? ""}
-              onValueChange={(val) => onFilterChange(filter.key, val)}
-              options={[
-                { value: "", label: "Tất cả" },
-                ...(filter.options ?? []),
-              ]}
+            <MultiCombobox
+              values={selectedArr}
+              onValuesChange={(arr) => onFilterChange(filter.key, arr.join(","))}
+              options={filter.options ?? []}
               placeholder={filter.label}
               className="min-w-[140px]"
             />

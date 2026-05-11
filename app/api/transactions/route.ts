@@ -1,6 +1,6 @@
 // Standalone transactions (RECEIPT/PAYMENT not tied to an order): GET list, POST create
 import { NextRequest } from "next/server";
-import { withAuth, checkAccess, apiResponse, parsePagination } from "@/lib/api-helpers";
+import { withAuth, checkAccess, apiResponse, parsePagination, parseCsvParam } from "@/lib/api-helpers";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
 import { createStandaloneTransactionSchema } from "@/lib/validation-schemas";
@@ -23,7 +23,8 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = request.nextUrl;
-  const type = searchParams.get("type"); // RECEIPT | PAYMENT
+  // type filter: CSV of RECEIPT/PAYMENT — used to restrict within allowed types
+  const typeFilter = parseCsvParam(searchParams, "type");
 
   const canReceipt = checkAccess(session.user.roles, "GET", "RECEIPT");
   const canPayment = checkAccess(session.user.roles, "GET", "PAYMENT");
@@ -31,9 +32,14 @@ export async function GET(request: NextRequest) {
     return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
 
-  const allowedTypes: string[] = [];
-  if (!type || type === "RECEIPT") { if (canReceipt) allowedTypes.push("RECEIPT"); }
-  if (!type || type === "PAYMENT") { if (canPayment) allowedTypes.push("PAYMENT"); }
+  // Intersect requested types with permitted types
+  const permittedTypes: string[] = [];
+  if (canReceipt) permittedTypes.push("RECEIPT");
+  if (canPayment) permittedTypes.push("PAYMENT");
+  const allowedTypes =
+    typeFilter.length > 0
+      ? permittedTypes.filter((t) => typeFilter.includes(t))
+      : permittedTypes;
   if (allowedTypes.length === 0) {
     return Response.json(apiResponse(false, undefined, MSG.accessDeniedForType), { status: 403 });
   }
@@ -46,7 +52,8 @@ export async function GET(request: NextRequest) {
   const dateFrom = searchParams.get("dateFrom");
   const dateTo = searchParams.get("dateTo");
   const bankReference = searchParams.get("bankReference");
-  const expenseTypeId = searchParams.get("expenseTypeId");
+  const expenseTypeIds = parseCsvParam(searchParams, "expenseTypeId");
+  const paymentMethods = parseCsvParam(searchParams, "paymentMethod");
   const { page, limit, skip, sortBy, order } = parsePagination(searchParams);
 
   // Build date range filter — include full last day
@@ -64,7 +71,9 @@ export async function GET(request: NextRequest) {
     businessUnitId,
     ...(Object.keys(dateFilter).length > 0 && { transactionDate: dateFilter }),
     ...(bankReference && { bankReference: { contains: bankReference, mode: "insensitive" as const } }),
-    ...(expenseTypeId && { expenseTypeId }),
+    ...(expenseTypeIds.length > 0 && { expenseTypeId: { in: expenseTypeIds } }),
+    // paymentMethod is a free-form String column (BANK/DEPOSIT/CASH) — no enum cast needed
+    ...(paymentMethods.length > 0 && { paymentMethod: { in: paymentMethods } }),
   };
 
   try {
