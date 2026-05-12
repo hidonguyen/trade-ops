@@ -11,9 +11,10 @@ import { OrderInfoCard } from "./order-info-card";
 import { FinancialSummaryCard } from "./financial-summary-card";
 import { OrderTransactionsTable } from "./order-transactions-table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { PlusIcon, PencilIcon, SlidersHorizontalIcon } from "lucide-react";
+import { PlusIcon, PencilIcon, SlidersHorizontalIcon, Trash2Icon } from "lucide-react";
 import Decimal from "decimal.js";
-import { useCan } from "@/components/providers/roles-provider";
+import { useCan, useRoles } from "@/components/providers/roles-provider";
+import { ConfirmationDialog } from "@/components/shared/confirmation-dialog";
 
 interface OrderReport {
   order: {
@@ -68,6 +69,10 @@ export default function OrderDetailPage() {
   const [adjustmentOpen, setAdjustmentOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<EditingTransaction | null>(null);
   const [editingAdj, setEditingAdj] = useState<EditingAdjustment | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const roles = useRoles();
+  const isAdmin = roles.includes("ADMIN");
 
   // RBAC capabilities — order-linked tx writes are gated by parent order module
   // (SALE/PURCHASE), matching the API. RECEIPT/PAYMENT module gates only the
@@ -139,6 +144,26 @@ export default function OrderDetailPage() {
   function handleClosePayment() { setPaymentOpen(false); setEditingTx(null); }
   function handleCloseAdjustment() { setAdjustmentOpen(false); setEditingAdj(null); }
 
+  async function handleDelete() {
+    if (deleting) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/orders/${id}`, { method: "DELETE" });
+      if (res.status === 204) {
+        setDeleteOpen(false);
+        router.push(`/orders?type=${report?.order.type ?? ""}`);
+        return;
+      }
+      const json = await res.json().catch(() => ({}));
+      alert(json.message ?? "Không thể xóa đơn hàng");
+    } catch (err) {
+      console.error("DELETE order error:", err);
+      alert("Lỗi kết nối");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -175,16 +200,31 @@ export default function OrderDetailPage() {
             Chi tiết đơn — {order.party?.name}
           </h1>
         </div>
-        {canEditOrder && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => router.push(`/orders/${id}/edit`)}
-          >
-            <PencilIcon className="size-4 mr-1.5" />
-            Chỉnh sửa
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {canEditOrder && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push(`/orders/${id}/edit`)}
+            >
+              <PencilIcon className="size-4 mr-1.5" />
+              Chỉnh sửa
+            </Button>
+          )}
+          {isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-red-600 hover:text-red-700"
+              onClick={() => setDeleteOpen(true)}
+              disabled={summary.transactionCount > 0}
+              title={summary.transactionCount > 0 ? "Đã có giao dịch — không thể xóa" : undefined}
+            >
+              <Trash2Icon className="size-4 mr-1.5" />
+              Xóa đơn
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Info + Summary */}
@@ -236,6 +276,17 @@ export default function OrderDetailPage() {
         currency={order.currency}
         editingTransaction={editingTx}
         maxPaymentAmount={maxPaymentAmount}
+      />
+
+      {/* Delete confirmation */}
+      <ConfirmationDialog
+        open={deleteOpen}
+        title={`Xóa đơn #${order.orderNumber}?`}
+        description="Hành động này không thể khôi phục. Đơn sẽ bị xóa vĩnh viễn khỏi hệ thống."
+        variant="danger"
+        confirmLabel={deleting ? "Đang xóa..." : "Xóa vĩnh viễn"}
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteOpen(false)}
       />
 
       {/* Adjustment dialog (create + edit) */}

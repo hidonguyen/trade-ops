@@ -41,6 +41,9 @@ export const MSG = {
   depositLockedHasUsages: "Cọc đã có giao dịch liên quan; không thể thay đổi tiền tệ / đơn vị",
   depositDeleteBlockedHasUsages: "Cọc đã được sử dụng; không thể xóa",
 
+  // Order delete guards
+  orderDeleteBlockedHasTransactions: "Đơn đã có giao dịch, không thể xóa",
+
   // Deposit refund auto-create
   depositIdRequiredPayment: "Phải chọn cọc khi thanh toán bằng phương thức Cọc",
   partyIdRequiredRefund: "Cần chọn đối tác để tạo cọc mới cho giao dịch hoàn tiền",

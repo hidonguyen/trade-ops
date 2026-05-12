@@ -172,3 +172,52 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return Response.json(apiResponse(false, undefined, MSG.internalError), { status: 500 });
   }
 }
+
+// Hard delete an order. Blocked if any Transaction exists (FK + explicit count check).
+// ADMIN only. Audit log preserves full snapshot of the deleted order.
+export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await withAuth();
+  if (!session) {
+    return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
+  }
+
+  if (!session.user.roles.includes("ADMIN")) {
+    return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
+  }
+
+  const { id } = await params;
+
+  try {
+    const order = await prisma.order.findUnique({ where: { id }, include: orderIncludes });
+    if (!order) {
+      return Response.json(apiResponse(false, undefined, MSG.orderNotFound), { status: 404 });
+    }
+
+    const txCount = await prisma.transaction.count({ where: { orderId: id } });
+    if (txCount > 0) {
+      return Response.json(
+        apiResponse(false, undefined, MSG.orderDeleteBlockedHasTransactions),
+        { status: 409 }
+      );
+    }
+
+    const userId = session.user.id!;
+    await prisma.$transaction(async (tx: any) => {
+      await createAuditLog(
+        tx,
+        userId,
+        "DELETE",
+        "Order",
+        id,
+        { before: order as unknown as Record<string, unknown> }
+      );
+      await tx.order.delete({ where: { id } });
+    });
+
+    invalidateTags([TAG.reportsByBu(order.businessUnitId), TAG.order(id), TAG.party(order.partyId)]);
+    return new Response(null, { status: 204 });
+  } catch (error) {
+    console.error("DELETE /api/orders/[id] error:", error);
+    return Response.json(apiResponse(false, undefined, MSG.internalError), { status: 500 });
+  }
+}
