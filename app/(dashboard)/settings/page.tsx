@@ -2,6 +2,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
+import { isAdmin } from "@/lib/rbac";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { BuildingIcon, CoinsIcon, TagIcon, UsersIcon, ShieldAlertIcon, HistoryIcon } from "lucide-react";
 
@@ -42,9 +43,9 @@ export default async function SettingsPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const isAdmin = session.user.roles?.includes("ADMIN");
+  const userIsAdmin = isAdmin(session.user.roles ?? []);
 
-  if (!isAdmin) {
+  if (!userIsAdmin) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
         <ShieldAlertIcon className="size-16 text-slate-300" />

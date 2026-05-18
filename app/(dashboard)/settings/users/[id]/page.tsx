@@ -14,7 +14,7 @@ interface UserDetail {
   name: string;
   email: string;
   isActive: boolean;
-  roles: { role: string }[];
+  roles: { role: string; businessUnitId: string | null }[];
 }
 
 export default function UserEditPage() {
@@ -85,12 +85,17 @@ export default function UserEditPage() {
     }
   }
 
+  // Collapse the per-BU role rows into one role + the set of granted BUs.
+  // A user holds a single role across all assigned BUs (ADMIN = global).
   const initialData: Partial<UserFormData> | undefined = user
     ? {
         name: user.name,
         email: user.email,
         isActive: user.isActive,
-        roles: user.roles.map((r) => r.role) as UserFormData["roles"],
+        role: user.roles[0]?.role ?? "VIEWER",
+        businessUnitIds: user.roles
+          .map((r) => r.businessUnitId)
+          .filter((id): id is string => id !== null),
       }
     : undefined;
 

@@ -1,5 +1,6 @@
 // Deposits list + create for a party — RBAC inherits from parent party type
 import { withAuth, checkAccess, apiResponse, parsePagination } from "@/lib/api-helpers";
+import type { RoleAssignment } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import Decimal from "decimal.js";
 import { createAuditLog } from "@/lib/audit";
@@ -17,10 +18,10 @@ function partyModules(type: string): RbacModule[] {
   return ["CUSTOMER", "SUPPLIER"];
 }
 
-function hasPartyAccess(roles: string[], action: RbacAction, type: string): boolean {
+function hasPartyAccess(roles: RoleAssignment[], action: RbacAction, type: string, businessUnitId: string | null): boolean {
   const modules = partyModules(type);
-  if (action === "GET") return modules.some((mod) => checkAccess(roles, action, mod));
-  return modules.every((mod) => checkAccess(roles, action, mod));
+  if (action === "GET") return modules.some((mod) => checkAccess(roles, action, mod, businessUnitId));
+  return modules.every((mod) => checkAccess(roles, action, mod, businessUnitId));
 }
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -37,7 +38,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       return Response.json(apiResponse(false, undefined, MSG.partyNotFound), { status: 404 });
     }
 
-    if (!hasPartyAccess(session.user.roles, "GET", party.type)) {
+    if (!hasPartyAccess(session.user.roles, "GET", party.type, party.businessUnitId)) {
       return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
     }
 
@@ -109,7 +110,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return Response.json(apiResponse(false, undefined, MSG.partyNotFound), { status: 404 });
     }
 
-    if (!hasPartyAccess(session.user.roles, "CREATE", party.type)) {
+    if (!hasPartyAccess(session.user.roles, "CREATE", party.type, party.businessUnitId)) {
       return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
     }
 

@@ -1,5 +1,5 @@
 // Business Units list + create — all roles can read, only ADMIN can write
-import { withAuth, checkAccess, apiResponse } from "@/lib/api-helpers";
+import { withAuth, checkAccess, assignedBusinessUnits, apiResponse } from "@/lib/api-helpers";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
 import { createBusinessUnitSchema } from "@/lib/validation-schemas";
@@ -29,7 +29,11 @@ export async function GET(request: Request) {
         orderBy: [{ isActive: "desc" }, { name: "asc" }],
       })
     );
-    return Response.json(apiResponse(true, data));
+    // Scope to BUs the caller holds a role in (ADMIN sees all). Filtered
+    // per-request, outside withCache, since the cache is shared across users.
+    const allowed = assignedBusinessUnits(session.user.roles, data.map((b) => b.id));
+    const scoped = data.filter((b) => allowed.includes(b.id));
+    return Response.json(apiResponse(true, scoped));
   } catch (error) {
     console.error("GET /api/business-units error:", error);
     return Response.json(apiResponse(false, undefined, MSG.internalError), { status: 500 });
@@ -41,7 +45,7 @@ export async function POST(request: Request) {
   if (!session) {
     return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
-  if (!checkAccess(session.user.roles, "CREATE", "ADMIN")) {
+  if (!checkAccess(session.user.roles, "CREATE", "ADMIN", null)) {
     return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
 

@@ -3,6 +3,17 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcrypt";
 import { prisma } from "@/lib/prisma";
+import type { RoleAssignment } from "@/lib/rbac";
+
+// True when token.roles is not a clean RoleAssignment[] — e.g. the legacy
+// string[] shape (pre per-BU RBAC) or objects missing businessUnitId. Such
+// tokens must be refetched so checkAccess receives a valid RoleAssignment[].
+function isLegacyRolesShape(roles: unknown): boolean {
+  return (
+    Array.isArray(roles) &&
+    roles.some((r) => typeof r !== "object" || r === null || !("businessUnitId" in r))
+  );
+}
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   trustHost: true,
@@ -28,12 +39,18 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         );
         if (!isValid) return null;
 
+        // Block login for users with no role assignment at all — they have no
+        // Business Unit access and nothing to do in the app.
+        if (user.roles.length === 0) return null;
+
         return {
           id: user.id,
           email: user.email,
           name: user.name,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          roles: user.roles.map((r: any) => r.role),
+          roles: user.roles.map((r) => ({
+            role: r.role,
+            businessUnitId: r.businessUnitId,
+          })),
         };
       },
     }),
@@ -42,32 +59,31 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id!;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        token.roles = (user as any).roles;
+        token.roles = (user as { roles: RoleAssignment[] }).roles;
         token.rolesFetchedAt = Date.now();
         return token;
       }
-      // Re-fetch roles every 5 minutes so admin role changes propagate without forced re-login
+      // Re-fetch roles every 5 minutes so admin role changes propagate without
+      // forced re-login. Legacy string[] tokens are refetched immediately so
+      // checkAccess always receives RoleAssignment[].
       const STALE_MS = 5 * 60 * 1000;
       const fetchedAt = (token.rolesFetchedAt as number | undefined) ?? 0;
-      if (token.id && Date.now() - fetchedAt > STALE_MS) {
+      const stale = Date.now() - fetchedAt > STALE_MS;
+      if (token.id && (stale || isLegacyRolesShape(token.roles))) {
         const fresh = await prisma.user.findUnique({
           where: { id: token.id as string, isActive: true },
           include: { roles: true },
         });
-        if (!fresh) {
-          token.roles = [];
-        } else {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          token.roles = fresh.roles.map((r: any) => r.role);
-        }
+        token.roles = fresh
+          ? fresh.roles.map((r) => ({ role: r.role, businessUnitId: r.businessUnitId }))
+          : [];
         token.rolesFetchedAt = Date.now();
       }
       return token;
     },
     async session({ session, token }) {
       session.user.id = token.id as string;
-      session.user.roles = token.roles as string[];
+      session.user.roles = (token.roles as RoleAssignment[]) ?? [];
       return session;
     },
   },

@@ -1,5 +1,5 @@
 // Summary report Excel export — hierarchical III/IV cashflow per spec §4.1
-import { withAuth, checkAccess, apiResponse } from "@/lib/api-helpers";
+import { withAuth, checkAccessAnyBu, accessibleBusinessUnits, apiResponse } from "@/lib/api-helpers";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import Decimal from "decimal.js";
@@ -28,7 +28,7 @@ export async function GET(request: Request) {
   if (!session) {
     return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
-  if (!checkAccess(session.user.roles, "GET", "DASHBOARD")) {
+  if (!checkAccessAnyBu(session.user.roles, "GET", "DASHBOARD")) {
     return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
 
@@ -44,10 +44,17 @@ export async function GET(request: Request) {
   toDate.setHours(23, 59, 59, 999);
 
   try {
-    const businessUnits = await prisma.businessUnit.findMany({
+    const allActiveBus = await prisma.businessUnit.findMany({
       where: { isActive: true },
       orderBy: { code: "asc" },
     });
+    // Restrict the report to BUs the user can read for the DASHBOARD module.
+    const accessibleIds = accessibleBusinessUnits(
+      session.user.roles,
+      "DASHBOARD",
+      allActiveBus.map((b) => b.id),
+    );
+    const businessUnits = allActiveBus.filter((b) => accessibleIds.includes(b.id));
 
     const allBuData: BuSection[] = await Promise.all(
       businessUnits.map(async (bu) => {

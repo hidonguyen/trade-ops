@@ -1,7 +1,7 @@
 ---
 title: "RBAC — per Business Unit scoping"
 description: "Scope user roles to specific Business Units (TK/NT). User can hold different roles per BU; ADMIN remains global."
-status: planned
+status: completed
 priority: P1
 effort: 28h (~3.5 dev-days)
 branch: main
@@ -25,12 +25,18 @@ Every read/write path resolves the target `businessUnitId`, then checks `(role, 
 ## Phases
 | # | Phase | Status | Effort | Files |
 |---|-------|--------|--------|-------|
-| 1 | [Schema + migration](./phase-01-schema-migration.md) | planned | 4h | `prisma/schema.prisma`, migration SQL, seed |
-| 2 | [RBAC helper + JWT/session](./phase-02-rbac-helper-jwt.md) | planned | 5h | `lib/rbac.ts`, `lib/auth.ts`, `types/*` |
-| 3 | [API enforcement (all routes)](./phase-03-api-enforcement.md) | planned | 8h | `app/api/**`, `lib/api-helpers.ts` |
-| 4 | [UI: BU-scoped role assignment + selector](./phase-04-ui-assignment-selector.md) | planned | 6h | `app/(dashboard)/settings/users/**`, header BU switcher |
-| 5 | [List filtering by BU access](./phase-05-list-filtering.md) | planned | 3h | reports / list endpoints |
-| 6 | [Tests + docs](./phase-06-tests-docs.md) | planned | 2h | tests + `docs/system-architecture.md` |
+| 1 | [Schema + migration](./phase-01-schema-migration.md) | completed | 4h | `prisma/schema.prisma`, migration SQL, seed |
+| 2 | [RBAC helper + JWT/session](./phase-02-rbac-helper-jwt.md) | completed | 5h | `lib/rbac.ts`, `lib/auth.ts`, `types/*` |
+| 3 | [API enforcement (all routes)](./phase-03-api-enforcement.md) | completed | 8h | `app/api/**`, `lib/api-helpers.ts` |
+| 4 | [UI: BU-scoped role assignment + selector](./phase-04-ui-assignment-selector.md) | completed | 6h | `app/(dashboard)/settings/users/**`, header BU switcher |
+| 5 | [List filtering by BU access](./phase-05-list-filtering.md) | completed | 3h | reports / list endpoints |
+| 6 | [Tests + docs](./phase-06-tests-docs.md) | completed | 2h | tests + `docs/system-architecture.md` |
+
+## Status
+All 6 phases implemented 2026-05-18. Type-check clean, 14 RBAC unit tests pass.
+Migration `20260518095200_rbac_per_business_unit` is hand-written and **unapplied** —
+the RDS instance was unreachable during implementation. Apply with
+`prisma migrate deploy` once the DB is reachable.
 
 ## Dependencies
 1 → 2 → 3 → 4. 5 parallel to 4. 6 last.

@@ -23,14 +23,19 @@ async function main() {
     },
   });
 
-  await prisma.userRoleAssignment.upsert({
-    where: { userId_role: { userId: admin.id, role: "ADMIN" } },
-    update: {},
-    create: { userId: admin.id, role: "ADMIN", assignedBy: admin.id },
+  // ADMIN role is global (null businessUnitId). Compound unique includes a
+  // nullable column, so use findFirst+create rather than upsert.
+  const adminRole = await prisma.userRoleAssignment.findFirst({
+    where: { userId: admin.id, role: "ADMIN", businessUnitId: null },
   });
+  if (!adminRole) {
+    await prisma.userRoleAssignment.create({
+      data: { userId: admin.id, role: "ADMIN", assignedBy: admin.id },
+    });
+  }
 
   // Business units
-  await prisma.businessUnit.upsert({
+  const tk = await prisma.businessUnit.upsert({
     where: { code: "TK" },
     update: {},
     create: { code: "TK", name: "Trang Khanh" },
@@ -40,6 +45,30 @@ async function main() {
     update: {},
     create: { code: "NT", name: "Ngọc Trinh" },
   });
+
+  // Example multi-BU user: ACCOUNTANT_SALE scoped to TK only (dev convenience).
+  const saleUser = await prisma.user.upsert({
+    where: { email: "sale.tk@example.com" },
+    update: {},
+    create: {
+      email: "sale.tk@example.com",
+      name: "Sale TK",
+      passwordHash,
+    },
+  });
+  const saleRole = await prisma.userRoleAssignment.findFirst({
+    where: { userId: saleUser.id, role: "ACCOUNTANT_SALE", businessUnitId: tk.id },
+  });
+  if (!saleRole) {
+    await prisma.userRoleAssignment.create({
+      data: {
+        userId: saleUser.id,
+        role: "ACCOUNTANT_SALE",
+        businessUnitId: tk.id,
+        assignedBy: admin.id,
+      },
+    });
+  }
 
   // Currencies
   await prisma.currency.upsert({

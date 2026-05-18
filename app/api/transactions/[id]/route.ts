@@ -51,7 +51,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     const module = transaction.type === "RECEIPT" ? "RECEIPT" : "PAYMENT";
-    if (!checkAccess(session.user.roles, "UPDATE", module)) {
+    if (!checkAccess(session.user.roles, "UPDATE", module, transaction.businessUnitId)) {
       return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
     }
 
@@ -136,7 +136,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
     }
 
     const module = transaction.type === "RECEIPT" ? "RECEIPT" : "PAYMENT";
-    if (!checkAccess(session.user.roles, "DELETE", module)) {
+    if (!checkAccess(session.user.roles, "DELETE", module, transaction.businessUnitId)) {
       return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
     }
 

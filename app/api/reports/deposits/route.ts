@@ -38,16 +38,16 @@ export async function GET(request: Request) {
     return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
 
-  const canCustomer = checkAccess(session.user.roles, "GET", "CUSTOMER");
-  const canSupplier = checkAccess(session.user.roles, "GET", "SUPPLIER");
-  if (!canCustomer && !canSupplier) {
-    return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
-  }
-
   const { searchParams } = new URL(request.url);
   const businessUnitId = searchParams.get("businessUnitId");
   if (!businessUnitId) {
     return Response.json(apiResponse(false, undefined, MSG.businessUnitRequired), { status: 400 });
+  }
+
+  const canCustomer = checkAccess(session.user.roles, "GET", "CUSTOMER", businessUnitId);
+  const canSupplier = checkAccess(session.user.roles, "GET", "SUPPLIER", businessUnitId);
+  if (!canCustomer && !canSupplier) {
+    return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
   const dateFrom = searchParams.get("dateFrom");
   const dateTo = searchParams.get("dateTo");

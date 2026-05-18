@@ -36,8 +36,8 @@ export async function GET(request: NextRequest) {
   const dateTo = searchParams.get("dateTo");
 
   // Determine accessible modules
-  const canSale = checkAccess(session.user.roles, "GET", "SALE");
-  const canPurchase = checkAccess(session.user.roles, "GET", "PURCHASE");
+  const canSale = checkAccess(session.user.roles, "GET", "SALE", businessUnitId);
+  const canPurchase = checkAccess(session.user.roles, "GET", "PURCHASE", businessUnitId);
   if (!canSale && !canPurchase) {
     return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
@@ -138,7 +138,7 @@ export async function POST(request: Request) {
   const userId = session.user.id!;
   const { type } = validation.data;
   const module = type === "SALE" ? "SALE" : "PURCHASE";
-  if (!checkAccess(session.user.roles, "CREATE", module)) {
+  if (!checkAccess(session.user.roles, "CREATE", module, validation.data.businessUnitId)) {
     return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
 

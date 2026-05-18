@@ -13,7 +13,7 @@ import { OrderTransactionsTable } from "./order-transactions-table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PlusIcon, PencilIcon, SlidersHorizontalIcon, Trash2Icon } from "lucide-react";
 import Decimal from "decimal.js";
-import { useCan, useRoles } from "@/components/providers/roles-provider";
+import { useCan, useIsAdmin } from "@/components/providers/roles-provider";
 import { ConfirmationDialog } from "@/components/shared/confirmation-dialog";
 
 interface OrderReport {
@@ -71,16 +71,17 @@ export default function OrderDetailPage() {
   const [editingAdj, setEditingAdj] = useState<EditingAdjustment | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const roles = useRoles();
-  const isAdmin = roles.includes("ADMIN");
+  const isAdmin = useIsAdmin();
+  // Order's BU id — available once report loads; null during initial render (checkAccess is safe with null).
+  const orderBuId = report?.order?.businessUnit?.id ?? null;
 
   // RBAC capabilities — order-linked tx writes are gated by parent order module
   // (SALE/PURCHASE), matching the API. RECEIPT/PAYMENT module gates only the
   // standalone /transactions screen.
-  const canEditSale = useCan("UPDATE", "SALE");
-  const canEditPurchase = useCan("UPDATE", "PURCHASE");
-  const canCreateSale = useCan("CREATE", "SALE");
-  const canCreatePurchase = useCan("CREATE", "PURCHASE");
+  const canEditSale = useCan("UPDATE", "SALE", orderBuId);
+  const canEditPurchase = useCan("UPDATE", "PURCHASE", orderBuId);
+  const canCreateSale = useCan("CREATE", "SALE", orderBuId);
+  const canCreatePurchase = useCan("CREATE", "PURCHASE", orderBuId);
 
   const fetchReport = useCallback(async () => {
     setLoading(true);
@@ -259,6 +260,7 @@ export default function OrderDetailPage() {
         <OrderTransactionsTable
           orderId={id}
           orderType={order.type}
+          orderBuId={orderBuId}
           transactions={transactions}
           onDeleted={fetchReport}
           onEdit={handleEdit}

@@ -1,5 +1,6 @@
 // Party detail, update, soft delete — RBAC per party type
 import { withAuth, checkAccess, apiResponse } from "@/lib/api-helpers";
+import type { RoleAssignment } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
 import { createPartySchema } from "@/lib/validation-schemas";
@@ -16,8 +17,8 @@ function partyModule(type: string): RbacModule {
   return type === "SUPPLIER" ? "SUPPLIER" : "CUSTOMER";
 }
 
-function hasPartyAccess(roles: string[], action: RbacAction, type: string): boolean {
-  return checkAccess(roles, action, partyModule(type));
+function hasPartyAccess(roles: RoleAssignment[], action: RbacAction, type: string, businessUnitId: string | null): boolean {
+  return checkAccess(roles, action, partyModule(type), businessUnitId);
 }
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -57,7 +58,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       return Response.json(apiResponse(false, undefined, MSG.partyNotFound), { status: 404 });
     }
 
-    if (!hasPartyAccess(session.user.roles, "GET", party.type)) {
+    if (!hasPartyAccess(session.user.roles, "GET", party.type, party.businessUnitId)) {
       return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
     }
 
@@ -114,7 +115,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     // Use effective type: prefer the new type if being changed, else existing
     const effectiveType = validation.data.type ?? existing.type;
-    if (!hasPartyAccess(session.user.roles, "UPDATE", effectiveType)) {
+    if (!hasPartyAccess(session.user.roles, "UPDATE", effectiveType, existing.businessUnitId)) {
       return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
     }
 
@@ -153,7 +154,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
       return Response.json(apiResponse(false, undefined, MSG.partyNotFound), { status: 404 });
     }
 
-    if (!hasPartyAccess(session.user.roles, "DELETE", existing.type)) {
+    if (!hasPartyAccess(session.user.roles, "DELETE", existing.type, existing.businessUnitId)) {
       return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
     }
 

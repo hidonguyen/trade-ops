@@ -33,7 +33,7 @@ export async function GET(request: Request) {
 
   // Resolve which module(s) to check — if type filter provided, use it; otherwise check CUSTOMER (viewer needs at least one)
   const moduleToCheck: RbacModule = type === "SUPPLIER" ? "SUPPLIER" : "CUSTOMER";
-  if (!checkAccess(session.user.roles, "GET", moduleToCheck)) {
+  if (!checkAccess(session.user.roles, "GET", moduleToCheck, businessUnitId)) {
     return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
 
@@ -90,7 +90,7 @@ export async function POST(request: Request) {
   }
 
   // Check CREATE access for the single module derived from party type
-  if (!checkAccess(session.user.roles, "CREATE", partyModule(validation.data.type))) {
+  if (!checkAccess(session.user.roles, "CREATE", partyModule(validation.data.type), validation.data.businessUnitId)) {
     return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
 

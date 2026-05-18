@@ -15,7 +15,7 @@ export async function GET(request: Request) {
   if (!session) {
     return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
-  if (!checkAccess(session.user.roles, "GET", "ADMIN")) {
+  if (!checkAccess(session.user.roles, "GET", "ADMIN", null)) {
     return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
 

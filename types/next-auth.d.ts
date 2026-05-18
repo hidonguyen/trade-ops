@@ -1,12 +1,13 @@
 // NextAuth type augmentations for Trade Ops user model
 import "next-auth";
+import type { RoleAssignment } from "@/lib/rbac";
 
 declare module "next-auth" {
   interface User {
     id: string;
     email: string;
     name: string;
-    roles: string[];
+    roles: RoleAssignment[];
   }
   interface Session {
     user: User;
@@ -16,6 +17,6 @@ declare module "next-auth" {
 declare module "next-auth/jwt" {
   interface JWT {
     id: string;
-    roles: string[];
+    roles: RoleAssignment[];
   }
 }

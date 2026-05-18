@@ -29,6 +29,7 @@ interface Transaction {
 interface OrderTransactionsTableProps {
   orderId: string;
   orderType?: "SALE" | "PURCHASE" | string;
+  orderBuId?: string | null;
   transactions: Transaction[];
   onDeleted: () => void;
   onEdit?: (transaction: Transaction) => void;
@@ -53,6 +54,7 @@ const PAYMENT_TYPE_LABEL: Record<string, string> = {
 export function OrderTransactionsTable({
   orderId,
   orderType,
+  orderBuId = null,
   transactions,
   onDeleted,
   onEdit,
@@ -62,16 +64,15 @@ export function OrderTransactionsTable({
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // Compute role-based capabilities for both money directions and both order types.
-  // Per-row gating combines these with `moduleForTx(orderType, paymentType)`.
+  // Compute role-based capabilities scoped to this order's BU.
   const caps = {
     UPDATE: {
-      SALE: useCan("UPDATE", "SALE"),
-      PURCHASE: useCan("UPDATE", "PURCHASE"),
+      SALE: useCan("UPDATE", "SALE", orderBuId),
+      PURCHASE: useCan("UPDATE", "PURCHASE", orderBuId),
     },
     DELETE: {
-      SALE: useCan("DELETE", "SALE"),
-      PURCHASE: useCan("DELETE", "PURCHASE"),
+      SALE: useCan("DELETE", "SALE", orderBuId),
+      PURCHASE: useCan("DELETE", "PURCHASE", orderBuId),
     },
   } as const;
 

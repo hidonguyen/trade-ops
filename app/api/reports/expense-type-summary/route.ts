@@ -21,10 +21,6 @@ export async function GET(request: Request) {
   if (!session) {
     return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
-  if (!checkAccess(session.user.roles, "GET", "DASHBOARD")) {
-    return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
-  }
-
   const { searchParams } = new URL(request.url);
   const parsed = querySchema.safeParse(Object.fromEntries(searchParams));
   if (!parsed.success) {
@@ -35,6 +31,9 @@ export async function GET(request: Request) {
   }
 
   const { businessUnitId, dateFrom, dateTo } = parsed.data;
+  if (!checkAccess(session.user.roles, "GET", "DASHBOARD", businessUnitId)) {
+    return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
+  }
   const fromDate = new Date(dateFrom);
   const toDate = new Date(dateTo);
   toDate.setHours(23, 59, 59, 999);

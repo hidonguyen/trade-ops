@@ -109,8 +109,11 @@ Deposit (1) ─────────(M) DepositUsage
 - `id: String @id @default(uuid(7))`
 - `userId: String` – Foreign key to User
 - `role: String` – Enum: ADMIN, ACCOUNTANT_SALE, ACCOUNTANT_PURCHASE, ACCOUNTANT_CASHFLOW, VIEWER
+- `businessUnitId: String?` – Foreign key to BusinessUnit; `null` = global scope (ADMIN convention)
 - `assignedAt, assignedBy: DateTime, String` – Audit fields
-- Unique constraint: `(userId, role)`
+- Unique constraint: `(userId, role, businessUnitId)`
+
+A role is scoped to one Business Unit. A user holds a **single role** applied across the set of BUs it is granted — one `UserRoleAssignment` row per BU, all sharing the same `role`. ADMIN is global — one row with `businessUnitId = null` grants every BU.
 
 **AuditLog**
 - `id: String @id @default(uuid(7))`
@@ -276,14 +279,23 @@ GET /api/orders
 
 ### 3. RBAC Decision Logic
 ```
-checkAccess(user, action, module) → boolean
-├─ If user has ADMIN role → true (override)
-├─ For each role in user.roles:
-│   ├─ Check permission matrix[role][module][action]
-│   ├─ FULL > GET_ONLY > DENY
-│   └─ Return true if any role grants access
+checkAccess(assignments, action, module, businessUnitId) → boolean
+├─ For each assignment in user.roles ({ role, businessUnitId }):
+│   ├─ Skip unless assignment is global (null) OR matches target businessUnitId
+│   ├─ Check permission matrix[role][module]
+│   ├─ FULL > GET (action GET only) > DENY
+│   └─ Return true if any matching assignment grants access
 └─ Default deny
 ```
+
+Every API handler resolves the **target Business Unit** before checking:
+- Mutations / reads of a record → the record's `businessUnitId`.
+- Admin-only modules (users, currencies, BUs, expense types, audit logs) → `null` (global).
+- Cross-BU reports (no BU param) → `checkAccessAnyBu()` gates entry, then
+  `accessibleBusinessUnits()` narrows the result set to permitted BUs.
+
+`lib/rbac.ts` helpers: `checkAccess`, `checkAccessAnyBu`, `accessibleBusinessUnits`,
+`isAdmin`. Unit-tested in `lib/rbac.test.ts` (`npm test`).
 
 ---
 

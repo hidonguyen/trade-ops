@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, Column } from "@/components/shared/data-table";
 
-interface UserRole { role: string; }
+interface UserRole { role: string; businessUnitId?: string | null; }
 interface UserRow extends Record<string, unknown> {
   id: string;
   name: string;
@@ -31,15 +31,19 @@ const COLUMNS: Column<UserRow>[] = [
   {
     key: "roles",
     label: "Vai trò",
-    render: (val: UserRole[]) => (
-      <div className="flex flex-wrap gap-1">
-        {(val ?? []).map((r) => (
-          <Badge key={r.role} variant="secondary" className="text-xs">
-            {ROLE_LABELS[r.role] ?? r.role}
-          </Badge>
-        ))}
-      </div>
-    ),
+    render: (val: UserRole[]) => {
+      // Dedupe role names — a role may repeat across BUs
+      const uniqueRoles = Array.from(new Set((val ?? []).map((r) => r.role)));
+      return (
+        <div className="flex flex-wrap gap-1">
+          {uniqueRoles.map((role) => (
+            <Badge key={role} variant="secondary" className="text-xs">
+              {ROLE_LABELS[role] ?? role}
+            </Badge>
+          ))}
+        </div>
+      );
+    },
   },
   {
     key: "isActive",

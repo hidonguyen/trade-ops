@@ -513,7 +513,10 @@ export async function GET(request: Request) {
     );
   }
   
-  const access = checkAccess(session.user, 'GET', 'orders');
+  // RBAC is per Business Unit: resolve the TARGET businessUnitId, then check.
+  // checkAccess(roles, action, module, businessUnitId) — pass null for global ops.
+  const businessUnitId = new URL(request.url).searchParams.get('businessUnitId');
+  const access = checkAccess(session.user.roles, 'GET', 'SALE', businessUnitId);
   if (!access) {
     return Response.json(
       apiResponse(false, undefined, 'Access denied'),
@@ -523,7 +526,7 @@ export async function GET(request: Request) {
   
   try {
     const orders = await prisma.order.findMany({
-      where: { businessUnitId: session.user.businessUnitId }
+      where: { businessUnitId }
     });
     
     return Response.json(apiResponse(true, orders));
@@ -546,14 +549,6 @@ export async function POST(request: Request) {
     );
   }
   
-  const access = checkAccess(session.user, 'CREATE', 'orders');
-  if (!access) {
-    return Response.json(
-      apiResponse(false, undefined, 'Access denied'),
-      { status: 403 }
-    );
-  }
-  
   const body = await request.json();
   const validation = createOrderSchema.safeParse(body);
   
@@ -569,13 +564,21 @@ export async function POST(request: Request) {
     );
   }
   
+  // RBAC check uses the target BU from the validated payload.
+  const access = checkAccess(
+    session.user.roles, 'CREATE', 'SALE', validation.data.businessUnitId
+  );
+  if (!access) {
+    return Response.json(
+      apiResponse(false, undefined, 'Access denied'),
+      { status: 403 }
+    );
+  }
+  
   try {
     const order = await prisma.$transaction(async (tx: any) => {
       const created = await tx.order.create({
-        data: {
-          businessUnitId: session.user.businessUnitId,
-          ...validation.data
-        }
+        data: { ...validation.data }
       });
       
       await tx.auditLog.create({

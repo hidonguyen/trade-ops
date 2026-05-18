@@ -1,5 +1,6 @@
 // User list + create — ADMIN only
 import { withAuth, checkAccess, apiResponse, parsePagination } from "@/lib/api-helpers";
+import { expandRoleRows } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
 import { z } from "zod";
@@ -9,11 +10,24 @@ import { withCache } from "@/lib/cache/with-cache";
 import { usersListKey, TAG, TTL } from "@/lib/cache/keys";
 import { invalidateTags } from "@/lib/cache/invalidate";
 
+const ROLE_ENUM = z.enum(["ADMIN", "ACCOUNTANT_SALE", "ACCOUNTANT_PURCHASE", "ACCOUNTANT_CASHFLOW", "VIEWER"]);
+
+// A user holds one role applied across a set of BUs. ADMIN is global — its
+// businessUnitIds are ignored. Every other role needs at least one BU.
 const createUserSchema = z.object({
   email: z.string().email(),
   name: z.string().min(1).max(100),
   password: z.string().min(8).max(100),
-  roles: z.array(z.enum(["ADMIN", "ACCOUNTANT_SALE", "ACCOUNTANT_PURCHASE", "ACCOUNTANT_CASHFLOW", "VIEWER"])).min(1),
+  role: ROLE_ENUM,
+  businessUnitIds: z.array(z.string().uuid()).default([]),
+}).superRefine((val, ctx) => {
+  if (val.role !== "ADMIN" && val.businessUnitIds.length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["businessUnitIds"],
+      message: "Vai trò phải được phân quyền ít nhất một đơn vị kinh doanh",
+    });
+  }
 });
 
 export async function GET(request: Request) {
@@ -21,7 +35,7 @@ export async function GET(request: Request) {
   if (!session) {
     return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
-  if (!checkAccess(session.user.roles, "GET", "ADMIN")) {
+  if (!checkAccess(session.user.roles, "GET", "ADMIN", null)) {
     return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
 
@@ -47,7 +61,7 @@ export async function GET(request: Request) {
               createdAt: true,
               updatedAt: true,
               roles: {
-                select: { id: true, role: true, assignedAt: true, assignedBy: true },
+                select: { id: true, role: true, businessUnitId: true, assignedAt: true, assignedBy: true },
               },
             },
           }),
@@ -72,7 +86,7 @@ export async function POST(request: Request) {
   if (!session) {
     return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
-  if (!checkAccess(session.user.roles, "CREATE", "ADMIN")) {
+  if (!checkAccess(session.user.roles, "CREATE", "ADMIN", null)) {
     return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
 
@@ -91,7 +105,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const { email, name, password, roles } = validation.data;
+  const { email, name, password, role, businessUnitIds } = validation.data;
+  const roleRows = expandRoleRows(role, businessUnitIds);
 
   try {
     const existing = await prisma.user.findUnique({ where: { email } });
@@ -103,7 +118,6 @@ export async function POST(request: Request) {
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
-
     const actorId = session.user.id as string;
 
     const result = await prisma.$transaction(async (tx: any) => {
@@ -113,10 +127,7 @@ export async function POST(request: Request) {
           name,
           passwordHash,
           roles: {
-            create: roles.map((role) => ({
-              role,
-              assignedBy: actorId,
-            })),
+            create: roleRows.map((r) => ({ ...r, assignedBy: actorId })),
           },
         },
         select: {
@@ -126,10 +137,10 @@ export async function POST(request: Request) {
           isActive: true,
           createdAt: true,
           updatedAt: true,
-          roles: { select: { id: true, role: true, assignedAt: true } },
+          roles: { select: { id: true, role: true, businessUnitId: true, assignedAt: true } },
         },
       });
-      await createAuditLog(tx, actorId, "CREATE", "User", user.id, { email, name, roles });
+      await createAuditLog(tx, actorId, "CREATE", "User", user.id, { email, name, role, businessUnitIds });
       return user;
     });
 

@@ -10,7 +10,7 @@ export async function GET() {
   if (!session) {
     return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
-  if (!checkAccess(session.user.roles, "GET", "ADMIN")) {
+  if (!checkAccess(session.user.roles, "GET", "ADMIN", null)) {
     return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
 
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
   if (!session) {
     return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
-  if (!checkAccess(session.user.roles, "DELETE", "ADMIN")) {
+  if (!checkAccess(session.user.roles, "DELETE", "ADMIN", null)) {
     return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
 

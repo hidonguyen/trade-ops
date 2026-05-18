@@ -9,10 +9,11 @@ import { Combobox } from "@/components/ui/combobox";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { useSelectedBu } from "@/components/providers/bu-provider";
+import { type RoleAssignment } from "@/lib/rbac";
 
 interface HeaderProps {
   userName: string;
-  userRoles: string[];
+  userRoles: RoleAssignment[];
   sidebarContent?: React.ReactNode;
 }
 
@@ -24,8 +25,10 @@ const ROLE_LABELS: Record<string, string> = {
   VIEWER: "Xem",
 };
 
-function RoleBadge({ roles }: { roles: string[] }) {
-  const primary = roles[0] ?? "VIEWER";
+// Dedupe role names since a role may appear across multiple BUs.
+function RoleBadge({ roles }: { roles: RoleAssignment[] }) {
+  const uniqueRoles = Array.from(new Set(roles.map((r) => r.role)));
+  const primary = uniqueRoles[0] ?? "VIEWER";
   return (
     <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-medium text-blue-700">
       {ROLE_LABELS[primary] ?? primary}

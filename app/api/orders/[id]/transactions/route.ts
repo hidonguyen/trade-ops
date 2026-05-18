@@ -22,13 +22,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { id: orderId } = await params;
 
   try {
-    const order = await prisma.order.findUnique({ where: { id: orderId }, select: { type: true } });
+    const order = await prisma.order.findUnique({ where: { id: orderId }, select: { type: true, businessUnitId: true } });
     if (!order) {
       return Response.json(apiResponse(false, undefined, MSG.orderNotFound), { status: 404 });
     }
 
     const module = order.type === "SALE" ? "SALE" : "PURCHASE";
-    if (!checkAccess(session.user.roles, "GET", module)) {
+    if (!checkAccess(session.user.roles, "GET", module, order.businessUnitId)) {
       return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
     }
 
@@ -94,18 +94,21 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const module = order.type === "SALE" ? "SALE" : "PURCHASE";
-    if (!checkAccess(session.user.roles, "CREATE", module)) {
+    if (!checkAccess(session.user.roles, "CREATE", module, order.businessUnitId)) {
       return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
     }
 
     const userId = session.user.id!;
     const { depositId, ...txData } = validation.data;
 
-    // Validate deposit belongs to same business unit if provided
+    // Validate deposit belongs to the same business unit if provided
     if (depositId) {
       const deposit = await prisma.deposit.findUnique({ where: { id: depositId }, select: { businessUnitId: true } });
       if (!deposit) {
         return Response.json(apiResponse(false, undefined, MSG.depositNotFound), { status: 404 });
+      }
+      if (deposit.businessUnitId !== order.businessUnitId) {
+        return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
       }
     }
 

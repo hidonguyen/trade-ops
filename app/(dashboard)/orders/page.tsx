@@ -47,7 +47,7 @@ export default function OrdersPage() {
   const searchParams = useSearchParams();
   const { selectedBuId, isLoaded: buLoaded } = useSelectedBu();
   const orderModuleEarly = searchParams.get("type") === "PURCHASE" ? "PURCHASE" : "SALE";
-  const canCreate = useCan("CREATE", orderModuleEarly);
+  const canCreate = useCan("CREATE", orderModuleEarly, selectedBuId ?? null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);

@@ -5,6 +5,7 @@
 // NOTE: hasPartyAccess + partyModules are copy-pasted from sibling route.ts
 // because they are simple enough to inline and no shared lib/party-access.ts exists yet.
 import { withAuth, checkAccess, apiResponse } from "@/lib/api-helpers";
+import type { RoleAssignment } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
 import { diffForAudit } from "@/lib/audit-diff";
@@ -30,10 +31,10 @@ function partyModules(type: string): RbacModule[] {
   return ["CUSTOMER", "SUPPLIER"];
 }
 
-function hasPartyAccess(roles: string[], action: RbacAction, type: string): boolean {
+function hasPartyAccess(roles: RoleAssignment[], action: RbacAction, type: string, businessUnitId: string | null): boolean {
   const modules = partyModules(type);
-  if (action === "GET") return modules.some((mod) => checkAccess(roles, action, mod));
-  return modules.every((mod) => checkAccess(roles, action, mod));
+  if (action === "GET") return modules.some((mod) => checkAccess(roles, action, mod, businessUnitId));
+  return modules.every((mod) => checkAccess(roles, action, mod, businessUnitId));
 }
 
 // ---- PATCH ----
@@ -55,7 +56,7 @@ export async function PATCH(
       return Response.json(apiResponse(false, undefined, MSG.partyNotFound), { status: 404 });
     }
 
-    if (!hasPartyAccess(session.user.roles, "UPDATE", party.type)) {
+    if (!hasPartyAccess(session.user.roles, "UPDATE", party.type, party.businessUnitId)) {
       return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
     }
 
@@ -101,6 +102,13 @@ export async function PATCH(
       const bu = await prisma.businessUnit.findFirst({ where: { id: businessUnitId, isActive: true } });
       if (!bu) {
         return Response.json(apiResponse(false, undefined, MSG.businessUnitNotFound), { status: 404 });
+      }
+      // Relocating a deposit into a different BU requires UPDATE access there too.
+      if (
+        businessUnitId !== existing.businessUnitId &&
+        !hasPartyAccess(session.user.roles, "UPDATE", party.type, businessUnitId)
+      ) {
+        return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
       }
     }
 
@@ -214,7 +222,7 @@ export async function DELETE(
       return Response.json(apiResponse(false, undefined, MSG.partyNotFound), { status: 404 });
     }
 
-    if (!hasPartyAccess(session.user.roles, "DELETE", party.type)) {
+    if (!hasPartyAccess(session.user.roles, "DELETE", party.type, party.businessUnitId)) {
       return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
     }
 

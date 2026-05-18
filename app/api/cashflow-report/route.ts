@@ -71,9 +71,6 @@ export async function GET(request: Request) {
   if (!session) {
     return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
-  if (!checkAccess(session.user.roles, "GET", "CASHFLOW")) {
-    return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
-  }
 
   const { searchParams } = new URL(request.url);
   const parsed = querySchema.safeParse(Object.fromEntries(searchParams));
@@ -85,6 +82,9 @@ export async function GET(request: Request) {
   }
 
   const { businessUnitId, dateFrom, dateTo, page, limit, format } = parsed.data;
+  if (!checkAccess(session.user.roles, "GET", "CASHFLOW", businessUnitId)) {
+    return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
+  }
   // currencyId supports multi-select CSV (e.g. "id1,id2"); single value still works
   const currencyIds = parseCsvParam(searchParams, "currencyId");
   const currencyFilter = currencyIds.length > 0 ? { currencyId: { in: currencyIds } } : {};

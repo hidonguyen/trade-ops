@@ -26,8 +26,15 @@ export async function GET(request: NextRequest) {
   // type filter: CSV of RECEIPT/PAYMENT — used to restrict within allowed types
   const typeFilter = parseCsvParam(searchParams, "type");
 
-  const canReceipt = checkAccess(session.user.roles, "GET", "RECEIPT");
-  const canPayment = checkAccess(session.user.roles, "GET", "PAYMENT");
+  // Resolve BU first — needed for per-BU RBAC checks below
+  const businessUnitId = searchParams.get("businessUnitId");
+  // Enforce BU scope to prevent cross-BU data leakage
+  if (!businessUnitId) {
+    return Response.json(apiResponse(false, undefined, MSG.businessUnitRequired), { status: 400 });
+  }
+
+  const canReceipt = checkAccess(session.user.roles, "GET", "RECEIPT", businessUnitId);
+  const canPayment = checkAccess(session.user.roles, "GET", "PAYMENT", businessUnitId);
   if (!canReceipt && !canPayment) {
     return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
@@ -42,12 +49,6 @@ export async function GET(request: NextRequest) {
       : permittedTypes;
   if (allowedTypes.length === 0) {
     return Response.json(apiResponse(false, undefined, MSG.accessDeniedForType), { status: 403 });
-  }
-
-  const businessUnitId = searchParams.get("businessUnitId");
-  // Enforce BU scope to prevent cross-BU data leakage
-  if (!businessUnitId) {
-    return Response.json(apiResponse(false, undefined, MSG.businessUnitRequired), { status: 400 });
   }
   const dateFrom = searchParams.get("dateFrom");
   const dateTo = searchParams.get("dateTo");
@@ -115,7 +116,7 @@ export async function POST(request: Request) {
   const userId = session.user.id!;
   const { type } = validation.data;
   const module = type === "RECEIPT" ? "RECEIPT" : "PAYMENT";
-  if (!checkAccess(session.user.roles, "CREATE", module)) {
+  if (!checkAccess(session.user.roles, "CREATE", module, validation.data.businessUnitId)) {
     return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
 

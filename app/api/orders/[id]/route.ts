@@ -53,7 +53,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const module = order.type === "SALE" ? "SALE" : "PURCHASE";
-    if (!checkAccess(session.user.roles, "GET", module)) {
+    if (!checkAccess(session.user.roles, "GET", module, order.businessUnitId)) {
       return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
     }
 
@@ -91,7 +91,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     const module = order.type === "SALE" ? "SALE" : "PURCHASE";
-    if (!checkAccess(session.user.roles, "UPDATE", module)) {
+    if (!checkAccess(session.user.roles, "UPDATE", module, order.businessUnitId)) {
       return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
     }
 
@@ -181,7 +181,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
     return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
 
-  if (!session.user.roles.includes("ADMIN")) {
+  if (!checkAccess(session.user.roles, "DELETE", "ADMIN", null)) {
     return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
 

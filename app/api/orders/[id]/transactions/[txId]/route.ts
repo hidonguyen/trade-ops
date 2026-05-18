@@ -75,7 +75,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     // so role scope matches what user sees in the orders list. ACCOUNTANT_CASHFLOW
     // (SALE/PURCHASE = GET) is read-only on order-linked txs.
     const module = order.type === "SALE" ? "SALE" : "PURCHASE";
-    if (!checkAccess(session.user.roles, "UPDATE", module)) {
+    if (!checkAccess(session.user.roles, "UPDATE", module, order.businessUnitId)) {
       return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
     }
 
@@ -171,7 +171,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
     if (!transaction) return Response.json(apiResponse(false, undefined, MSG.transactionNotFound), { status: 404 });
 
     const module = order.type === "SALE" ? "SALE" : "PURCHASE";
-    if (!checkAccess(session.user.roles, "DELETE", module)) {
+    if (!checkAccess(session.user.roles, "DELETE", module, order.businessUnitId)) {
       return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
     }
 

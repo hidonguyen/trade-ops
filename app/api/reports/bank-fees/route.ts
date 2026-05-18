@@ -20,11 +20,6 @@ export async function GET(request: Request) {
   if (!session) {
     return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
-  // Same access gate as other reports — CASHFLOW read covers accountants + viewer
-  if (!checkAccess(session.user.roles, "GET", "CASHFLOW")) {
-    return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
-  }
-
   const { searchParams } = new URL(request.url);
   const parsed = querySchema.safeParse(Object.fromEntries(searchParams));
   if (!parsed.success) {
@@ -35,6 +30,10 @@ export async function GET(request: Request) {
   }
 
   const { businessUnitId, dateFrom, dateTo, format } = parsed.data;
+  // Same access gate as other reports — CASHFLOW read covers accountants + viewer
+  if (!checkAccess(session.user.roles, "GET", "CASHFLOW", businessUnitId)) {
+    return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
+  }
   // currencyId and partyId support multi-select CSV; single value still works
   const currencyIds = parseCsvParam(searchParams, "currencyId");
   const partyIds = parseCsvParam(searchParams, "partyId");

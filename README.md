@@ -81,7 +81,7 @@ Server runs at **http://localhost:3000**
 
 - **Multi-Currency:** VND, USD, RMB with client-side rate handling
 - **Multi-Business-Unit:** Isolated data per operational unit (TK, NT)
-- **Role-Based Access Control:** 5 roles with granular permissions
+- **Role-Based Access Control:** 5 roles with granular permissions, scoped per Business Unit (a user may hold different roles in TK vs NT; ADMIN is global)
 - **Decimal Precision:** All monetary values use Decimal.js (no floating-point errors)
 - **Audit Trail:** 100% coverage of all write operations
 - **Atomicity:** All multi-step operations in database transactions

@@ -33,7 +33,7 @@ export default function PartiesPage() {
   // Read initial type filter from URL search params (e.g. /parties?type=CUSTOMER)
   const urlType = searchParams.get("type");
   const partyModule = urlType === "SUPPLIER" ? "SUPPLIER" : "CUSTOMER";
-  const canCreateParty = useCan("CREATE", partyModule);
+  const canCreateParty = useCan("CREATE", partyModule, selectedBuId ?? null);
 
   const [filters, setFilters] = useState<Record<string, string>>(() => {
     const type = searchParams.get("type");

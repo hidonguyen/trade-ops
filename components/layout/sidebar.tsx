@@ -2,6 +2,7 @@
 "use client";
 
 import { useState } from "react";
+import { isAdmin as checkIsAdmin, type RoleAssignment } from "@/lib/rbac";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -73,7 +74,7 @@ const NAV_GROUPS: NavGroup[] = [
 ];
 
 interface SidebarNavProps {
-  userRoles: string[];
+  userRoles: RoleAssignment[];
   pathname: string;
   searchParams: URLSearchParams;
   fallbackOrderType: "SALE" | "PURCHASE" | null;
@@ -82,7 +83,7 @@ interface SidebarNavProps {
 }
 
 function SidebarNav({ userRoles, pathname, searchParams, fallbackOrderType, fallbackPartyType, onNavigate }: SidebarNavProps) {
-  const isAdmin = userRoles.includes("ADMIN");
+  const isAdmin = checkIsAdmin(userRoles);
 
   return (
     <nav className="flex flex-col gap-4 px-3 py-4 overflow-y-auto flex-1">
@@ -134,7 +135,7 @@ function SidebarNav({ userRoles, pathname, searchParams, fallbackOrderType, fall
 }
 
 interface SidebarProps {
-  userRoles: string[];
+  userRoles: RoleAssignment[];
 }
 
 export function Sidebar({ userRoles }: SidebarProps) {

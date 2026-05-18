@@ -1,6 +1,10 @@
 // API route utilities: auth wrapper, RBAC check, pagination parser, response builder
 import { auth } from "@/lib/auth";
-export { checkAccess, permissionMatrix } from "@/lib/rbac";
+import { prisma } from "@/lib/prisma";
+import { accessibleBusinessUnits } from "@/lib/rbac";
+import type { RoleAssignment } from "@/lib/rbac";
+import type { RbacModule } from "@/types";
+export { checkAccess, checkAccessAnyBu, accessibleBusinessUnits, assignedBusinessUnits, permissionMatrix } from "@/lib/rbac";
 
 // Standard JSON response shape
 export function apiResponse<T>(
@@ -31,6 +35,25 @@ export function parseCsvParam(sp: URLSearchParams, key: string): string[] {
   const raw = sp.get(key);
   if (!raw) return [];
   return raw.split(",").map((s) => s.trim()).filter(Boolean);
+}
+
+// Prisma `businessUnitId` where-filter that intersects an optionally requested
+// BU with the BUs the user may read for `module`. Use on cross-BU reports so a
+// user only ever sees rows from BUs they have access to. Self-defending: a
+// requested BU the user cannot access yields `{ in: [] }` (no rows).
+// - requestedBuId accessible → that BU.
+// - requestedBuId absent → { in: <accessible BUs> } (ADMIN gets all BUs).
+export async function buAccessFilter(
+  roles: RoleAssignment[],
+  module: RbacModule,
+  requestedBuId?: string | null,
+): Promise<string | { in: string[] }> {
+  const allBus = await prisma.businessUnit.findMany({ select: { id: true } });
+  const accessible = accessibleBusinessUnits(roles, module, allBus.map((b) => b.id));
+  if (requestedBuId) {
+    return accessible.includes(requestedBuId) ? requestedBuId : { in: [] };
+  }
+  return { in: accessible };
 }
 
 // Parse and validate pagination query params with safe defaults

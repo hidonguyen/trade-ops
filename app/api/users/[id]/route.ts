@@ -1,5 +1,6 @@
 // User detail + update + soft delete — ADMIN only
 import { withAuth, checkAccess, apiResponse } from "@/lib/api-helpers";
+import { expandRoleRows } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
 import { z } from "zod";
@@ -9,15 +10,25 @@ import { withCache } from "@/lib/cache/with-cache";
 import { userKey, TAG, TTL } from "@/lib/cache/keys";
 import { invalidateTags } from "@/lib/cache/invalidate";
 
+const ROLE_ENUM = z.enum(["ADMIN", "ACCOUNTANT_SALE", "ACCOUNTANT_PURCHASE", "ACCOUNTANT_CASHFLOW", "VIEWER"]);
+
+// A user holds one role applied across a set of BUs. `role` + `businessUnitIds`
+// are replaced together when `role` is provided; ADMIN ignores businessUnitIds.
 const patchUserSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   email: z.string().email().optional(),
   password: z.string().min(8).max(100).optional(),
   isActive: z.boolean().optional(),
-  roles: z
-    .array(z.enum(["ADMIN", "ACCOUNTANT_SALE", "ACCOUNTANT_PURCHASE", "ACCOUNTANT_CASHFLOW", "VIEWER"]))
-    .min(1)
-    .optional(),
+  role: ROLE_ENUM.optional(),
+  businessUnitIds: z.array(z.string().uuid()).optional(),
+}).superRefine((val, ctx) => {
+  if (val.role !== undefined && val.role !== "ADMIN" && (val.businessUnitIds ?? []).length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["businessUnitIds"],
+      message: "Vai trò phải được phân quyền ít nhất một đơn vị kinh doanh",
+    });
+  }
 });
 
 // Shared select — never returns passwordHash
@@ -28,7 +39,7 @@ const USER_SELECT = {
   isActive: true,
   createdAt: true,
   updatedAt: true,
-  roles: { select: { id: true, role: true, assignedAt: true, assignedBy: true } },
+  roles: { select: { id: true, role: true, businessUnitId: true, assignedAt: true, assignedBy: true } },
 } as const;
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -36,7 +47,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!session) {
     return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
-  if (!checkAccess(session.user.roles, "GET", "ADMIN")) {
+  if (!checkAccess(session.user.roles, "GET", "ADMIN", null)) {
     return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
 
@@ -62,7 +73,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!session) {
     return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
-  if (!checkAccess(session.user.roles, "UPDATE", "ADMIN")) {
+  if (!checkAccess(session.user.roles, "UPDATE", "ADMIN", null)) {
     return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
 
@@ -83,7 +94,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     );
   }
 
-  const { name, email, password, isActive, roles } = validation.data;
+  const { name, email, password, isActive, role, businessUnitIds } = validation.data;
 
   try {
     const existing = await prisma.user.findUnique({ where: { id } });
@@ -110,11 +121,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (password !== undefined) updateData.passwordHash = await bcrypt.hash(password, 12);
 
     const result = await prisma.$transaction(async (tx: any) => {
-      // Replace roles atomically if provided
-      if (roles !== undefined) {
+      // Replace role assignments atomically when a role is provided.
+      if (role !== undefined) {
         await tx.userRoleAssignment.deleteMany({ where: { userId: id } });
         await tx.userRoleAssignment.createMany({
-          data: roles.map((role) => ({ userId: id, role, assignedBy: actorId })),
+          data: expandRoleRows(role, businessUnitIds ?? []).map((r) => ({
+            userId: id,
+            ...r,
+            assignedBy: actorId,
+          })),
         });
       }
 
@@ -125,7 +140,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       });
 
       const changes: Record<string, unknown> = { ...updateData };
-      if (roles !== undefined) changes.roles = roles;
+      if (role !== undefined) {
+        changes.role = role;
+        changes.businessUnitIds = businessUnitIds ?? [];
+      }
       // Never log passwordHash in audit
       delete changes.passwordHash;
       await createAuditLog(tx, actorId, "UPDATE", "User", id, changes);
@@ -145,7 +163,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   if (!session) {
     return Response.json(apiResponse(false, undefined, MSG.unauthorized), { status: 401 });
   }
-  if (!checkAccess(session.user.roles, "DELETE", "ADMIN")) {
+  if (!checkAccess(session.user.roles, "DELETE", "ADMIN", null)) {
     return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
 

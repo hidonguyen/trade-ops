@@ -151,7 +151,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
     // Access check after cache: all viewers of the same order share cache; non-authorized get 403 on this branch.
     const module = report.order.type === "SALE" ? "SALE" : "PURCHASE";
-    if (!checkAccess(session.user.roles, "GET", module)) {
+    if (!checkAccess(session.user.roles, "GET", module, report.order.businessUnit.id)) {
       return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
     }
 
