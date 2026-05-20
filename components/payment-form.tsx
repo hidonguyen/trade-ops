@@ -12,6 +12,8 @@ import { Combobox } from "@/components/ui/combobox";
 import { DatePicker } from "@/components/ui/date-picker";
 import { NumberInput } from "@/components/ui/number-input";
 import { PAYMENT_METHOD_OPTIONS } from "@/lib/payment-method-labels";
+import { ContactQuickCreateDialog, type QuickContact } from "@/components/contact-quick-create-dialog";
+import { PlusIcon } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -48,7 +50,16 @@ export interface EditingTransaction {
   notes: string | null;
   bankFeeOriginal: string | null;
   bankFeeVnd: string | null;
+  contactId?: string | null;
 }
+
+interface ContactOption {
+  id: string;
+  name: string;
+  phone?: string | null;
+}
+
+// `ContactQuickCreateDialog` is loaded lazily to keep the payment form bundle slim.
 
 interface PaymentFormProps {
   open: boolean;
@@ -58,6 +69,8 @@ interface PaymentFormProps {
   orderType: string; // "SALE" | "PURCHASE"
   partyId: string;
   currency: Currency;
+  // Order's BU — used to scope contact dropdown to that BU's directory.
+  businessUnitId?: string;
   // Edit mode: pre-fill form and call PATCH instead of POST
   editingTransaction?: EditingTransaction | null;
   // Remaining balance for overpayment hint (in original currency)
@@ -77,6 +90,7 @@ interface FormState {
   // Bank fee borne by company (only when paymentMethod = BANK)
   bankFeeOriginal: string;
   bankFeeVnd: string;
+  contactId: string;
 }
 
 const defaultForm: FormState = {
@@ -91,17 +105,32 @@ const defaultForm: FormState = {
   depositId: "",
   bankFeeOriginal: "",
   bankFeeVnd: "",
+  contactId: "",
 };
 
 export function PaymentForm({
   open, onClose, onSuccess, orderId, orderType, partyId, currency,
-  editingTransaction, maxPaymentAmount,
+  businessUnitId, editingTransaction, maxPaymentAmount,
 }: PaymentFormProps) {
   const isEditing = !!editingTransaction;
   const [form, setForm] = useState<FormState>({ ...defaultForm });
   const [deposits, setDeposits] = useState<Deposit[]>([]);
+  const [contacts, setContacts] = useState<ContactOption[]>([]);
+  const [contactDialogOpen, setContactDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Contacts are BU-scoped: refetch when dialog opens or BU changes.
+  useEffect(() => {
+    if (!open) return;
+    const url = businessUnitId
+      ? `/api/contacts?pageSize=200&businessUnitId=${businessUnitId}`
+      : "/api/contacts?pageSize=200";
+    fetch(url)
+      .then((r) => r.json())
+      .then((json) => { if (json.success) setContacts(json.data.items ?? []); })
+      .catch(() => {});
+  }, [open, businessUnitId]);
 
   // Load party deposits when method = DEPOSIT — filter by currency to prevent mismatch
   useEffect(() => {
@@ -150,6 +179,7 @@ export function PaymentForm({
         depositId: "",
         bankFeeOriginal: editingTransaction.bankFeeOriginal ?? "",
         bankFeeVnd: editingTransaction.bankFeeVnd ?? "",
+        contactId: editingTransaction.contactId ?? "",
       });
     } else {
       setForm({ ...defaultForm });
@@ -250,6 +280,7 @@ export function PaymentForm({
           bankReference: form.bankReference || null,
           transactionDate: form.transactionDate,
           notes: form.notes || null,
+          contactId: form.contactId || null,
         };
         res = await fetch(`/api/orders/${orderId}/transactions/${editingTransaction!.id}`, {
           method: "PATCH",
@@ -269,6 +300,7 @@ export function PaymentForm({
           bankReference: form.bankReference || null,
           transactionDate: form.transactionDate,
           notes: form.notes || null,
+          contactId: form.contactId || null,
           ...(form.paymentMethod === "DEPOSIT" &&
           form.depositId &&
           form.depositId !== DEPOSIT_CREATE_NEW
@@ -451,6 +483,34 @@ export function PaymentForm({
           </div>
 
           <div className="space-y-1.5">
+            <Label>Người {form.paymentType === "REFUND" ? "nhận" : "nộp/nhận"}</Label>
+            <div className="flex gap-2">
+              <Combobox
+                value={form.contactId}
+                onValueChange={(v) => setField("contactId", v)}
+                options={[
+                  { value: "", label: "— Không chọn —" },
+                  ...contacts.map((c) => ({
+                    value: c.id,
+                    label: c.phone ? `${c.name} • ${c.phone}` : c.name,
+                  })),
+                ]}
+                placeholder="Chọn người nộp/nhận..."
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                title="Thêm người nộp/nhận mới"
+                onClick={() => setContactDialogOpen(true)}
+              >
+                <PlusIcon className="size-4" />
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
             <Label>Ghi chú</Label>
             <Textarea
               placeholder="Ghi chú..."
@@ -468,6 +528,15 @@ export function PaymentForm({
           </div>
         </form>
       </DialogContent>
+      <ContactQuickCreateDialog
+        open={contactDialogOpen}
+        businessUnitId={businessUnitId}
+        onClose={() => setContactDialogOpen(false)}
+        onCreated={(c: QuickContact) => {
+          setContacts((prev) => [{ id: c.id, name: c.name, phone: c.phone ?? null }, ...prev]);
+          setField("contactId", c.id);
+        }}
+      />
     </Dialog>
   );
 }

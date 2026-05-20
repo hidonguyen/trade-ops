@@ -46,7 +46,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         const [items, count] = await Promise.all([
           prisma.transaction.findMany({
             where,
-            include: { currency: { select: { id: true, code: true, symbol: true } }, depositUsages: true },
+            include: {
+              currency: { select: { id: true, code: true, symbol: true } },
+              contact: { select: { id: true, name: true, phone: true } },
+              depositUsages: true,
+            },
             orderBy: { transactionDate: sortOrder },
             skip,
             take: limit,
@@ -123,7 +127,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           businessUnitId: order.businessUnitId,
           createdBy: userId,
         },
-        include: { currency: { select: { id: true, code: true, symbol: true } } },
+        include: {
+          currency: { select: { id: true, code: true, symbol: true } },
+          contact: { select: { id: true, name: true, phone: true } },
+        },
       });
 
       // Deposit flow: deduct for PAYMENT, credit (or auto-create) for REFUND

@@ -22,6 +22,7 @@ const updateStandaloneSchema = z.object({
   // partyId required only if switching to DEPOSIT+REFUND with no depositId; not stored on tx
   partyId: z.string().uuid().optional(),
   expenseTypeId: z.string().uuid().nullable().optional(),
+  contactId: z.string().uuid().nullable().optional(),
 });
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -74,6 +75,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       if (updateFields.notes !== undefined) updateData.notes = updateFields.notes;
       // expenseTypeId: null clears the FK; undefined means unchanged
       if (updateFields.expenseTypeId !== undefined) updateData.expenseTypeId = updateFields.expenseTypeId;
+      if (updateFields.contactId !== undefined) updateData.contactId = updateFields.contactId;
 
       const updated = await tx.transaction.update({ where: { id }, data: updateData });
 

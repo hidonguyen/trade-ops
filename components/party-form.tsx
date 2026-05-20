@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Combobox } from "@/components/ui/combobox";
+import { useSelectedBu } from "@/components/providers/bu-provider";
 
 export interface PartyFormData {
   name: string;
@@ -17,6 +18,10 @@ export interface PartyFormData {
   phone: string;
   email: string;
   taxId: string;
+  // Multi-BU: explicit list of BUs the party belongs to. `shareAll=true` overrides
+  // and tells the API to backfill with every active BU.
+  businessUnitIds: string[];
+  shareAll: boolean;
 }
 
 interface PartyFormProps {
@@ -28,6 +33,7 @@ interface PartyFormProps {
 const EMPTY: PartyFormData = {
   name: "", type: "CUSTOMER", businessUnitId: "",
   address: "", phone: "", email: "", taxId: "",
+  businessUnitIds: [], shareAll: true,
 };
 
 const TYPE_OPTIONS = [
@@ -43,6 +49,7 @@ export function PartyForm({ initialData, onSubmit, mode }: PartyFormProps) {
   }));
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<keyof PartyFormData, string>>>({});
+  const { businessUnits } = useSelectedBu();
 
   // Sync initialData when it becomes available (edit mode only).
   // In create mode, initialData is just a one-shot default — re-syncing would
@@ -121,6 +128,44 @@ export function PartyForm({ initialData, onSubmit, mode }: PartyFormProps) {
       <div className="space-y-1.5">
         <Label htmlFor="pf-address">Địa chỉ</Label>
         <Textarea id="pf-address" value={form.address} onChange={(e) => set("address", e.target.value)} placeholder="Địa chỉ đầy đủ" rows={2} />
+      </div>
+
+      {/* Multi-BU sharing */}
+      <div className="space-y-2 border-t pt-3">
+        <Label>Đơn vị sử dụng</Label>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={form.shareAll}
+            onChange={(e) => set("shareAll", e.target.checked)}
+            className="size-4"
+          />
+          <span>Chung tất cả BU (mọi đơn vị đều thấy)</span>
+        </label>
+        {!form.shareAll && (
+          <div className="space-y-1.5 pl-6">
+            {businessUnits.map((bu) => (
+              <label key={bu.id} className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={form.businessUnitIds.includes(bu.id) || bu.id === form.businessUnitId}
+                  disabled={bu.id === form.businessUnitId}
+                  onChange={(e) => {
+                    const next = e.target.checked
+                      ? [...form.businessUnitIds, bu.id]
+                      : form.businessUnitIds.filter((id) => id !== bu.id);
+                    set("businessUnitIds", next);
+                  }}
+                  className="size-4"
+                />
+                <span>{bu.code} — {bu.name}</span>
+                {bu.id === form.businessUnitId && (
+                  <span className="text-xs text-slate-400">(BU gốc, bắt buộc)</span>
+                )}
+              </label>
+            ))}
+          </div>
+        )}
       </div>
 
       <Button type="submit" disabled={loading} className="w-full">

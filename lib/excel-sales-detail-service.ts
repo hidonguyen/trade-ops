@@ -34,10 +34,11 @@ const SALE_DETAIL_HEADERS = [
   "THANH TOÁN LẦN NÀY", // col 10
   "CÒN PHẢI TT",        // col 11
   "TRẠNG THÁI",         // col 12
-  "GHI CHÚ",            // col 13
+  "NGƯỜI NỘP/NHẬN",     // col 13 — populated only on tx rows
+  "GHI CHÚ",            // col 14
 ];
 
-// PURCHASE: inserts LOẠI CHI PHÍ at col 13; GHI CHÚ shifts to col 14
+// PURCHASE: inserts LOẠI CHI PHÍ at col 14; GHI CHÚ shifts to col 15
 const PURCHASE_DETAIL_HEADERS = [
   "ĐƠN VỊ",             // col 1
   "ĐỐI TÁC",            // col 2
@@ -51,12 +52,14 @@ const PURCHASE_DETAIL_HEADERS = [
   "THANH TOÁN LẦN NÀY", // col 10
   "CÒN PHẢI TT",        // col 11
   "TRẠNG THÁI",         // col 12
-  "LOẠI CHI PHÍ",       // col 13 — purchase-specific
-  "GHI CHÚ",            // col 14
+  "NGƯỜI NỘP/NHẬN",     // col 13 — populated only on tx rows
+  "LOẠI CHI PHÍ",       // col 14 — purchase-specific
+  "GHI CHÚ",            // col 15
 ];
 
-// Base column widths shared between SALE (13 cols) and PURCHASE (14 cols)
-const BASE_WIDTHS = [10, 22, 16, 14, 8, 16, 16, 14, 14, 18, 16, 14];
+// Base column widths shared between SALE (14 cols) and PURCHASE (15 cols).
+// Includes width for NGƯỜI NỘP/NHẬN (col 13).
+const BASE_WIDTHS = [10, 22, 16, 14, 8, 16, 16, 14, 14, 18, 16, 14, 22];
 
 // ─── Shared workbook builder ─────────────────────────────────────────────────
 
@@ -73,9 +76,9 @@ async function buildDetailWorkbook(
   type: DetailType
 ): Promise<Buffer> {
   const isPurchase = type === "PURCHASE";
-  const colCount = isPurchase ? 14 : 13;
+  const colCount = isPurchase ? 15 : 14;
   const headers = isPurchase ? PURCHASE_DETAIL_HEADERS : SALE_DETAIL_HEADERS;
-  // PURCHASE adds expenseType col (width 20) between status and notes
+  // PURCHASE adds expenseType col (width 20) between NGƯỜI NỘP/NHẬN and GHI CHÚ
   const colWidths = isPurchase ? [...BASE_WIDTHS, 20, 24] : [...BASE_WIDTHS, 24];
 
   const workbook = new ExcelJS.Workbook();
@@ -116,9 +119,10 @@ async function buildDetailWorkbook(
         formatDateDdMmYyyy(tx.transactionDate),
         tx.amountOriginal,    // signed: + payment, − refund
         "", "",
+        tx.contactName ?? "", // col 13 NGƯỜI NỘP/NHẬN — only populated on tx rows
       ];
-      if (isPurchase) txRow.push(""); // col 13 LOẠI CHI PHÍ blank on tx rows
-      txRow.push(tx.notes ?? "");     // GHI CHÚ
+      if (isPurchase) txRow.push(""); // col 14 LOẠI CHI PHÍ blank on tx rows
+      txRow.push(tx.notes ?? "");     // GHI CHÚ (col 14 SALE / col 15 PURCHASE)
       sheet.addRow(txRow);
     }
 
@@ -132,8 +136,9 @@ async function buildDetailWorkbook(
       new Decimal(o.netPaidAmount).toNumber(),
       balance.toNumber(),
       getStatusLabel(o.status),
+      "", // col 13 NGƯỜI NỘP/NHẬN blank on total row
     ];
-    if (isPurchase) totalRow.push(expenseTypeName); // col 13
+    if (isPurchase) totalRow.push(expenseTypeName); // col 14
     totalRow.push(o.notes ?? "");                   // GHI CHÚ
     applySubtotalStyle(sheet.addRow(totalRow));
 
@@ -154,8 +159,9 @@ async function buildDetailWorkbook(
       g.value.toNumber(), g.adjustment.toNumber(),
       "", "",
       g.netPaid.toNumber(), g.balance.toNumber(), "",
+      "", // col 13 NGƯỜI NỘP/NHẬN blank
     ];
-    if (isPurchase) grandRow.push(""); // col 13 blank
+    if (isPurchase) grandRow.push(""); // col 14 LOẠI CHI PHÍ blank
     grandRow.push("");                 // GHI CHÚ blank
     applyGrandTotalStyle(sheet.addRow(grandRow));
   }

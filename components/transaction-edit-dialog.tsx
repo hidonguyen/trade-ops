@@ -12,6 +12,8 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { NumberInput } from "@/components/ui/number-input";
 import { Combobox } from "@/components/ui/combobox";
 import { getPaymentMethodLabel } from "@/lib/payment-method-labels";
+import { ContactQuickCreateDialog, type QuickContact } from "@/components/contact-quick-create-dialog";
+import { PlusIcon } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -23,6 +25,12 @@ interface ExpenseType {
   id: string;
   name: string;
   isActive: boolean;
+}
+
+interface ContactOption {
+  id: string;
+  name: string;
+  phone?: string | null;
 }
 
 export interface EditableTransaction {
@@ -37,8 +45,11 @@ export interface EditableTransaction {
   notes: string | null;
   bankFeeOriginal: string | null;
   bankFeeVnd: string | null;
+  businessUnitId?: string;
   currency: { id: string; code: string; symbol: string };
+  businessUnit?: { id: string; code: string; name: string };
   expenseType?: { id: string; name: string; isActive: boolean } | null;
+  contact?: { id: string; name: string; phone: string | null } | null;
 }
 
 interface TransactionEditDialogProps {
@@ -56,6 +67,7 @@ interface EditFormState {
   transactionDate: string;
   notes: string;
   expenseTypeId: string;
+  contactId: string;
 }
 
 const TYPE_LABEL: Record<string, string> = {
@@ -66,9 +78,11 @@ const TYPE_LABEL: Record<string, string> = {
 export function TransactionEditDialog({ open, onClose, onSuccess, transaction }: TransactionEditDialogProps) {
   const [form, setForm] = useState<EditFormState>({
     amountOriginal: "", exchangeRate: "1", amountVnd: "",
-    bankReference: "", transactionDate: "", notes: "", expenseTypeId: "",
+    bankReference: "", transactionDate: "", notes: "", expenseTypeId: "", contactId: "",
   });
   const [expenseTypes, setExpenseTypes] = useState<ExpenseType[]>([]);
+  const [contacts, setContacts] = useState<ContactOption[]>([]);
+  const [contactDialogOpen, setContactDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -79,6 +93,19 @@ export function TransactionEditDialog({ open, onClose, onSuccess, transaction }:
       .then((json) => { if (json.success) setExpenseTypes(json.data.filter((e: ExpenseType) => e.isActive)); })
       .catch(() => {});
   }, []);
+
+  // Contacts are BU-scoped: refetch when dialog opens or transaction (BU) changes.
+  useEffect(() => {
+    if (!open) return;
+    const buId = transaction?.businessUnitId ?? transaction?.businessUnit?.id;
+    const url = buId
+      ? `/api/contacts?pageSize=200&businessUnitId=${buId}`
+      : "/api/contacts?pageSize=200";
+    fetch(url)
+      .then((r) => r.json())
+      .then((json) => { if (json.success) setContacts(json.data.items ?? []); })
+      .catch(() => {});
+  }, [open, transaction]);
 
   // Pre-fill form when dialog opens
   useEffect(() => {
@@ -92,6 +119,7 @@ export function TransactionEditDialog({ open, onClose, onSuccess, transaction }:
       transactionDate: transaction.transactionDate.split("T")[0],
       notes: transaction.notes ?? "",
       expenseTypeId: transaction.expenseType?.id ?? "",
+      contactId: transaction.contact?.id ?? "",
     });
   }, [open, transaction]);
 
@@ -139,6 +167,7 @@ export function TransactionEditDialog({ open, onClose, onSuccess, transaction }:
       transactionDate: form.transactionDate,
       notes: form.notes || null,
       expenseTypeId: form.expenseTypeId || null,
+      contactId: form.contactId || null,
     };
 
     try {
@@ -247,6 +276,34 @@ export function TransactionEditDialog({ open, onClose, onSuccess, transaction }:
           </div>
 
           <div className="space-y-1.5">
+            <Label>Người {transaction.type === "RECEIPT" ? "nộp" : "nhận"}</Label>
+            <div className="flex gap-2">
+              <Combobox
+                value={form.contactId}
+                onValueChange={(v) => setField("contactId", v)}
+                options={[
+                  { value: "", label: "— Không chọn —" },
+                  ...contacts.map((c) => ({
+                    value: c.id,
+                    label: c.phone ? `${c.name} • ${c.phone}` : c.name,
+                  })),
+                ]}
+                placeholder="Chọn người nộp/nhận..."
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                title="Thêm người nộp/nhận mới"
+                onClick={() => setContactDialogOpen(true)}
+              >
+                <PlusIcon className="size-4" />
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
             <Label>Ghi chú</Label>
             <Textarea
               placeholder="Ghi chú..."
@@ -264,6 +321,15 @@ export function TransactionEditDialog({ open, onClose, onSuccess, transaction }:
           </div>
         </form>
       </DialogContent>
+      <ContactQuickCreateDialog
+        open={contactDialogOpen}
+        businessUnitId={transaction.businessUnitId ?? transaction.businessUnit?.id}
+        onClose={() => setContactDialogOpen(false)}
+        onCreated={(c: QuickContact) => {
+          setContacts((prev) => [{ id: c.id, name: c.name, phone: c.phone ?? null }, ...prev]);
+          setField("contactId", c.id);
+        }}
+      />
     </Dialog>
   );
 }

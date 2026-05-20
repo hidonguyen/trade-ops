@@ -4,6 +4,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { OrderForm, OrderFormData } from "@/components/order-form";
+import { usePrefill, PREFILL_KEYS } from "@/lib/use-prefill";
 
 export default function NewOrderPage() {
   const router = useRouter();
@@ -12,6 +13,9 @@ export default function NewOrderPage() {
   // Pre-selected type via query — locks the field when coming from a filtered list
   const typeParam = searchParams.get("type");
   const lockedType = typeParam === "SALE" || typeParam === "PURCHASE" ? typeParam : undefined;
+
+  // Copy-flow prefill — populated from sessionStorage on order list / detail copy click.
+  const prefill = usePrefill<Partial<OrderFormData>>(PREFILL_KEYS.order);
 
   async function handleSubmit(data: OrderFormData) {
     // expenseTypeId only valid for PURCHASE; empty string fails uuid validation server-side
@@ -44,7 +48,10 @@ export default function NewOrderPage() {
           <OrderForm
             mode="create"
             onSubmit={handleSubmit}
-            initialData={lockedType ? { type: lockedType } : undefined}
+            initialData={{
+              ...(prefill ?? {}),
+              ...(lockedType ? { type: lockedType } : {}),
+            }}
             lockType={Boolean(lockedType)}
           />
         </CardContent>

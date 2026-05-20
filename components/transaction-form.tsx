@@ -14,6 +14,9 @@ import { Combobox } from "@/components/ui/combobox";
 import { DatePicker } from "@/components/ui/date-picker";
 import { NumberInput } from "@/components/ui/number-input";
 import { PAYMENT_METHOD_OPTIONS } from "@/lib/payment-method-labels";
+import { usePrefill, PREFILL_KEYS } from "@/lib/use-prefill";
+import { ContactQuickCreateDialog, type QuickContact } from "@/components/contact-quick-create-dialog";
+import { PlusIcon } from "lucide-react";
 
 interface Currency {
   id: string;
@@ -57,6 +60,13 @@ interface FormState {
   bankFeeOriginal: string;
   bankFeeVnd: string;
   expenseTypeId: string;
+  contactId: string;
+}
+
+interface ContactOption {
+  id: string;
+  name: string;
+  phone?: string | null;
 }
 
 const defaultForm: FormState = {
@@ -75,6 +85,7 @@ const defaultForm: FormState = {
   bankFeeOriginal: "",
   bankFeeVnd: "",
   expenseTypeId: "",
+  contactId: "",
 };
 
 interface TransactionFormProps {
@@ -86,10 +97,16 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
     ...defaultForm,
     businessUnitId: getDefaultBu(),
   }));
+  const prefill = usePrefill<Partial<FormState>>(PREFILL_KEYS.transaction);
+  useEffect(() => {
+    if (prefill) setForm((prev) => ({ ...prev, ...prefill }));
+  }, [prefill]);
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [deposits, setDeposits] = useState<Deposit[]>([]);
   const [parties, setParties] = useState<Party[]>([]);
   const [expenseTypes, setExpenseTypes] = useState<ExpenseType[]>([]);
+  const [contacts, setContacts] = useState<ContactOption[]>([]);
+  const [contactDialogOpen, setContactDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -123,6 +140,15 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
     } else {
       setParties([]);
     }
+  }, [form.businessUnitId]);
+
+  // Contacts are BU-scoped: refetch whenever BU changes.
+  useEffect(() => {
+    if (!form.businessUnitId) { setContacts([]); return; }
+    fetch(`/api/contacts?pageSize=200&businessUnitId=${form.businessUnitId}`)
+      .then((r) => r.json())
+      .then((json) => { if (json.success) setContacts(json.data.items ?? []); })
+      .catch(() => {});
   }, [form.businessUnitId]);
 
   // Load deposits when payment method is DEPOSIT and party is selected
@@ -211,6 +237,7 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
       transactionDate: form.transactionDate,
       notes: form.notes || null,
       expenseTypeId: form.expenseTypeId || null,
+      contactId: form.contactId || null,
       ...(form.paymentMethod === "DEPOSIT" && form.depositId ? { depositId: form.depositId } : {}),
       ...(hasBankFee
         ? { bankFeeOriginal: form.bankFeeOriginal, bankFeeVnd: form.bankFeeVnd }
@@ -289,6 +316,34 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
             options={[{ value: "", label: "— Không chọn —" }, ...expenseTypes.map((e) => ({ value: e.id, label: e.name }))]}
             placeholder="Chọn loại chi phí..."
           />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>Người {form.type === "RECEIPT" ? "nộp" : "nhận"}</Label>
+          <div className="flex gap-2">
+            <Combobox
+              value={form.contactId}
+              onValueChange={(v) => setField("contactId", v)}
+              options={[
+                { value: "", label: "— Không chọn —" },
+                ...contacts.map((c) => ({
+                  value: c.id,
+                  label: c.phone ? `${c.name} • ${c.phone}` : c.name,
+                })),
+              ]}
+              placeholder="Chọn người nộp/nhận..."
+              className="flex-1"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              title="Thêm người nộp/nhận mới"
+              onClick={() => setContactDialogOpen(true)}
+            >
+              <PlusIcon className="size-4" />
+            </Button>
+          </div>
         </div>
 
         <div className="space-y-1.5">
@@ -397,6 +452,15 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
           {loading ? "Đang lưu..." : "Tạo giao dịch"}
         </Button>
       </div>
+      <ContactQuickCreateDialog
+        open={contactDialogOpen}
+        businessUnitId={form.businessUnitId || undefined}
+        onClose={() => setContactDialogOpen(false)}
+        onCreated={(c: QuickContact) => {
+          setContacts((prev) => [{ id: c.id, name: c.name, phone: c.phone ?? null }, ...prev]);
+          setField("contactId", c.id);
+        }}
+      />
     </form>
   );
 }

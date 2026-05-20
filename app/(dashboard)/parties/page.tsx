@@ -18,6 +18,7 @@ interface Party {
   phone: string | null;
   email: string | null;
   businessUnit: { code: string; name: string };
+  businessUnits?: { businessUnit: { id: string; code: string } }[];
 }
 
 export default function PartiesPage() {
@@ -91,10 +92,23 @@ export default function PartiesPage() {
   const columns: Column<Record<string, unknown>>[] = [
     { key: "name", label: "Tên đối tác", sortable: true },
     {
-      key: "businessUnit", label: "Đơn vị",
-      render: (v) => {
-        const bu = v as Party["businessUnit"];
-        return <span className="text-sm">{bu?.code}</span>;
+      key: "businessUnits", label: "Đơn vị",
+      render: (_, row) => {
+        const links = (row as unknown as Party).businessUnits ?? [];
+        if (links.length === 0) {
+          // Fallback to origin BU if M2M list wasn't included for any reason.
+          const bu = (row as unknown as Party).businessUnit;
+          return <span className="text-sm">{bu?.code ?? "—"}</span>;
+        }
+        return (
+          <div className="flex flex-wrap gap-1">
+            {links.map((l) => (
+              <span key={l.businessUnit.id} className="inline-flex items-center rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-700">
+                {l.businessUnit.code}
+              </span>
+            ))}
+          </div>
+        );
       },
     },
     { key: "phone", label: "Điện thoại", render: (v) => <span>{String(v ?? "—")}</span> },

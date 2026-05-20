@@ -7,6 +7,7 @@ interface RawTransaction {
   amountOriginal: { toString(): string } | string | number;
   transactionDate: Date;
   notes?: string | null;
+  contact?: { name: string } | null;
 }
 
 export interface OrderAggregates {
@@ -66,7 +67,7 @@ export function computeOrderAggregates(
  */
 export function extractPaymentsAndRefunds(
   transactions: RawTransaction[]
-): Array<{ transactionDate: Date; amountOriginal: number; paymentType: "PAYMENT" | "REFUND"; notes?: string | null }> {
+): Array<{ transactionDate: Date; amountOriginal: number; paymentType: "PAYMENT" | "REFUND"; notes?: string | null; contactName?: string | null }> {
   return transactions
     .filter((tx) => tx.paymentType === "PAYMENT" || tx.paymentType === "REFUND")
     .sort((a, b) => a.transactionDate.getTime() - b.transactionDate.getTime())
@@ -77,6 +78,7 @@ export function extractPaymentsAndRefunds(
         amountOriginal: tx.paymentType === "REFUND" ? -amt : amt,
         paymentType: tx.paymentType as "PAYMENT" | "REFUND",
         notes: tx.notes ?? null,
+        contactName: tx.contact?.name ?? null,
       };
     });
 }

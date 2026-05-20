@@ -5,6 +5,7 @@ export const TAG = {
   currencies: "catalog:currencies",
   businessUnits: "catalog:business-units",
   expenseTypes: "catalog:expense-types",
+  contacts: "catalog:contacts",
   parties: "catalog:parties",
   reportSummary: "reports:summary",
   reportDashboard: "reports:dashboard",
@@ -46,6 +47,10 @@ export function businessUnitsKey() {
 
 export function expenseTypesKey() {
   return "catalog:expense-types";
+}
+
+export function contactsKey(querySig: string) {
+  return `catalog:contacts:${querySig}`;
 }
 
 export function partiesKey(type?: string | null) {

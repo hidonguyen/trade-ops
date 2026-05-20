@@ -13,7 +13,8 @@ import { CurrencyAmount } from "@/components/shared/currency-amount";
 import { FilterBar, FilterConfig } from "@/components/shared/filter-bar";
 import { DateQuickPresets } from "@/components/shared/date-quick-presets";
 import { getInitialDateRange, usePersistDateRange, useRestorePersistedDateRange } from "@/components/shared/use-persisted-date-range";
-import { PlusIcon, FileSpreadsheetIcon } from "lucide-react";
+import { PlusIcon, FileSpreadsheetIcon, CopyIcon } from "lucide-react";
+import { setPrefill, PREFILL_KEYS } from "@/lib/use-prefill";
 import Decimal from "decimal.js";
 
 interface Order extends Record<string, unknown> {
@@ -292,6 +293,33 @@ export default function OrdersPage() {
       key: "businessUnit",
       label: "Đơn vị",
       render: (_, row) => row.businessUnit?.code ?? "—",
+    },
+    {
+      key: "id",
+      label: "",
+      align: "right",
+      render: (_, row) => (
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          title="Sao chép đơn"
+          onClick={(e) => {
+            e.stopPropagation();
+            setPrefill(PREFILL_KEYS.order, {
+              type: row.type,
+              partyId: row.party?.id ?? "",
+              businessUnitId: row.businessUnit?.id ?? "",
+              currencyId: row.currency?.id ?? "",
+              amountOriginal: row.amountOriginal,
+              notes: (row.notes as string | undefined) ?? "",
+              expenseTypeId: row.expenseType?.id ?? "",
+            });
+            router.push(`/orders/new?type=${row.type}&from=copy`);
+          }}
+        >
+          <CopyIcon className="size-3.5" />
+        </Button>
+      ),
     },
   ];
 

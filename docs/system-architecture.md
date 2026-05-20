@@ -149,13 +149,24 @@ A role is scoped to one Business Unit. A user holds a **single role** applied ac
 
 **Party (CUSTOMER or SUPPLIER)**
 - `id: String @id @default(uuid(7))`
-- `businessUnitId: String` – FK to BusinessUnit (scope data by unit)
+- `businessUnitId: String` – FK to BusinessUnit (**origin/primary BU** — the unit that created the party)
 - `name: String`
 - `type: String` – Enum: CUSTOMER, SUPPLIER
 - `address, phone, email: String` – Contact info
 - `taxId: String` – Optional tax ID
 - `isActive: Boolean @default(true)`
-- Relations: `orders[]`, `deposits[]`
+- Relations: `orders[]`, `deposits[]`, `businessUnits: PartyBusinessUnit[]` (multi-BU sharing)
+
+**PartyBusinessUnit (M2M sharing)**
+- `(partyId, businessUnitId)` composite PK
+- One row per BU the party is visible in. Backfill: every existing party has one row pointing at its origin BU. Party list/dropdown queries filter via `businessUnits: { some: { businessUnitId: X } }` — origin BU column kept for audit/history.
+- POST `/api/parties` with `businessUnitIds: []` (or omit) → server backfills with every active BU at creation time ("Chung tất cả BU"). When new BUs are created later, party is **not** auto-added; admin must explicitly update sharing.
+
+**Contact (Người Nộp/Nhận)**
+- `id, name, phone?, email?, taxId?, address?, notes?, isActive`
+- Global directory (no BU coupling) — used for standalone RECEIPT/PAYMENT transactions.
+- Linked to `Transaction.contactId` (nullable). Surfaced in cashflow report column "Người Nộp/Nhận".
+- DELETE soft-deactivates if any Transaction references it; otherwise hard-deletes.
 
 **Deposit**
 - `id: String @id @default(uuid(7))`

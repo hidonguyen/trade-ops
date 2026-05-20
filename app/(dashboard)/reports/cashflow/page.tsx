@@ -34,6 +34,7 @@ interface CashflowTransaction {
   businessUnit: { id: string; code: string; name: string };
   partyName: string | null;
   expenseTypeName: string | null;
+  contactName: string | null;
   description: string | null;
   orderId: string | null;
   orderNumber: string | null;
@@ -214,6 +215,11 @@ export default function CashflowPage() {
     {
       key: "partyName",
       label: "Đối tác",
+      render: (v) => (v as string | null) ?? "—",
+    },
+    {
+      key: "contactName",
+      label: "Người Nộp/Nhận",
       render: (v) => (v as string | null) ?? "—",
     },
     {

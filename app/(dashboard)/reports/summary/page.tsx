@@ -37,6 +37,7 @@ interface StandaloneRow extends Record<string, unknown> {
   paymentMethod: string | null;
   bankReference: string | null;
   partyName: string | null;
+  contactName: string | null;
   label: string;
   notes: string | null;
   orderId: string | null;
@@ -139,6 +140,11 @@ const STANDALONE_COLUMNS: Column<StandaloneRow>[] = [
   {
     key: "partyName",
     label: "Đối tác",
+    render: (v) => (v as string | null) ?? "—",
+  },
+  {
+    key: "contactName",
+    label: "Người Nộp/Nhận",
     render: (v) => (v as string | null) ?? "—",
   },
   {

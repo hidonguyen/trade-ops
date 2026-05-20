@@ -14,7 +14,8 @@ import { ConfirmationDialog } from "@/components/shared/confirmation-dialog";
 import { TransactionEditDialog, EditableTransaction } from "@/components/transaction-edit-dialog";
 import { DateQuickPresets } from "@/components/shared/date-quick-presets";
 import { getInitialDateRange, usePersistDateRange, useRestorePersistedDateRange } from "@/components/shared/use-persisted-date-range";
-import { PlusIcon, PencilIcon, Trash2Icon } from "lucide-react";
+import { PlusIcon, PencilIcon, Trash2Icon, CopyIcon } from "lucide-react";
+import { setPrefill, PREFILL_KEYS } from "@/lib/use-prefill";
 import { useCan } from "@/components/providers/roles-provider";
 import { getPaymentMethodLabel, PAYMENT_METHOD_OPTIONS } from "@/lib/payment-method-labels";
 
@@ -33,6 +34,7 @@ interface Transaction {
   currency: { id: string; code: string; symbol: string };
   businessUnit: { id: string; code: string; name: string };
   expenseType?: { id: string; name: string; isActive: boolean } | null;
+  contact?: { id: string; name: string; phone: string | null } | null;
 }
 
 interface ExpenseTypeOption {
@@ -194,6 +196,11 @@ export default function TransactionsPage() {
       render: (_: unknown, row: Transaction) => row.expenseType?.name ?? "—",
     },
     {
+      key: "contact",
+      label: "Người nộp/nhận",
+      render: (_: unknown, row: Transaction) => row.contact?.name ?? "—",
+    },
+    {
       key: "bankReference",
       label: "Tham chiếu",
       render: (v) => v ?? "—",
@@ -210,8 +217,37 @@ export default function TransactionsPage() {
         const canEdit = row.type === "RECEIPT" ? canEditReceipt : canEditPayment;
         const canDelete = row.type === "RECEIPT" ? canDeleteReceipt : canDeletePayment;
         if (!canEdit && !canDelete) return null;
+        const canCreate = row.type === "RECEIPT" ? canEditReceipt : canEditPayment;
         return (
           <div className="flex items-center gap-1">
+            {canCreate && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="text-slate-500 hover:text-slate-700"
+                title="Sao chép giao dịch"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPrefill(PREFILL_KEYS.transaction, {
+                    type: row.type,
+                    businessUnitId: row.businessUnit?.id ?? "",
+                    currencyId: row.currency?.id ?? "",
+                    amountOriginal: row.amountOriginal,
+                    amountVnd: row.amountVnd,
+                    exchangeRate: row.exchangeRate,
+                    paymentMethod: row.paymentMethod,
+                    notes: row.notes ?? "",
+                    expenseTypeId: row.expenseType?.id ?? "",
+                    contactId: row.contact?.id ?? "",
+                    bankFeeOriginal: row.bankFeeOriginal ?? "",
+                    bankFeeVnd: row.bankFeeVnd ?? "",
+                  });
+                  router.push("/transactions/new");
+                }}
+              >
+                <CopyIcon className="size-4" />
+              </Button>
+            )}
             {canEdit && (
               <Button
                 variant="ghost"

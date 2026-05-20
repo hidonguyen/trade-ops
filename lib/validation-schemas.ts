@@ -74,7 +74,28 @@ export const createExpenseTypeSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
+// Contact (Người Nộp/Nhận) — mirrors Party multi-BU sharing.
+// `businessUnitIds`: omit OR `[]` → server backfills with every active BU ("Chung tất cả BU").
+// Phone accepts VN-style 9–11 digit forms (with optional leading + or 0).
+export const createContactSchema = z.object({
+  name: z.string().min(1).max(200),
+  phone: z
+    .string()
+    .max(20)
+    .regex(/^[+0-9\s().-]{8,20}$/, { message: "Số điện thoại không hợp lệ" })
+    .optional()
+    .or(z.literal("")),
+  email: z.string().email().max(200).optional().or(z.literal("")),
+  taxId: z.string().max(30).optional().or(z.literal("")),
+  address: z.string().max(500).optional().or(z.literal("")),
+  notes: z.string().max(1000).optional().or(z.literal("")),
+  isActive: z.boolean().optional(),
+  businessUnitIds: z.array(z.string().uuid()).optional(),
+});
+
 // Party (customer/supplier)
+// `businessUnitIds`: optional list of BU ids the party belongs to (multi-BU sharing).
+// Empty/omitted on POST → server backfills with all active BUs ("Chung tất cả BU").
 export const createPartySchema = z.object({
   name: z.string().min(1).max(200),
   type: z.enum(["CUSTOMER", "SUPPLIER"]),
@@ -83,6 +104,7 @@ export const createPartySchema = z.object({
   phone: z.string().max(20).optional(),
   email: z.string().email().optional().or(z.literal("")),
   taxId: z.string().max(20).optional(),
+  businessUnitIds: z.array(z.string().uuid()).optional(),
 });
 
 // Deposit
@@ -194,6 +216,8 @@ const _orderTxBase = z.object({
   transactionDate: dateField,
   notes: z.string().max(1000).nullable().optional(),
   depositId: z.string().uuid().optional(),
+  // Người Nộp/Nhận — optional Contact link (FK validated server-side).
+  contactId: z.string().uuid().nullable().optional(),
   ...bankFeeFields,
 });
 
@@ -280,6 +304,8 @@ export const createStandaloneTransactionSchema = refineDepositRules(
       // partyId is required when auto-creating a deposit on REFUND + DEPOSIT
       partyId: z.string().uuid().optional(),
       expenseTypeId: z.string().uuid().nullable().optional(),
+      // Người Nộp/Nhận — optional Contact link.
+      contactId: z.string().uuid().nullable().optional(),
       ...bankFeeFields,
     })
   ),

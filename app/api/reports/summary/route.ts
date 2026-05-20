@@ -22,6 +22,7 @@ type StandaloneRow = {
   paymentMethod: string | null;
   bankReference: string | null;
   partyName: string | null;
+  contactName: string | null;
   label: string;
   notes: string | null;
   orderId: string | null;
@@ -160,6 +161,7 @@ export async function GET(request: Request) {
         include: {
           currency: { select: { code: true, symbol: true } },
           expenseType: { select: { name: true } },
+          contact: { select: { name: true } },
         },
         orderBy: { transactionDate: "asc" },
       }),
@@ -174,6 +176,7 @@ export async function GET(request: Request) {
         include: {
           currency: { select: { code: true, symbol: true } },
           expenseType: { select: { name: true } },
+          contact: { select: { name: true } },
         },
         orderBy: { transactionDate: "asc" },
       }),
@@ -216,6 +219,7 @@ export async function GET(request: Request) {
         paymentMethod: t.paymentMethod,
         bankReference: t.bankReference,
         partyName: null,
+        contactName: t.contact?.name ?? null,
         label: t.expenseType?.name ?? "",
         notes: t.notes,
         orderId: null,
@@ -235,6 +239,7 @@ export async function GET(request: Request) {
         paymentMethod: null,
         bankReference: null,
         partyName: d.party.name,
+        contactName: null,
         label: d.party.type === "SUPPLIER" ? "Đặt cọc nhà cung cấp" : "Đặt cọc khách hàng",
         notes: d.notes,
         orderId: null,
@@ -256,6 +261,7 @@ export async function GET(request: Request) {
         paymentMethod: t.paymentMethod,
         bankReference: t.bankReference,
         partyName: t.order?.party.name ?? null,
+        contactName: null,
         label: t.order
           ? `Phí ngân hàng — ${t.order.party.name} ${t.order.orderNumber}`
           : "Phí ngân hàng",
@@ -283,6 +289,7 @@ export async function GET(request: Request) {
             paymentMethod: t.paymentMethod,
             bankReference: t.bankReference,
             partyName: o.party.name,
+            contactName: null,
             label: `Hoàn tiền — ${o.party.name} ${o.orderNumber}`,
             notes: null,
             orderId: o.id,

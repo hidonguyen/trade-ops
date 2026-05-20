@@ -19,6 +19,7 @@ interface Party {
   email: string | null;
   address: string | null;
   taxId: string | null;
+  businessUnits?: { businessUnit: { id: string; code: string; name: string } }[];
 }
 
 export default function EditPartyPage() {
@@ -45,10 +46,17 @@ export default function EditPartyPage() {
 
   async function handleSubmit(data: PartyFormData) {
     setSaveError(null);
+    const { shareAll, businessUnitIds, ...rest } = data;
+    // On edit:
+    // - shareAll → send `businessUnitIds: []`; server treats empty as "all active BUs".
+    // - otherwise → send the explicit list with origin BU always included.
+    const payload = shareAll
+      ? { ...rest, businessUnitIds: [] }
+      : { ...rest, businessUnitIds: [...new Set([...businessUnitIds, rest.businessUnitId])] };
     const res = await fetch(`/api/parties/${partyId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
     const json = await res.json();
     if (!json.success) {
@@ -71,6 +79,7 @@ export default function EditPartyPage() {
     return <p className="text-sm text-slate-500">Không tìm thấy đối tác.</p>;
   }
 
+  const linkedBuIds = party.businessUnits?.map((b) => b.businessUnit.id) ?? [];
   const initialData: Partial<PartyFormData> = {
     name: party.name,
     type: party.type,
@@ -79,6 +88,8 @@ export default function EditPartyPage() {
     email: party.email ?? "",
     address: party.address ?? "",
     taxId: party.taxId ?? "",
+    businessUnitIds: linkedBuIds,
+    shareAll: false,
   };
 
   return (

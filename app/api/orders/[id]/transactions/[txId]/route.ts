@@ -38,6 +38,7 @@ const updateTransactionSchema = z.object({
   transactionDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
   notes: z.string().max(1000).nullable().optional(),
   depositId: z.string().uuid().nullable().optional(),
+  contactId: z.string().uuid().nullable().optional(),
 });
 
 type RouteParams = { params: Promise<{ id: string; txId: string }> };
@@ -101,6 +102,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       if (updateFields.bankReference !== undefined) updateData.bankReference = updateFields.bankReference;
       if (updateFields.transactionDate !== undefined) updateData.transactionDate = new Date(updateFields.transactionDate);
       if (updateFields.notes !== undefined) updateData.notes = updateFields.notes;
+      if (updateFields.contactId !== undefined) updateData.contactId = updateFields.contactId;
 
       const updated = await tx.transaction.update({ where: { id: txId }, data: updateData });
 

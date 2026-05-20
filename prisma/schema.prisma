@@ -48,19 +48,21 @@ model AuditLog {
 }
 
 model BusinessUnit {
-  id              String        @id @default(uuid(7))
-  code            String        @unique
+  id              String               @id @default(uuid(7))
+  code            String               @unique
   name            String
   // Order number config: MANUAL (user inputs) or AUTO (next sequential per party)
-  orderNumberMode String        @default("MANUAL")
-  isActive        Boolean       @default(true)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  orderNumberMode String               @default("MANUAL")
+  isActive        Boolean              @default(true)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
   parties         Party[]
   orders          Order[]
   transactions    Transaction[]
   deposits        Deposit[]
   userRoles       UserRoleAssignment[]
+  partyAccess     PartyBusinessUnit[]
+  contactAccess   ContactBusinessUnit[]
 }
 
 model Currency {
@@ -87,7 +89,8 @@ model ExpenseType {
 }
 
 model Party {
-  id             String       @id @default(uuid(7))
+  id             String              @id @default(uuid(7))
+  // Origin BU (BU that created the party). Sharing handled via PartyBusinessUnit M2M.
   businessUnitId String
   name           String
   type           String // CUSTOMER, SUPPLIER
@@ -95,15 +98,26 @@ model Party {
   phone          String?
   email          String?
   taxId          String?
-  isActive       Boolean      @default(true)
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  businessUnit   BusinessUnit @relation(fields: [businessUnitId], references: [id])
+  isActive       Boolean             @default(true)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  businessUnit   BusinessUnit        @relation(fields: [businessUnitId], references: [id])
+  businessUnits  PartyBusinessUnit[]
   orders         Order[]
   deposits       Deposit[]
 
   @@index([businessUnitId, type])
   @@index([name])
+}
+
+model PartyBusinessUnit {
+  partyId        String
+  businessUnitId String
+  party          Party        @relation(fields: [partyId], references: [id], onDelete: Cascade)
+  businessUnit   BusinessUnit @relation(fields: [businessUnitId], references: [id])
+
+  @@id([partyId, businessUnitId])
+  @@index([businessUnitId])
 }
 
 model Deposit {
@@ -193,16 +207,49 @@ model Transaction {
   bankFeeVnd      Decimal?       @db.Decimal(18, 4)
   // Expense category link for standalone PAYMENT/RECEIPT transactions (not order-linked)
   expenseTypeId   String?
+  // Người Nộp/Nhận — Contact linked to standalone RECEIPT/PAYMENT entries
+  contactId       String?
   createdBy       String
   createdAt       DateTime       @default(now())
   order           Order?         @relation(fields: [orderId], references: [id])
   businessUnit    BusinessUnit   @relation(fields: [businessUnitId], references: [id])
   currency        Currency       @relation(fields: [currencyId], references: [id])
   expenseType     ExpenseType?   @relation(fields: [expenseTypeId], references: [id])
+  contact         Contact?       @relation(fields: [contactId], references: [id])
   depositUsages   DepositUsage[]
 
   @@index([orderId, type])
   @@index([businessUnitId, type, transactionDate])
   @@index([businessUnitId, transactionDate, paymentMethod])
   @@index([expenseTypeId])
+  @@index([contactId])
+}
+
+model Contact {
+  id            String                @id @default(uuid(7))
+  name          String
+  phone         String?
+  email         String?
+  taxId         String? // MST cá nhân
+  address       String?
+  notes         String?
+  isActive      Boolean               @default(true)
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  transactions  Transaction[]
+  businessUnits ContactBusinessUnit[]
+
+  @@index([name])
+  @@index([phone])
+  @@index([isActive])
+}
+
+model ContactBusinessUnit {
+  contactId      String
+  businessUnitId String
+  contact        Contact      @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  businessUnit   BusinessUnit @relation(fields: [businessUnitId], references: [id])
+
+  @@id([contactId, businessUnitId])
+  @@index([businessUnitId])
 }

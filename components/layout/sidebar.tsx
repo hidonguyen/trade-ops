@@ -20,6 +20,7 @@ import {
   MenuIcon,
   LandmarkIcon,
   WalletIcon,
+  ContactIcon,
 } from "lucide-react";
 
 interface NavItem {
@@ -53,6 +54,7 @@ const NAV_GROUPS: NavGroup[] = [
     title: "Thu Chi",
     items: [
       { label: "Giao dịch", href: "/transactions", icon: ArrowLeftRightIcon },
+      { label: "Người nộp/nhận", href: "/contacts", icon: ContactIcon },
     ],
   },
   {

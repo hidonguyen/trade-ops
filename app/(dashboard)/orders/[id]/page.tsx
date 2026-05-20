@@ -11,7 +11,8 @@ import { OrderInfoCard } from "./order-info-card";
 import { FinancialSummaryCard } from "./financial-summary-card";
 import { OrderTransactionsTable } from "./order-transactions-table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { PlusIcon, PencilIcon, SlidersHorizontalIcon, Trash2Icon } from "lucide-react";
+import { PlusIcon, PencilIcon, SlidersHorizontalIcon, Trash2Icon, CopyIcon } from "lucide-react";
+import { setPrefill, PREFILL_KEYS } from "@/lib/use-prefill";
 import Decimal from "decimal.js";
 import { useCan, useIsAdmin } from "@/components/providers/roles-provider";
 import { ConfirmationDialog } from "@/components/shared/confirmation-dialog";
@@ -212,6 +213,28 @@ export default function OrderDetailPage() {
               Chỉnh sửa
             </Button>
           )}
+          {canEditOrder && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setPrefill(PREFILL_KEYS.order, {
+                  type: order.type,
+                  partyId: order.party?.id ?? "",
+                  businessUnitId: order.businessUnit?.id ?? "",
+                  currencyId: order.currency?.id ?? "",
+                  amountOriginal: order.amountOriginal,
+                  exchangeRate: order.exchangeRate ?? "1",
+                  notes: order.notes ?? "",
+                  expenseTypeId: order.expenseType?.id ?? "",
+                });
+                router.push(`/orders/new?type=${order.type}&from=copy`);
+              }}
+            >
+              <CopyIcon className="size-4 mr-1.5" />
+              Sao chép
+            </Button>
+          )}
           {isAdmin && (
             <Button
               variant="outline"
@@ -276,6 +299,7 @@ export default function OrderDetailPage() {
         orderType={order.type}
         partyId={order.party?.id}
         currency={order.currency}
+        businessUnitId={order.businessUnit?.id}
         editingTransaction={editingTx}
         maxPaymentAmount={maxPaymentAmount}
       />

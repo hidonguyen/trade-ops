@@ -9,6 +9,8 @@ export interface SaleTransactionForExport {
   amountOriginal: number;
   paymentType: "PAYMENT" | "REFUND";
   notes?: string | null;
+  // Người Nộp/Nhận — Contact linked to this transaction, if any
+  contactName?: string | null;
 }
 
 export interface SaleOrderForExport {

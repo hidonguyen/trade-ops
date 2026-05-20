@@ -16,10 +16,15 @@ export default function NewPartyPage() {
     typeParam === "CUSTOMER" || typeParam === "SUPPLIER" ? typeParam : undefined;
 
   async function handleSubmit(data: PartyFormData) {
+    // shareAll=true → omit businessUnitIds so server backfills all active BUs.
+    const { shareAll, businessUnitIds, ...rest } = data;
+    const payload = shareAll
+      ? rest
+      : { ...rest, businessUnitIds: [...new Set([...businessUnitIds, rest.businessUnitId])] };
     const res = await fetch("/api/parties", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
     const json = await res.json();
     if (!json.success) throw new Error(json.message ?? "Lỗi tạo đối tác");

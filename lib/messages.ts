@@ -24,6 +24,8 @@ export const MSG = {
   currencyNotFound: "Không tìm thấy tiền tệ",
   expenseTypeNotFound: "Không tìm thấy loại chi phí",
   userNotFound: "Không tìm thấy người dùng",
+  contactNotFound: "Không tìm thấy người nộp/nhận",
+  contactDeleteBlockedHasTransactions: "Người nộp/nhận đã được dùng trong giao dịch; không thể xóa",
 
   // Data integrity / operations
   orderNumberDuplicate: "Số đơn hàng đã tồn tại cho đối tác này trong đơn vị kinh doanh này",

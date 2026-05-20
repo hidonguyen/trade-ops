@@ -64,6 +64,7 @@ interface CashflowRow {
   createdBy: string;
   bankFeeOriginal: string | null;
   bankFeeVnd: string | null;
+  contactName: string | null; // Người Nộp/Nhận
 }
 
 export async function GET(request: Request) {
@@ -110,6 +111,7 @@ export async function GET(request: Request) {
           businessUnit: { select: { id: true, code: true, name: true } },
           order: { select: { id: true, orderNumber: true, notes: true, party: { select: { name: true } } } },
           expenseType: { select: { name: true } },
+          contact: { select: { id: true, name: true } },
         },
         orderBy: { transactionDate: "asc" },
       }),
@@ -159,6 +161,7 @@ export async function GET(request: Request) {
         createdBy: tx.createdBy,
         bankFeeOriginal: tx.bankFeeOriginal ? tx.bankFeeOriginal.toString() : null,
         bankFeeVnd: tx.bankFeeVnd ? tx.bankFeeVnd.toString() : null,
+        contactName: tx.contact?.name ?? null,
       };
     });
 
@@ -188,6 +191,7 @@ export async function GET(request: Request) {
         createdBy: "—", // Deposit model has no createdBy
         bankFeeOriginal: null,
         bankFeeVnd: null,
+        contactName: null,
       };
     });
 

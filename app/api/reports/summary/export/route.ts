@@ -193,6 +193,7 @@ export async function GET(request: Request) {
           include: {
             currency: { select: { code: true } },
             expenseType: { select: { name: true } },
+            contact: { select: { name: true } },
           },
           orderBy: { transactionDate: "asc" },
         });
@@ -209,6 +210,7 @@ export async function GET(request: Request) {
           include: {
             currency: { select: { code: true } },
             expenseType: { select: { name: true } },
+            contact: { select: { name: true } },
           },
           orderBy: { transactionDate: "asc" },
         });
@@ -245,7 +247,7 @@ export async function GET(request: Request) {
         // Build III.b rows
         const otherReceiptRows: OtherCashflowRow[] = receiptTxs.map((t) => ({
           transactionDate: t.transactionDate,
-          payerReceiver: "",  // standalone receipt — no linked party
+          payerReceiver: t.contact?.name ?? "",  // Người Nộp/Nhận — Contact link if any
           description: t.expenseType?.name ?? t.notes ?? "",
           paymentMethod: fmtPaymentMethod(t.paymentMethod),
           referenceCode: t.bankReference ?? "",
@@ -258,7 +260,7 @@ export async function GET(request: Request) {
         // Build IV.b rows from standalone payment tx
         const otherPaymentRows: OtherCashflowRow[] = paymentTxs.map((t) => ({
           transactionDate: t.transactionDate,
-          payerReceiver: "",  // standalone payment — no linked party
+          payerReceiver: t.contact?.name ?? "",  // Người Nộp/Nhận — Contact link if any
           description: t.expenseType?.name ?? t.notes ?? "",
           paymentMethod: fmtPaymentMethod(t.paymentMethod),
           referenceCode: t.bankReference ?? "",

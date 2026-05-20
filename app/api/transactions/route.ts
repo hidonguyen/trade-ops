@@ -13,6 +13,7 @@ const txIncludes = {
   currency: { select: { id: true, code: true, symbol: true } },
   businessUnit: { select: { id: true, code: true, name: true } },
   expenseType: { select: { id: true, name: true, isActive: true } },
+  contact: { select: { id: true, name: true, phone: true } },
   depositUsages: true,
 };
 
@@ -54,6 +55,7 @@ export async function GET(request: NextRequest) {
   const dateTo = searchParams.get("dateTo");
   const bankReference = searchParams.get("bankReference");
   const expenseTypeIds = parseCsvParam(searchParams, "expenseTypeId");
+  const contactIds = parseCsvParam(searchParams, "contactId");
   const paymentMethods = parseCsvParam(searchParams, "paymentMethod");
   const { page, limit, skip, sortBy, order } = parsePagination(searchParams);
 
@@ -73,6 +75,7 @@ export async function GET(request: NextRequest) {
     ...(Object.keys(dateFilter).length > 0 && { transactionDate: dateFilter }),
     ...(bankReference && { bankReference: { contains: bankReference, mode: "insensitive" as const } }),
     ...(expenseTypeIds.length > 0 && { expenseTypeId: { in: expenseTypeIds } }),
+    ...(contactIds.length > 0 && { contactId: { in: contactIds } }),
     // paymentMethod is a free-form String column (BANK/DEPOSIT/CASH) — no enum cast needed
     ...(paymentMethods.length > 0 && { paymentMethod: { in: paymentMethods } }),
   };

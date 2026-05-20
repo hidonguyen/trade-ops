@@ -11,6 +11,7 @@ interface CashflowTransaction {
   isMoneyIn?: boolean;
   type?: string;
   partyName?: string | null;
+  contactName?: string | null;
   expenseTypeName?: string | null;
   description?: string | null;
   orderNumber?: string | null;
@@ -72,6 +73,7 @@ export async function exportCashflowToExcel(data: CashflowExportData): Promise<B
     { header: "BU", key: "bu", width: 8 },
     { header: "Loại", key: "category", width: 24 },
     { header: "Đối tác", key: "party", width: 25 },
+    { header: "Người Nộp/Nhận", key: "contact", width: 22 },
     { header: "Diễn giải", key: "description", width: 30 },
     { header: "Mã đơn", key: "orderNumber", width: 14 },
     { header: "Nguyên tệ", key: "amount", width: 20 },
@@ -97,6 +99,7 @@ export async function exportCashflowToExcel(data: CashflowExportData): Promise<B
       bu: tx.businessUnit?.code ?? "",
       category: tx.category ?? tx.type ?? "",
       party: tx.partyName ?? "",
+      contact: tx.contactName ?? "",
       description: tx.description ?? "",
       orderNumber: tx.orderNumber ?? "",
       amount: sign * Number(tx.amountOriginal),

@@ -40,6 +40,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       where: { id, isActive: true },
       include: {
         businessUnit: { select: { id: true, code: true, name: true } },
+        businessUnits: {
+          select: { businessUnit: { select: { id: true, code: true, name: true } } },
+        },
         deposits: {
           select: {
             id: true,
@@ -119,8 +122,39 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
     }
 
+    // Split M2M ids out of the party patch — they're written into PartyBusinessUnit.
+    const { businessUnitIds, ...partyPatch } = validation.data;
+
+    // Resolve effective BU list when caller wants to update sharing:
+    // - businessUnitIds undefined → leave M2M untouched
+    // - empty array → "Chung tất cả BU" = every active BU (mirrors POST semantics)
+    // - non-empty → use given list (origin BU always force-added)
+    let resolvedBuIds: string[] | null = null;
+    if (businessUnitIds !== undefined) {
+      if (businessUnitIds.length === 0) {
+        const activeBus = await prisma.businessUnit.findMany({
+          where: { isActive: true },
+          select: { id: true },
+        });
+        resolvedBuIds = activeBus.map((b) => b.id);
+      } else {
+        resolvedBuIds = [...businessUnitIds];
+      }
+      if (!resolvedBuIds.includes(existing.businessUnitId)) {
+        resolvedBuIds.push(existing.businessUnitId);
+      }
+      resolvedBuIds = [...new Set(resolvedBuIds)];
+    }
+
     const result = await prisma.$transaction(async (tx: any) => {
-      const updated = await tx.party.update({ where: { id }, data: validation.data });
+      const updated = await tx.party.update({ where: { id }, data: partyPatch });
+      if (resolvedBuIds !== null) {
+        await tx.partyBusinessUnit.deleteMany({ where: { partyId: id } });
+        await tx.partyBusinessUnit.createMany({
+          data: resolvedBuIds.map((bu) => ({ partyId: id, businessUnitId: bu })),
+          skipDuplicates: true,
+        });
+      }
       await createAuditLog(
         tx,
         session.user.id!,

@@ -1,13 +1,13 @@
 ---
 title: "Party multi-BU + Contacts + Copy phiếu"
 description: "5 features: Contact directory + multi-BU sharing; add Contact to transactions + reports; copy any order/transaction; Party multi-BU sharing. Executes after RBAC per-BU (plan 260507-1039)."
-status: planned
+status: completed
 priority: P2
 effort: 54h (~7 dev-days)
 branch: main
 tags: [party, contacts, transactions, reports, copy, schema-migration, multi-bu]
 created: 2026-05-13
-updated: 2026-05-13
+updated: 2026-05-20
 blockedBy: [260507-1039-rbac-per-business-unit]
 blocks: []
 execution_order: [A, C, D, E, F, B]
@@ -26,16 +26,20 @@ execution_order: [A, C, D, E, F, B]
 5. **Party scope:** per-party choice — M2M table `PartyBusinessUnit`. UI cho phép check "Chung tất cả BU" hoặc tick từng BU. Làm sau Contact để tái dùng pattern.
 
 ## Phases (thứ tự thực hiện)
-| # | Group | Phase | Effort | Files |
-|---|-------|-------|--------|-------|
-| 0 | A | **Dependency** — RBAC per-BU (plan 260507-1039) phải xong trước | 34h | (xem plan riêng) |
-| 1 | C | [Schema Contact + ContactBusinessUnit + Transaction.contactId](./phase-01-schema.md) | 3h | `prisma/schema.prisma` + migration |
-| 2 | C | [Contact CRUD + multi-BU (settings)](./phase-02-contact-crud.md) | 11h | `app/api/contacts/**`, `app/(dashboard)/settings/contacts/**`, multi-BU UI |
-| 3 | D | [Transaction contact selector](./phase-03-transaction-contact.md) | 7.5h | `app/api/transactions/**`, payment form, transaction edit |
-| 4 | E | [Reports: Người Nộp/Nhận column](./phase-04-reports-contact.md) | 10h | cashflow report + relevant report endpoints + Excel exports |
-| 5 | F | [Copy feature (orders + transactions)](./phase-05-copy-feature.md) | 7.5h | order list/detail, transaction list/detail, prefill via sessionStorage |
-| 6 | B | [Party multi-BU API + UI](./phase-06-party-multi-bu.md) | 15h | `app/api/parties/**`, `PartyBusinessUnit` migration, party form/list, BU filter, sweep dropdown |
-| 7 | — | [Tests + docs](./phase-07-tests-docs.md) | 3h | unit + manual smoke + `docs/system-architecture.md` |
+| # | Group | Phase | Effort | Status |
+|---|-------|-------|--------|--------|
+| 0 | A | **Dependency** — RBAC per-BU (plan 260507-1039) | 34h | ✅ completed |
+| 1 | C | [Schema Contact + Transaction.contactId](./phase-01-schema.md) | 3h | ✅ completed |
+| 2 | C | [Contact CRUD + settings](./phase-02-contact-crud.md) | 11h | ✅ completed (no Contact-BU M2M — global directory) |
+| 3 | D | [Transaction contact selector](./phase-03-transaction-contact.md) | 7.5h | ✅ completed |
+| 4 | E | [Reports: Người Nộp/Nhận column](./phase-04-reports-contact.md) | 10h | ✅ completed (cashflow + summary export; deposit/sales-detail Excel deferred) |
+| 5 | F | [Copy feature (orders + transactions)](./phase-05-copy-feature.md) | 7.5h | ✅ completed (sessionStorage prefill) |
+| 6 | B | [Party multi-BU API + UI](./phase-06-party-multi-bu.md) | 15h | ✅ completed |
+| 7 | — | [Tests + docs](./phase-07-tests-docs.md) | 3h | ✅ completed (unit tests written; vitest local install required to run) |
+
+## Migrations (apply when DB reachable)
+1. `20260520230100_add_contact_and_transaction_contact_id` — Contact + Transaction.contactId
+2. `20260520230500_add_party_business_unit_m2m` — PartyBusinessUnit M2M + backfill
 
 > **Note:** schema phase-01 đã rút gọn còn Contact + Transaction.contactId. Phần `PartyBusinessUnit` migration dồn vào phase-02 (B) để đặt cuối.
 

@@ -72,6 +72,7 @@ export async function GET(request: Request) {
             amountOriginal: true,
             transactionDate: true,
             notes: true,
+            contact: { select: { name: true } },
           },
         },
       },

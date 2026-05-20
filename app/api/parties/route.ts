@@ -40,7 +40,8 @@ export async function GET(request: Request) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const where: Record<string, any> = { isActive: true };
   if (type) where.type = type;
-  where.businessUnitId = businessUnitId;
+  // Multi-BU: filter via M2M so shared parties show in every BU they're linked to.
+  where.businessUnits = { some: { businessUnitId } };
   if (search) where.name = { contains: search, mode: "insensitive" };
 
   // Cache key includes all filter/pagination params so distinct queries get distinct entries.
@@ -53,7 +54,12 @@ export async function GET(request: Request) {
         const [items, count] = await prisma.$transaction([
           prisma.party.findMany({
             where,
-            include: { businessUnit: { select: { id: true, code: true, name: true } } },
+            include: {
+              businessUnit: { select: { id: true, code: true, name: true } },
+              businessUnits: {
+                select: { businessUnit: { select: { id: true, code: true, name: true } } },
+              },
+            },
             orderBy: { [sortBy]: order },
             skip,
             take: limit,
@@ -103,15 +109,30 @@ export async function POST(request: Request) {
   }
 
   try {
+    // Resolve effective BU list:
+    // - explicit `businessUnitIds` provided → use as-is (must include origin BU)
+    // - omitted/empty → "Chung tất cả BU" = every active BU at creation time
+    const { businessUnitIds, ...partyFields } = validation.data;
+    let buIds = businessUnitIds && businessUnitIds.length > 0 ? [...new Set(businessUnitIds)] : null;
+    if (buIds === null) {
+      const activeBus = await prisma.businessUnit.findMany({ where: { isActive: true }, select: { id: true } });
+      buIds = activeBus.map((b) => b.id);
+    }
+    if (!buIds.includes(partyFields.businessUnitId)) buIds.push(partyFields.businessUnitId);
+
     const result = await prisma.$transaction(async (tx: any) => {
-      const created = await tx.party.create({ data: validation.data });
+      const created = await tx.party.create({ data: partyFields });
+      await tx.partyBusinessUnit.createMany({
+        data: buIds.map((id) => ({ partyId: created.id, businessUnitId: id })),
+        skipDuplicates: true,
+      });
       await createAuditLog(
         tx,
         session.user.id!,
         "CREATE",
         "Party",
         created.id,
-        validation.data as Record<string, unknown>,
+        { ...partyFields, businessUnitIds: buIds } as Record<string, unknown>,
       );
       return created;
     });
