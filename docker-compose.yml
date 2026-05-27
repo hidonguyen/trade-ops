@@ -4,11 +4,11 @@ services:
     image: postgres:14
     restart: always
     environment:
-      POSTGRES_DB: trade_ops
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: tradeops
+      POSTGRES_USER: tradeops_user
+      POSTGRES_PASSWORD: tradeops_password
     ports:
-      - "5433:5432"
+      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
   pgadmin:
