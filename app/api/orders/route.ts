@@ -69,7 +69,10 @@ export async function GET(request: NextRequest) {
   } : undefined;
 
   const where = {
-    type: { in: allowedTypes },
+    // Only emit type filter when it's restrictive. With both SALE+PURCHASE allowed,
+    // the IN(...) is a no-op against data but blocks the planner from using the
+    // (businessUnitId, orderDate) index for ordered LIMIT scans.
+    ...(allowedTypes.length < 2 && { type: { in: allowedTypes } }),
     ...(statuses.length > 0 && { status: { in: statuses } }),
     businessUnitId,
     ...(partyIds.length > 0 && { partyId: { in: partyIds } }),

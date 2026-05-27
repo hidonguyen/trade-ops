@@ -185,6 +185,10 @@ model Order {
   @@index([partyId, orderDate])
   @@index([type, status])
   @@index([expenseTypeId])
+  // Composite indexes matching the list page's orderBy: (orderDate DESC, orderNumber ASC).
+  // First serves both-types view (no type filter); second serves single-tab view.
+  @@index([businessUnitId, orderDate(sort: Desc), orderNumber], map: "Order_bu_orderDate_idx")
+  @@index([businessUnitId, type, orderDate(sort: Desc), orderNumber], map: "Order_bu_type_orderDate_idx")
 }
 
 model Transaction {
