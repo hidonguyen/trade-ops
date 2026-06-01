@@ -14,8 +14,6 @@ const querySchema = z.object({
   businessUnitId: z.string().uuid().optional(),
 });
 
-const MAX_DAYS = 366;
-
 export async function GET(request: Request) {
   const session = await withAuth();
   if (!session) {
@@ -41,15 +39,6 @@ export async function GET(request: Request) {
   const fromDate = new Date(dateFrom);
   const toDate = new Date(dateTo);
   toDate.setHours(23, 59, 59, 999);
-
-  // Cap range at 366 days
-  const diffDays = Math.round((toDate.getTime() - fromDate.getTime()) / 86_400_000);
-  if (diffDays > MAX_DAYS) {
-    return Response.json(
-      apiResponse(false, undefined, `Khoảng thời gian tối đa là ${MAX_DAYS} ngày`),
-      { status: 400 }
-    );
-  }
 
   try {
     const businessUnitFilter = await buAccessFilter(session.user.roles, "SALE", businessUnitId);
