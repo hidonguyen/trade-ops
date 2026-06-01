@@ -1,7 +1,18 @@
 // Excel export helpers using ExcelJS — cashflow, orders, and transactions
 import ExcelJS from "exceljs";
-import { applyHeaderStyle } from "./excel-report-utils";
+import { applyHeaderStyle, applyNumberFormat } from "./excel-report-utils";
 import { getPaymentMethodLabel } from "./payment-method-labels";
+
+// Coerce string|number|null|undefined to a Number Excel treats as numeric,
+// or empty string when no value is present (keeps cell blank, not "0").
+function toNum(v: string | number | null | undefined): number | string {
+  if (v == null || v === "") return "";
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : "";
+}
+
+const NUM_FMT = "#,##0";
+const NUM_FMT_SIGNED = "#,##0;[Red]-#,##0";
 
 interface CashflowTransaction {
   transactionDate: Date | string;
@@ -58,11 +69,18 @@ export async function exportCashflowToExcel(data: CashflowExportData): Promise<B
     { header: "Net After Fee", key: "netAfterFee", width: 20 },
   ];
   applyHeaderStyle(summarySheet.getRow(1));
+  for (const c of ["totalIn", "totalOut", "net", "totalBankFee", "netAfterFee"]) {
+    applyNumberFormat(summarySheet.getColumn(c), NUM_FMT_SIGNED);
+  }
   for (const row of data.currencies) {
     summarySheet.addRow({
-      ...row,
-      totalBankFee: row.totalBankFee ?? "0",
-      netAfterFee: row.netAfterFee ?? row.net,
+      code: row.code,
+      symbol: row.symbol,
+      totalIn: toNum(row.totalIn),
+      totalOut: toNum(row.totalOut),
+      net: toNum(row.net),
+      totalBankFee: toNum(row.totalBankFee ?? "0"),
+      netAfterFee: toNum(row.netAfterFee ?? row.net),
     });
   }
 
@@ -86,6 +104,10 @@ export async function exportCashflowToExcel(data: CashflowExportData): Promise<B
     { header: "Người tạo", key: "createdBy", width: 18 },
   ];
   applyHeaderStyle(txSheet.getRow(1));
+  applyNumberFormat(txSheet.getColumn("amount"), NUM_FMT_SIGNED);
+  applyNumberFormat(txSheet.getColumn("amountVnd"), NUM_FMT_SIGNED);
+  applyNumberFormat(txSheet.getColumn("bankFeeOriginal"), NUM_FMT);
+  applyNumberFormat(txSheet.getColumn("bankFeeVnd"), NUM_FMT);
 
   for (const tx of data.transactions) {
     const dateVal =
@@ -104,9 +126,9 @@ export async function exportCashflowToExcel(data: CashflowExportData): Promise<B
       orderNumber: tx.orderNumber ?? "",
       amount: sign * Number(tx.amountOriginal),
       currency: tx.currencyCode,
-      bankFeeOriginal: tx.bankFeeOriginal ?? "",
+      bankFeeOriginal: toNum(tx.bankFeeOriginal),
       amountVnd: tx.amountVnd != null ? sign * Number(tx.amountVnd) : "",
-      bankFeeVnd: tx.bankFeeVnd ?? "",
+      bankFeeVnd: toNum(tx.bankFeeVnd),
       reference: tx.bankReference ?? "",
       notes: tx.notes ?? "",
       createdBy: tx.createdBy ?? "",
@@ -146,6 +168,9 @@ export async function exportOrdersToExcel(orders: OrderRow[]): Promise<Buffer> {
     { header: "Notes", key: "notes", width: 30 },
   ];
   applyHeaderStyle(sheet.getRow(1));
+  for (const c of ["amount", "paidAmount", "refundedAmount"]) {
+    applyNumberFormat(sheet.getColumn(c), NUM_FMT);
+  }
 
   for (const order of orders) {
     const dateVal =
@@ -156,11 +181,11 @@ export async function exportOrdersToExcel(orders: OrderRow[]): Promise<Buffer> {
       orderDate: dateVal,
       type: order.type,
       party: order.partyName,
-      amount: order.amountOriginal,
+      amount: toNum(order.amountOriginal),
       currency: order.currencyCode,
       status: order.status,
-      paidAmount: order.paidAmount,
-      refundedAmount: order.refundedAmount,
+      paidAmount: toNum(order.paidAmount),
+      refundedAmount: toNum(order.refundedAmount),
       notes: order.notes ?? "",
     });
   }
@@ -198,6 +223,7 @@ export async function exportTransactionsToExcel(transactions: TransactionRow[]):
     { header: "Notes", key: "notes", width: 30 },
   ];
   applyHeaderStyle(sheet.getRow(1));
+  applyNumberFormat(sheet.getColumn("amount"), NUM_FMT);
 
   for (const tx of transactions) {
     const dateVal =
@@ -208,7 +234,7 @@ export async function exportTransactionsToExcel(transactions: TransactionRow[]):
       date: dateVal,
       type: tx.type,
       party: tx.partyName ?? "",
-      amount: tx.amountOriginal,
+      amount: toNum(tx.amountOriginal),
       currency: tx.currencyCode,
       method: getPaymentMethodLabel(tx.paymentMethod),
       paymentType: tx.paymentType,
@@ -257,13 +283,19 @@ export async function exportBankFeesToExcel(data: BankFeeExportData): Promise<Bu
     { header: "Total Fee (VND)", key: "totalFeeVnd", width: 22 },
   ];
   applyHeaderStyle(totalsSheet.getRow(1));
+  applyNumberFormat(totalsSheet.getColumn("totalFeeOriginal"), NUM_FMT);
+  applyNumberFormat(totalsSheet.getColumn("totalFeeVnd"), NUM_FMT);
   for (const row of data.totals.byCurrency) {
-    totalsSheet.addRow(row);
+    totalsSheet.addRow({
+      code: row.code,
+      totalFeeOriginal: toNum(row.totalFeeOriginal),
+      totalFeeVnd: toNum(row.totalFeeVnd),
+    });
   }
   const grandRow = totalsSheet.addRow({
     code: "GRAND TOTAL (VND)",
     totalFeeOriginal: "",
-    totalFeeVnd: data.totals.grandFeeVnd,
+    totalFeeVnd: toNum(data.totals.grandFeeVnd),
   });
   grandRow.font = { bold: true };
 
@@ -283,6 +315,9 @@ export async function exportBankFeesToExcel(data: BankFeeExportData): Promise<Bu
     { header: "Notes", key: "notes", width: 30 },
   ];
   applyHeaderStyle(detailSheet.getRow(1));
+  for (const c of ["amount", "feeOrig", "feeVnd", "rate"]) {
+    applyNumberFormat(detailSheet.getColumn(c), NUM_FMT);
+  }
 
   for (const row of data.rows) {
     const dateVal =
@@ -295,11 +330,11 @@ export async function exportBankFeesToExcel(data: BankFeeExportData): Promise<Bu
       party: row.partyName ?? "",
       orderNumber: row.orderNumber ?? "",
       type: row.type,
-      amount: row.amountOriginal,
+      amount: toNum(row.amountOriginal),
       currency: row.currencyCode,
-      feeOrig: row.bankFeeOriginal,
-      feeVnd: row.bankFeeVnd,
-      rate: row.exchangeRate,
+      feeOrig: toNum(row.bankFeeOriginal),
+      feeVnd: toNum(row.bankFeeVnd),
+      rate: toNum(row.exchangeRate),
       reference: row.bankReference ?? "",
       notes: row.notes ?? "",
     });

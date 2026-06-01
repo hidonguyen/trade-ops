@@ -131,6 +131,13 @@ export async function GET(request: Request) {
       }),
     ]);
 
+    // Resolve createdBy user IDs → names (one batch query)
+    const userIds = Array.from(new Set(transactions.map((t) => t.createdBy)));
+    const users = userIds.length > 0
+      ? await prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true } })
+      : [];
+    const userNameById = new Map(users.map((u) => [u.id, u.name]));
+
     // ── Build unified row list ────────────────────────────────────────────────
     const txRows: CashflowRow[] = transactions.map((tx) => {
       const cat = resolveTxCategory(tx.type, tx.paymentType);
@@ -158,7 +165,7 @@ export async function GET(request: Request) {
         expenseTypeName: tx.expenseType?.name ?? null,
         notes: tx.notes,
         description,
-        createdBy: tx.createdBy,
+        createdBy: userNameById.get(tx.createdBy) ?? tx.createdBy,
         bankFeeOriginal: tx.bankFeeOriginal ? tx.bankFeeOriginal.toString() : null,
         bankFeeVnd: tx.bankFeeVnd ? tx.bankFeeVnd.toString() : null,
         contactName: tx.contact?.name ?? null,
