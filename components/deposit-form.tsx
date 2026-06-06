@@ -8,7 +8,14 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Combobox } from "@/components/ui/combobox";
 import { NumberInput } from "@/components/ui/number-input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Textarea } from "@/components/ui/textarea";
+
+// Today as ISO YYYY-MM-DD (local) for the default deposit date
+function todayIso() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 interface Currency { id: string; code: string; symbol: string; }
 
@@ -24,6 +31,8 @@ export function DepositForm({ partyId, open, onClose, onCreated }: DepositFormPr
   const [currencyId, setCurrencyId] = useState("");
   const [businessUnitId, setBusinessUnitId] = useState(getDefaultBu);
   const [amountOriginal, setAmountOriginal] = useState("");
+  const [depositDate, setDepositDate] = useState(todayIso);
+  const [exchangeRate, setExchangeRate] = useState("1");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +49,8 @@ export function DepositForm({ partyId, open, onClose, onCreated }: DepositFormPr
     setCurrencyId("");
     setBusinessUnitId(getDefaultBu());
     setAmountOriginal("");
+    setDepositDate(todayIso());
+    setExchangeRate("1");
     setNotes("");
     setError(null);
   }
@@ -63,13 +74,25 @@ export function DepositForm({ partyId, open, onClose, onCreated }: DepositFormPr
       setError("Số tiền phải là số dương");
       return;
     }
+    const rate = parseFloat(exchangeRate);
+    if (isNaN(rate) || rate <= 0) {
+      setError("Tỉ giá phải là số dương");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
       const res = await fetch(`/api/parties/${partyId}/deposits`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currencyId, businessUnitId, amountOriginal: String(amount), notes: notes.trim() || null }),
+        body: JSON.stringify({
+          currencyId,
+          businessUnitId,
+          amountOriginal: String(amount),
+          exchangeRate: String(rate),
+          depositDate,
+          notes: notes.trim() || null,
+        }),
       });
       const json = await res.json();
       if (!json.success) { setError(json.message ?? "Lỗi không xác định"); return; }
@@ -92,6 +115,11 @@ export function DepositForm({ partyId, open, onClose, onCreated }: DepositFormPr
           {error && <p className="text-sm text-red-500">{error}</p>}
 
           <div className="space-y-1.5">
+            <Label>Ngày đặt cọc <span className="text-red-500">*</span></Label>
+            <DatePicker value={depositDate} onChange={setDepositDate} />
+          </div>
+
+          <div className="space-y-1.5">
             <Label>Tiền tệ <span className="text-red-500">*</span></Label>
             <Combobox
               value={currencyId}
@@ -109,6 +137,17 @@ export function DepositForm({ partyId, open, onClose, onCreated }: DepositFormPr
               decimals={2}
               min={0}
               placeholder="0.00"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Tỉ giá <span className="text-red-500">*</span></Label>
+            <NumberInput
+              value={exchangeRate}
+              onChange={setExchangeRate}
+              decimals={8}
+              min={0}
+              placeholder="1"
             />
           </div>
 

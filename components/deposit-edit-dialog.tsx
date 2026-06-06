@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Combobox } from "@/components/ui/combobox";
 import { NumberInput } from "@/components/ui/number-input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Textarea } from "@/components/ui/textarea";
 
 // Format amount for hint display (e.g. "1,000.0000 USD")
@@ -27,6 +28,8 @@ export interface EnrichedDeposit {
   usedAmount: string;
   creditedAmount: string;
   usageCount: number;
+  depositDate: string;
+  exchangeRate: string;
   notes: string | null;
   currency: Currency;
   businessUnit: BusinessUnit;
@@ -52,6 +55,8 @@ export function DepositEditDialog({
   const [amountOriginal, setAmountOriginal] = useState("");
   const [currencyId, setCurrencyId] = useState("");
   const [businessUnitId, setBusinessUnitId] = useState("");
+  const [depositDate, setDepositDate] = useState("");
+  const [exchangeRate, setExchangeRate] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,6 +68,8 @@ export function DepositEditDialog({
     setAmountOriginal(deposit.amountOriginal);
     setCurrencyId(deposit.currency.id);
     setBusinessUnitId(deposit.businessUnit.id);
+    setDepositDate(deposit.depositDate.slice(0, 10));
+    setExchangeRate(deposit.exchangeRate);
     setNotes(deposit.notes ?? "");
     setError(null);
     setAmountError(null);
@@ -107,11 +114,19 @@ export function DepositEditDialog({
       return;
     }
 
+    const rate = parseFloat(exchangeRate);
+    if (isNaN(rate) || rate <= 0) {
+      setError("Tỉ giá phải là số dương");
+      return;
+    }
+
     // Build patch body — only send changed fields
     const body: Record<string, string> = {};
     if (amountOriginal !== deposit.amountOriginal) body.amountOriginal = String(newAmount);
     if (currencyId !== deposit.currency.id) body.currencyId = currencyId;
     if (businessUnitId !== deposit.businessUnit.id) body.businessUnitId = businessUnitId;
+    if (depositDate !== deposit.depositDate.slice(0, 10)) body.depositDate = depositDate;
+    if (String(rate) !== deposit.exchangeRate) body.exchangeRate = String(rate);
     const trimmedNotes = notes.trim();
     const currentNotes = deposit.notes ?? "";
     if (trimmedNotes !== currentNotes) body.notes = trimmedNotes;
@@ -175,6 +190,12 @@ export function DepositEditDialog({
             </p>
           </div>
 
+          {/* Deposit date — always editable */}
+          <div className="space-y-1.5">
+            <Label>Ngày đặt cọc <span className="text-red-500">*</span></Label>
+            <DatePicker value={depositDate} onChange={setDepositDate} />
+          </div>
+
           {/* Amount field */}
           <div className="space-y-1.5">
             <Label>Số tiền <span className="text-red-500">*</span></Label>
@@ -186,6 +207,18 @@ export function DepositEditDialog({
               placeholder="0.0000"
             />
             {amountError && <p className="text-xs text-red-500">{amountError}</p>}
+          </div>
+
+          {/* Exchange rate — always editable (display-only metadata) */}
+          <div className="space-y-1.5">
+            <Label>Tỉ giá <span className="text-red-500">*</span></Label>
+            <NumberInput
+              value={exchangeRate}
+              onChange={setExchangeRate}
+              decimals={8}
+              min={0}
+              placeholder="1"
+            />
           </div>
 
           {/* Currency selector — disabled when locked */}

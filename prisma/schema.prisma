@@ -127,6 +127,10 @@ model Deposit {
   currencyId        String
   amountOriginal    Decimal        @db.Decimal(18, 4)
   remainingOriginal Decimal        @db.Decimal(18, 4)
+  // User-editable transaction date (distinct from createdAt audit timestamp).
+  depositDate       DateTime
+  // FX rate to VND for report conversion; 1 for VND deposits.
+  exchangeRate      Decimal        @default(1) @db.Decimal(18, 8)
   notes             String?        @db.Text
   source            String         @default("MANUAL") // MANUAL | REFUND
   createdAt         DateTime       @default(now())
@@ -138,6 +142,8 @@ model Deposit {
 
   @@index([partyId])
   @@index([businessUnitId])
+  // Matches the summary/export deposit predicate: businessUnitId + source + depositDate range.
+  @@index([businessUnitId, source, depositDate])
 }
 
 model DepositUsage {

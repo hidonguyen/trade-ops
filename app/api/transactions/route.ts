@@ -149,6 +149,8 @@ export async function POST(request: Request) {
               }
             : undefined,
           notes: txData.notes ?? null,
+          depositDate: created.transactionDate,
+          exchangeRate: created.exchangeRate,
         });
       }
 

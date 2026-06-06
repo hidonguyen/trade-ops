@@ -332,6 +332,8 @@ async function main() {
       amountOriginal: 20,
       // Fully consumed by depositusage-001 (positive 20). Keep invariant: remaining = amount − Σpos.
       remainingOriginal: 0,
+      depositDate: new Date("2026-01-01"),
+      exchangeRate: 25000,
     },
   });
 
@@ -346,6 +348,7 @@ async function main() {
       currencyId: vndCur.id,
       amountOriginal: 5_000_000,
       remainingOriginal: 5_000_000,
+      depositDate: new Date("2026-01-01"),
     },
   });
 

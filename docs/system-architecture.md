@@ -2,8 +2,8 @@
 ## Technical Design & Data Model
 
 **Status:** Design Phase
-**Last Updated:** 2026-04-02
-**Version:** 1.0
+**Last Updated:** 2026-06-06
+**Version:** 1.1
 
 ---
 
@@ -175,8 +175,13 @@ A role is scoped to one Business Unit. A user holds a **single role** applied ac
 - `currencyId: String` – FK to Currency
 - `amountOriginal: Decimal @db.Decimal(18, 4)` – Deposit amount in original currency
 - `remainingOriginal: Decimal @db.Decimal(18, 4)` – Remaining balance
+- `depositDate: DateTime` – User-editable transaction date (distinct from `createdAt`; must be provided on create, defaulting to today)
+- `exchangeRate: Decimal @db.Decimal(18, 8) @default(1)` – FX rate to VND for report conversion; 1 for VND deposits. User-editable after creation.
+- `source: String @default("MANUAL")` – Origin: MANUAL (user-created) or REFUND (auto-created from refund transaction)
+- `notes: String?` – Optional notes
 - `createdAt, updatedAt: DateTime`
-- Relations: `usages: DepositUsage[]`, `transactions: Transaction[]`
+- **Index:** `@@index([businessUnitId, source, depositDate])` — supports summary report filtering/sorting
+- Relations: `usages: DepositUsage[]`, `transaction: Transaction?` (refund auto-link)
 
 **DepositUsage**
 - `id: String @id @default(uuid(7))`

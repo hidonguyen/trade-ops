@@ -2,8 +2,8 @@
 ## Directory Structure & File Organization
 
 **Status:** Planning Phase
-**Last Updated:** 2026-04-24
-**Version:** 1.0
+**Last Updated:** 2026-06-06
+**Version:** 1.1
 
 ---
 
@@ -213,6 +213,7 @@ trade-ops/
 - Creates DepositUsage audit record
 - Validates remaining balance
 - Throws on insufficient funds
+- When creating deposits via refund, inherits refund transaction's `depositDate` and `exchangeRate`
 
 **`lib/deposit-edit-guard.ts`** (100–110 LOC)
 - `loadDepositUsageStats(tx, depositId)` – Compute used/credited amounts and usage count
@@ -232,6 +233,7 @@ trade-ops/
 - `getPurchaseReport(...)` – Purchase summary
 - `getReceivableAging(...)` – Customer aging buckets
 - `getPayableAging(...)` – Supplier aging buckets
+- Summary report queries now filter deposits by `depositDate` (not `createdAt`); added rate column ("Tỉ giá") and computed VND column ("Quy đổi VND" = amount × rate)
 - Each returns aggregated data (totals, counts)
 
 **`lib/order-status-calculator.ts`** (80–100 LOC)

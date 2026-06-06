@@ -88,8 +88,12 @@ export function DepositList({ partyId }: DepositListProps) {
 
   const columns: Column<Record<string, unknown>>[] = [
     {
-      key: "createdAt", label: "Ngày", sortable: true,
-      render: (v) => new Date(String(v)).toLocaleDateString("vi-VN"),
+      key: "depositDate", label: "Ngày", sortable: true,
+      // Render from the date-only slice to avoid UTC-midnight day-shift.
+      render: (v) => {
+        const [y, m, d] = String(v).slice(0, 10).split("-");
+        return `${d}/${m}/${y}`;
+      },
     },
     {
       key: "businessUnit", label: "Đơn vị",
@@ -118,6 +122,14 @@ export function DepositList({ partyId }: DepositListProps) {
             className={remaining <= 0 ? "text-slate-400 line-through" : "text-green-700"}
           />
         );
+      },
+    },
+    {
+      key: "exchangeRate", label: "Tỉ giá", align: "right",
+      render: (v) => {
+        const rate = Number(v);
+        if (!rate || rate === 1) return <span className="text-slate-300">—</span>;
+        return <span className="text-sm">{rate.toLocaleString("vi-VN", { maximumFractionDigits: 8 })}</span>;
       },
     },
     {

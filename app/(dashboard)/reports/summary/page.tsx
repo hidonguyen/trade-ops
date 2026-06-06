@@ -41,6 +41,8 @@ interface StandaloneRow extends Record<string, unknown> {
   label: string;
   notes: string | null;
   orderId: string | null;
+  exchangeRate: string | null;
+  amountVnd: string | null;
 }
 
 interface SummaryData {
@@ -158,6 +160,25 @@ const STANDALONE_COLUMNS: Column<StandaloneRow>[] = [
   {
     key: "currencyCode",
     label: "Tiền tệ",
+  },
+  {
+    key: "exchangeRate",
+    label: "Tỉ giá",
+    align: "right",
+    render: (v) => {
+      const rate = v === null || v === undefined ? null : Number(v);
+      if (rate === null || rate === 1) return "—";
+      return rate.toLocaleString("vi-VN", { maximumFractionDigits: 8 });
+    },
+  },
+  {
+    key: "amountVnd",
+    label: "Quy đổi VND",
+    align: "right",
+    render: (v) => {
+      if (v === null || v === undefined) return "—";
+      return Number(v).toLocaleString("vi-VN");
+    },
   },
   {
     key: "label",

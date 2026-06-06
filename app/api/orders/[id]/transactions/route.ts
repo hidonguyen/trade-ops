@@ -147,6 +147,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             currencyId: txData.currencyId,
           },
           notes: txData.notes ?? null,
+          depositDate: created.transactionDate,
+          exchangeRate: created.exchangeRate,
         });
       }
 

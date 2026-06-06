@@ -81,10 +81,17 @@ export async function PATCH(
       );
     }
 
-    const { currencyId, amountOriginal: newAmountStr, businessUnitId, notes } = validation.data;
+    const { currencyId, amountOriginal: newAmountStr, businessUnitId, exchangeRate, depositDate, notes } = validation.data;
 
     // Require at least one field
-    if (currencyId === undefined && newAmountStr === undefined && businessUnitId === undefined && notes === undefined) {
+    if (
+      currencyId === undefined &&
+      newAmountStr === undefined &&
+      businessUnitId === undefined &&
+      exchangeRate === undefined &&
+      depositDate === undefined &&
+      notes === undefined
+    ) {
       return Response.json(
         apiResponse(false, undefined, "Không có trường nào để cập nhật"),
         { status: 400 }
@@ -139,6 +146,9 @@ export async function PATCH(
       }
       if (currencyId !== undefined) updateData.currencyId = currencyId;
       if (businessUnitId !== undefined) updateData.businessUnitId = businessUnitId;
+      // depositDate / exchangeRate are display-only metadata — editable regardless of usages.
+      if (exchangeRate !== undefined) updateData.exchangeRate = exchangeRate;
+      if (depositDate !== undefined) updateData.depositDate = depositDate;
       if (notes !== undefined) updateData.notes = notes?.trim() || null;
 
       const updated = await (tx as any).deposit.update({
@@ -155,12 +165,16 @@ export async function PATCH(
       if (newAmountStr !== undefined) incomingSnapshot.amountOriginal = newAmountStr;
       if (currencyId !== undefined) incomingSnapshot.currencyId = currencyId;
       if (businessUnitId !== undefined) incomingSnapshot.businessUnitId = businessUnitId;
+      if (exchangeRate !== undefined) incomingSnapshot.exchangeRate = exchangeRate;
+      if (depositDate !== undefined) incomingSnapshot.depositDate = depositDate.toISOString();
       if (notes !== undefined) incomingSnapshot.notes = notes?.trim() || null;
 
       const existingSnapshot: Record<string, unknown> = {
         amountOriginal: existing.amountOriginal.toString(),
         currencyId: existing.currencyId,
         businessUnitId: existing.businessUnitId,
+        exchangeRate: existing.exchangeRate.toString(),
+        depositDate: existing.depositDate.toISOString(),
         notes: existing.notes,
       };
 
@@ -250,6 +264,8 @@ export async function DELETE(
           currencyId: existing.currencyId,
           amountOriginal: existing.amountOriginal.toString(),
           remainingOriginal: existing.remainingOriginal.toString(),
+          exchangeRate: existing.exchangeRate.toString(),
+          depositDate: existing.depositDate.toISOString(),
         }
       );
     });

@@ -39,9 +39,9 @@ export async function GET(request: Request) {
   }
 
   const { dateFrom, dateTo } = parsed.data;
-  const fromDate = new Date(dateFrom);
-  const toDate = new Date(dateTo);
-  toDate.setHours(23, 59, 59, 999);
+  // Explicit UTC boundaries — must match the data API so cached web + live Excel agree.
+  const fromDate = new Date(`${dateFrom.slice(0, 10)}T00:00:00.000Z`);
+  const toDate = new Date(`${dateTo.slice(0, 10)}T23:59:59.999Z`);
 
   try {
     const allActiveBus = await prisma.businessUnit.findMany({
@@ -235,13 +235,13 @@ export async function GET(request: Request) {
           where: {
             businessUnitId: bu.id,
             source: "MANUAL",
-            createdAt: { gte: fromDate, lte: toDate },
+            depositDate: { gte: fromDate, lte: toDate },
           },
           include: {
             party: { select: { name: true, type: true } },
             currency: { select: { code: true } },
           },
-          orderBy: { createdAt: "asc" },
+          orderBy: { depositDate: "asc" },
         });
 
         // Build III.b rows
@@ -294,14 +294,18 @@ export async function GET(request: Request) {
         // Append deposit-creation rows to III.b (customer) or IV.b (supplier)
         for (const dep of deposits) {
           const depRow: OtherCashflowRow = {
-            transactionDate: dep.createdAt,
+            transactionDate: dep.depositDate,
             payerReceiver: dep.party.name,
             description: "Cọc",
             paymentMethod: "Cọc",
             referenceCode: "",
             currencyCode: dep.currency.code,
             originalAmount: new Decimal(dep.amountOriginal.toString()).toDecimalPlaces(0).toNumber(),
-            vndAmount: 0,  // Deposit model has no amountVnd — omit
+            // VND conversion = amount × rate.
+            vndAmount: new Decimal(dep.amountOriginal.toString())
+              .times(dep.exchangeRate.toString())
+              .toDecimalPlaces(0)
+              .toNumber(),
             notes: null,
           };
           if (dep.party.type === "CUSTOMER") {

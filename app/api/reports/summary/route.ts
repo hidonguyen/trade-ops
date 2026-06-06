@@ -26,6 +26,9 @@ type StandaloneRow = {
   label: string;
   notes: string | null;
   orderId: string | null;
+  // Populated for deposit rows only (amount × rate); null for other standalone rows.
+  exchangeRate: string | null;
+  amountVnd: string | null;
 };
 
 export async function GET(request: Request) {
@@ -46,9 +49,10 @@ export async function GET(request: Request) {
   if (!checkAccess(session.user.roles, "GET", "DASHBOARD", businessUnitId)) {
     return Response.json(apiResponse(false, undefined, MSG.accessDenied), { status: 403 });
   }
-  const fromDate = new Date(dateFrom);
-  const toDate = new Date(dateTo);
-  toDate.setHours(23, 59, 59, 999);
+  // Explicit UTC boundaries — depositDate is stored at UTC midnight, so server-local
+  // setHours() would shift period edges. Slice handles both YYYY-MM-DD and full-ISO input.
+  const fromDate = new Date(`${dateFrom.slice(0, 10)}T00:00:00.000Z`);
+  const toDate = new Date(`${dateTo.slice(0, 10)}T23:59:59.999Z`);
 
   try {
     // Orders with PAYMENT transactions in the report period
@@ -184,13 +188,13 @@ export async function GET(request: Request) {
         where: {
           businessUnitId,
           source: "MANUAL",
-          createdAt: { gte: fromDate, lte: toDate },
+          depositDate: { gte: fromDate, lte: toDate },
         },
         include: {
           party: { select: { name: true, type: true } },
           currency: { select: { code: true, symbol: true } },
         },
-        orderBy: { createdAt: "asc" },
+        orderBy: { depositDate: "asc" },
       }),
       prisma.transaction.findMany({
         where: {
@@ -223,6 +227,8 @@ export async function GET(request: Request) {
         label: t.expenseType?.name ?? "",
         notes: t.notes,
         orderId: null,
+        exchangeRate: null,
+        amountVnd: null,
       }));
     }
 
@@ -232,7 +238,7 @@ export async function GET(request: Request) {
       const row: StandaloneRow = {
         rowType: "deposit",
         id: d.id,
-        date: d.createdAt.toISOString(),
+        date: d.depositDate.toISOString(),
         amountOriginal: d.amountOriginal.toString(),
         currencyCode: d.currency.code,
         currencySymbol: d.currency.symbol,
@@ -243,6 +249,12 @@ export async function GET(request: Request) {
         label: d.party.type === "SUPPLIER" ? "Đặt cọc nhà cung cấp" : "Đặt cọc khách hàng",
         notes: d.notes,
         orderId: null,
+        exchangeRate: d.exchangeRate.toString(),
+        // VND conversion = amount × rate (Decimal math, stringified operands).
+        amountVnd: new Decimal(d.amountOriginal.toString())
+          .times(d.exchangeRate.toString())
+          .toDecimalPlaces(0)
+          .toString(),
       };
       if (d.party.type === "SUPPLIER") supplierDepositRows.push(row);
       else customerDepositRows.push(row);
@@ -267,6 +279,8 @@ export async function GET(request: Request) {
           : "Phí ngân hàng",
         notes: null,
         orderId: t.order?.id ?? null,
+        exchangeRate: null,
+        amountVnd: null,
       }));
 
     // Order-linked REFUND tx (non-DEPOSIT) surface as rows in Chi/Thu khác in addition
@@ -293,6 +307,8 @@ export async function GET(request: Request) {
             label: `Hoàn tiền — ${o.party.name} ${o.orderNumber}`,
             notes: null,
             orderId: o.id,
+            exchangeRate: null,
+            amountVnd: null,
           });
         }
       }

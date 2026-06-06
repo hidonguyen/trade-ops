@@ -85,6 +85,9 @@ export async function createDepositFromRefund(
     amountOriginal: string;
     transactionId: string;
     notes?: string | null;
+    // Inherit the refund transaction's date + rate so the auto-deposit reports a meaningful VND.
+    depositDate?: Date;
+    exchangeRate?: Decimal | string;
   }
 ) {
   const amount = new Decimal(args.amountOriginal);
@@ -96,6 +99,9 @@ export async function createDepositFromRefund(
       amountOriginal: amount,
       remainingOriginal: amount,
       source: "REFUND",
+      depositDate: args.depositDate ?? new Date(),
+      // Omit when not supplied → DB default of 1.
+      ...(args.exchangeRate !== undefined ? { exchangeRate: args.exchangeRate } : {}),
       notes: args.notes ?? null,
     },
   });
@@ -155,6 +161,9 @@ export async function applyDepositOperation(
     partyContext?: { partyId: string; businessUnitId: string; currencyId: string };
     // Optional notes propagated to auto-created Deposit (default empty)
     notes?: string | null;
+    // Refund transaction's date + rate, inherited by an auto-created Deposit (REFUND source)
+    depositDate?: Date;
+    exchangeRate?: Decimal | string;
   }
 ) {
   const txCurrencyId = args.currencyId ?? args.partyContext?.currencyId;
@@ -176,5 +185,7 @@ export async function applyDepositOperation(
     amountOriginal: args.amountOriginal,
     transactionId: args.transactionId,
     notes: args.notes ?? null,
+    depositDate: args.depositDate,
+    exchangeRate: args.exchangeRate,
   });
 }

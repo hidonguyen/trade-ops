@@ -95,6 +95,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
               }
             : undefined,
           notes: (updateData.notes as string | undefined) ?? transaction.notes ?? null,
+          depositDate: updated.transactionDate,
+          exchangeRate: updated.exchangeRate,
         });
       }
 

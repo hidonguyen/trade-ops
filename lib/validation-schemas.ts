@@ -40,6 +40,21 @@ const decimalAny = z.string().refine(
   { message: "Phải là số hợp lệ" }
 );
 
+// Positive FX rate bounded to Decimal(18,8): max 10 integer digits, max 8 fractional places.
+// Bounded (unlike decimalString) because it drives report VND math — an out-of-range value
+// would overflow the column (500) or round to 0 (silent VND=0).
+export const exchangeRateString = z.string().refine(
+  (val) => {
+    try {
+      const d = new Decimal(val);
+      return d.isFinite() && d.greaterThan(0) && d.lessThanOrEqualTo("9999999999") && d.decimalPlaces() <= 8;
+    } catch {
+      return false;
+    }
+  },
+  { message: "Tỉ giá không hợp lệ" }
+);
+
 const dateField = z
   .string()
   .datetime()
@@ -112,6 +127,8 @@ export const createDepositSchema = z.object({
   currencyId: z.string().uuid(),
   amountOriginal: decimalString,
   businessUnitId: z.string().uuid(),
+  exchangeRate: exchangeRateString.default("1"),
+  depositDate: dateField.optional(), // route defaults to now() when absent
   notes: z.string().max(2000).optional().nullable(),
 });
 
@@ -120,6 +137,8 @@ export const updateDepositSchema = z.object({
   currencyId: z.string().uuid().optional(),
   amountOriginal: decimalString.optional(),
   businessUnitId: z.string().uuid().optional(),
+  exchangeRate: exchangeRateString.optional(),
+  depositDate: dateField.optional(),
   notes: z.string().max(2000).optional().nullable(),
 });
 

@@ -144,6 +144,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           amountOriginal: validation.data.amountOriginal,
           // Set remainingOriginal = amountOriginal on creation
           remainingOriginal: validation.data.amountOriginal,
+          exchangeRate: validation.data.exchangeRate,
+          // Default to now() when the client omits the date
+          depositDate: validation.data.depositDate ?? new Date(),
           notes: validation.data.notes?.trim() || null,
         },
         include: {
@@ -151,13 +154,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           businessUnit: { select: { id: true, code: true, name: true } },
         },
       });
+      // Audit the PERSISTED record (not validation.data): when depositDate is omitted
+      // the row stores now(), which validation.data would not capture.
       await createAuditLog(
         tx,
         session.user.id!,
         "CREATE",
         "Deposit",
         created.id,
-        validation.data as Record<string, unknown>,
+        {
+          partyId,
+          currencyId: created.currencyId,
+          businessUnitId: created.businessUnitId,
+          amountOriginal: created.amountOriginal.toString(),
+          exchangeRate: created.exchangeRate.toString(),
+          depositDate: created.depositDate.toISOString(),
+          notes: created.notes,
+        },
       );
       return created;
     });
